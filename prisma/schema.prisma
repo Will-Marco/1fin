@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  FOUNDER
+  ADMIN
+  EMPLOYEE
+  CLIENT
+}
+
+enum DepartmentType {
+  GENERAL_CHAT
+  BANK_PAYMENT
+  CONTRACT
+  INVOICE
+  POWER_OF_ATTORNEY
+  WAYBILL
+  RECONCILIATION
+  HR
+  COMPANY_INFO
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum FileStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String?  @unique
+  password  String
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  avatar    String?
+  role      Role     @default(EMPLOYEE)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  companies       CompanyUser[]
+  sessions        Session[]
+  sentMessages    Message[]      @relation("SentMessages")
+  files           File[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  inn         String   @unique
+  logo        String?
+  requisites  Json?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users                CompanyUser[]
+  departments          Department[]
+  departmentSettings   DepartmentSetting[]
+
+  @@map("companies")
+}
+
+model CompanyUser {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  companyId String   @map("company_id")
+  role      Role     @default(EMPLOYEE)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@map("company_users")
+}
+
+model Department {
+  id        String         @id @default(cuid())
+  companyId String         @map("company_id")
+  type      DepartmentType
+  isActive  Boolean        @default(true) @map("is_active")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  messages Message[]
+  files    File[]
+
+  @@unique([companyId, type])
+  @@map("departments")
+}
+
+model DepartmentSetting {
+  id            String         @id @default(cuid())
+  companyId     String         @map("company_id")
+  type          DepartmentType
+  displayName   String         @map("display_name")
+  manualCount   Int?           @map("manual_count")
+  isEnabled     Boolean        @default(true) @map("is_enabled")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, type])
+  @@map("department_settings")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  deviceName   String   @map("device_name")
+  deviceType   String   @map("device_type")
+  refreshToken String   @map("refresh_token")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  lastActiveAt DateTime @default(now()) @map("last_active_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Message {
+  id           String        @id @default(cuid())
+  departmentId String        @map("department_id")
+  senderId     String        @map("sender_id")
+  content      String?
+  isDeleted    Boolean       @default(false) @map("is_deleted")
+  deletedAt    DateTime?     @map("deleted_at")
+  deletedBy    String?       @map("deleted_by")
+  isEdited     Boolean       @default(false) @map("is_edited")
+  parentId     String?       @map("parent_id")
+  status       MessageStatus @default(SENT)
+  isOutgoing   Boolean       @default(true) @map("is_outgoing")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  department Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sender     User             @relation("SentMessages", fields: [senderId], references: [id])
+  parent     Message?         @relation("MessageVersions", fields: [parentId], references: [id])
+  versions   Message[]        @relation("MessageVersions")
+  files      File[]
+  forwards   MessageForward[]
+
+  @@map("messages")
+}
+
+model MessageForward {
+  id                   String   @id @default(cuid())
+  messageId            String   @map("message_id")
+  fromDepartmentId     String   @map("from_department_id")
+  toDepartmentId       String   @map("to_department_id")
+  forwardedBy          String   @map("forwarded_by")
+  documentNumber       String?  @map("document_number")
+  note                 String?
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_forwards")
+}
+
+model File {
+  id             String     @id @default(cuid())
+  departmentId   String     @map("department_id")
+  messageId      String?    @map("message_id")
+  uploadedBy     String     @map("uploaded_by")
+  fileName       String     @map("file_name")
+  fileSize       Int        @map("file_size")
+  mimeType       String     @map("mime_type")
+  s3Key          String     @map("s3_key")
+  documentNumber String?    @map("document_number")
+  reminderDate   DateTime?  @map("reminder_date")
+  status         FileStatus @default(PENDING)
+  acceptedBy     String?    @map("accepted_by")
+  acceptedAt     DateTime?  @map("accepted_at")
+  rejectedBy     String?    @map("rejected_by")
+  rejectedAt     DateTime?  @map("rejected_at")
+  isOutgoing     Boolean    @default(true) @map("is_outgoing")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  message    Message?   @relation(fields: [messageId], references: [id])
+  uploader   User       @relation(fields: [uploadedBy], references: [id])
+
+  @@map("files")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model ActionLog {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  companyId  String?  @map("company_id")
+  action     String
+  entity     String
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("action_logs")
+}
+
+// ============================================
+// ARCHIVE TABLES (for messages older than 3 months)
+// ============================================
+
+model MessageArchive {
+  id           String        @id
+  departmentId String        @map("department_id")
+  senderId     String        @map("sender_id")
+  content      String?
+  isDeleted    Boolean       @map("is_deleted")
+  deletedAt    DateTime?     @map("deleted_at")
+  deletedBy    String?       @map("deleted_by")
+  isEdited     Boolean       @map("is_edited")
+  parentId     String?       @map("parent_id")
+  status       MessageStatus
+  isOutgoing   Boolean       @map("is_outgoing")
+  createdAt    DateTime      @map("created_at")
+  archivedAt   DateTime      @default(now()) @map("archived_at")
+
+  @@map("messages_archive")
+}
