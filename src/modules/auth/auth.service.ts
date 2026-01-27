@@ -1,12 +1,13 @@
 import {
   Injectable,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
-import { LoginDto } from './dto';
+import { LoginDto, ChangePasswordDto, UpdateProfileDto } from './dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { MAX_SESSIONS_PER_USER } from '../../common/constants';
 import { Role } from '../../../generated/prisma/client';
@@ -111,6 +112,81 @@ export class AuthService {
     });
 
     return { message: 'Logged out from all devices' };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+        mustChangePassword: false,
+      },
+    });
+
+    return { message: 'Password changed successfully' };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        phone: true,
+        avatar: true,
+        role: true,
+      },
+    });
+
+    return updated;
+  }
+
+  async updateAvatar(userId: string, avatarPath: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarPath },
+    });
+
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        phone: true,
+        avatar: true,
+        role: true,
+      },
+    });
   }
 
   async getSessions(userId: string) {
