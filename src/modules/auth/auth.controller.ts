@@ -16,7 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
+import { LoginDto, RefreshTokenDto } from './dto';
 import { JwtAuthGuard, JwtRefreshGuard } from './guards';
 import { CurrentUser } from '../../common/decorators';
 
@@ -24,17 +24,6 @@ import { CurrentUser } from '../../common/decorators';
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
-
-  @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
-  @ApiResponse({ status: 409, description: 'Email already exists' })
-  async register(@Body() dto: RegisterDto, @Req() req: Request) {
-    const ipAddress = req.ip;
-    const userAgent = req.headers['user-agent'];
-
-    return this.authService.register(dto, ipAddress, userAgent);
-  }
 
   @Post('login')
   @ApiOperation({ summary: 'Login user' })

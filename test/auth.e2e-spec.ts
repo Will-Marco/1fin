@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
+import * as bcrypt from 'bcrypt';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -10,8 +11,26 @@ describe('AuthController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
 
-  const testPhone = '+998901234567';
+  const testUsername = 'testadmin';
   const testPassword = 'password123';
+  const testName = 'Test Admin';
+
+  async function createTestUser(
+    username = testUsername,
+    password = testPassword,
+    name = testName,
+    role: string = 'ADMIN',
+  ) {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    return prisma.user.create({
+      data: {
+        username,
+        password: hashedPassword,
+        name,
+        role: role as any,
+      },
+    });
+  }
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -41,117 +60,66 @@ describe('AuthController (e2e)', () => {
     await app.close();
   });
 
-  describe('/api/v1/auth/register (POST)', () => {
+  describe('/api/v1/auth/login (POST)', () => {
     beforeEach(async () => {
       await prisma.session.deleteMany({});
       await prisma.user.deleteMany({});
-    });
-
-    it('should register a new user', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
-          deviceName: 'Test Device',
-          deviceType: 'desktop',
-        })
-        .expect(201);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.user.phone).toBe(testPhone);
-      expect(response.body.data.accessToken).toBeDefined();
-      expect(response.body.data.refreshToken).toBeDefined();
-    });
-
-    it('should fail with invalid phone format', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          phone: 'invalid-phone',
-          password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
-          deviceName: 'Test Device',
-          deviceType: 'desktop',
-        })
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-    });
-
-    it('should fail with duplicate phone', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
-          deviceName: 'Test Device',
-          deviceType: 'desktop',
-        });
-
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          firstName: 'Jane',
-          lastName: 'Doe',
-          deviceName: 'Test Device 2',
-          deviceType: 'mobile',
-        })
-        .expect(409);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toBe('Phone number already exists');
-    });
-  });
-
-  describe('/api/v1/auth/login (POST)', () => {
-    beforeAll(async () => {
-      await prisma.session.deleteMany({});
-      await prisma.user.deleteMany({});
-
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
-          deviceName: 'Test Device',
-          deviceType: 'desktop',
-        });
+      await createTestUser();
     });
 
     it('should login with valid credentials', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({
-          phone: testPhone,
+          username: testUsername,
           password: testPassword,
-          deviceName: 'Login Device',
-          deviceType: 'mobile',
+          deviceName: 'Test Device',
+          deviceType: 'desktop',
         })
         .expect(201);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.user.phone).toBe(testPhone);
+      expect(response.body.data.user.username).toBe(testUsername);
+      expect(response.body.data.user.name).toBe(testName);
       expect(response.body.data.accessToken).toBeDefined();
+      expect(response.body.data.refreshToken).toBeDefined();
+    });
+
+    it('should return mustChangePassword flag', async () => {
+      await prisma.user.deleteMany({});
+      const hashedPassword = await bcrypt.hash(testPassword, 10);
+      await prisma.user.create({
+        data: {
+          username: 'tempuser',
+          password: hashedPassword,
+          name: 'Temp User',
+          role: 'OPERATOR',
+          mustChangePassword: true,
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          username: 'tempuser',
+          password: testPassword,
+          deviceName: 'Test Device',
+          deviceType: 'desktop',
+        })
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.user.mustChangePassword).toBe(true);
     });
 
     it('should fail with wrong password', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({
-          phone: testPhone,
+          username: testUsername,
           password: 'wrongpassword',
-          deviceName: 'Login Device',
-          deviceType: 'mobile',
+          deviceName: 'Test Device',
+          deviceType: 'desktop',
         })
         .expect(401);
 
@@ -159,19 +127,30 @@ describe('AuthController (e2e)', () => {
       expect(response.body.message).toBe('Invalid credentials');
     });
 
-    it('should fail with non-existent phone', async () => {
+    it('should fail with non-existent username', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({
-          phone: '+998909999999',
+          username: 'nonexistent',
           password: testPassword,
-          deviceName: 'Login Device',
-          deviceType: 'mobile',
+          deviceName: 'Test Device',
+          deviceType: 'desktop',
         })
         .expect(401);
 
       expect(response.body.success).toBe(false);
       expect(response.body.message).toBe('Invalid credentials');
+    });
+
+    it('should fail with missing fields', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          username: testUsername,
+        })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
     });
   });
 
@@ -181,19 +160,18 @@ describe('AuthController (e2e)', () => {
     beforeAll(async () => {
       await prisma.session.deleteMany({});
       await prisma.user.deleteMany({});
+      await createTestUser();
 
-      const registerResponse = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
+      const loginResponse = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
         .send({
-          phone: testPhone,
+          username: testUsername,
           password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
           deviceName: 'Test Device',
           deviceType: 'desktop',
         });
 
-      accessToken = registerResponse.body.data.accessToken;
+      accessToken = loginResponse.body.data.accessToken;
     });
 
     it('should return current user profile', async () => {
@@ -203,8 +181,8 @@ describe('AuthController (e2e)', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.phone).toBe(testPhone);
-      expect(response.body.data.firstName).toBe('John');
+      expect(response.body.data.username).toBe(testUsername);
+      expect(response.body.data.name).toBe(testName);
     });
 
     it('should fail without token', async () => {
@@ -225,24 +203,23 @@ describe('AuthController (e2e)', () => {
     beforeAll(async () => {
       await prisma.session.deleteMany({});
       await prisma.user.deleteMany({});
+      await createTestUser();
 
-      const registerResponse = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
+      const loginResponse = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
         .send({
-          phone: testPhone,
+          username: testUsername,
           password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
           deviceName: 'Device 1',
           deviceType: 'desktop',
         });
 
-      accessToken = registerResponse.body.data.accessToken;
+      accessToken = loginResponse.body.data.accessToken;
 
       await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({
-          phone: testPhone,
+          username: testUsername,
           password: testPassword,
           deviceName: 'Device 2',
           deviceType: 'mobile',
@@ -266,19 +243,18 @@ describe('AuthController (e2e)', () => {
     beforeEach(async () => {
       await prisma.session.deleteMany({});
       await prisma.user.deleteMany({});
+      await createTestUser();
 
-      const registerResponse = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
+      const loginResponse = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
         .send({
-          phone: testPhone,
+          username: testUsername,
           password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
           deviceName: 'Test Device',
           deviceType: 'desktop',
         });
 
-      accessToken = registerResponse.body.data.accessToken;
+      accessToken = loginResponse.body.data.accessToken;
     });
 
     it('should logout successfully', async () => {
@@ -301,46 +277,25 @@ describe('AuthController (e2e)', () => {
     beforeEach(async () => {
       await prisma.session.deleteMany({});
       await prisma.user.deleteMany({});
-
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          firstName: 'John',
-          lastName: 'Doe',
-          deviceName: 'Device 1',
-          deviceType: 'desktop',
-        });
+      await createTestUser();
     });
 
     it('should remove oldest session when 4th device logs in', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/login')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          deviceName: 'Device 2',
-          deviceType: 'mobile',
-        });
+      const login = (deviceName: string, deviceType: string) =>
+        request(app.getHttpServer())
+          .post('/api/v1/auth/login')
+          .send({
+            username: testUsername,
+            password: testPassword,
+            deviceName,
+            deviceType,
+          });
 
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/login')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          deviceName: 'Device 3',
-          deviceType: 'tablet',
-        });
+      await login('Device 1', 'desktop');
+      await login('Device 2', 'mobile');
+      await login('Device 3', 'tablet');
 
-      const fourthLoginResponse = await request(app.getHttpServer())
-        .post('/api/v1/auth/login')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          deviceName: 'Device 4',
-          deviceType: 'desktop',
-        });
+      const fourthLoginResponse = await login('Device 4', 'desktop');
 
       const sessionsResponse = await request(app.getHttpServer())
         .get('/api/v1/auth/sessions')

@@ -8,7 +8,6 @@ describe('AuthController', () => {
   let authService: AuthService;
 
   const mockAuthService = {
-    register: jest.fn(),
     login: jest.fn(),
     refreshTokens: jest.fn(),
     logout: jest.fn(),
@@ -28,51 +27,10 @@ describe('AuthController', () => {
     jest.clearAllMocks();
   });
 
-  describe('register', () => {
-    it('should register a new user', async () => {
-      const registerDto = {
-        phone: '+998901234567',
-        password: 'password123',
-        firstName: 'John',
-        lastName: 'Doe',
-        deviceName: 'iPhone 15',
-        deviceType: 'mobile',
-      };
-
-      const expectedResult = {
-        user: {
-          id: 'user-id',
-          phone: registerDto.phone,
-          firstName: registerDto.firstName,
-          lastName: registerDto.lastName,
-          role: Role.EMPLOYEE,
-        },
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-      };
-
-      mockAuthService.register.mockResolvedValue(expectedResult);
-
-      const mockRequest = {
-        ip: '127.0.0.1',
-        headers: { 'user-agent': 'Test Agent' },
-      } as any;
-
-      const result = await controller.register(registerDto, mockRequest);
-
-      expect(result).toEqual(expectedResult);
-      expect(authService.register).toHaveBeenCalledWith(
-        registerDto,
-        '127.0.0.1',
-        'Test Agent',
-      );
-    });
-  });
-
   describe('login', () => {
     it('should login user', async () => {
       const loginDto = {
-        phone: '+998901234567',
+        username: 'admin01',
         password: 'password123',
         deviceName: 'iPhone 15',
         deviceType: 'mobile',
@@ -81,10 +39,10 @@ describe('AuthController', () => {
       const expectedResult = {
         user: {
           id: 'user-id',
-          phone: loginDto.phone,
-          firstName: 'John',
-          lastName: 'Doe',
-          role: Role.EMPLOYEE,
+          username: loginDto.username,
+          name: 'Admin User',
+          role: Role.ADMIN,
+          mustChangePassword: false,
         },
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
@@ -193,10 +151,9 @@ describe('AuthController', () => {
     it('should return current user profile', async () => {
       const mockUser = {
         id: 'user-id',
-        phone: '+998901234567',
-        firstName: 'John',
-        lastName: 'Doe',
-        role: Role.EMPLOYEE,
+        username: 'admin01',
+        name: 'Admin User',
+        role: Role.ADMIN,
         sessionId: 'session-id',
       };
 

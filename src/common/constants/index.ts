@@ -1,15 +1,17 @@
 export const MAX_SESSIONS_PER_USER = 3;
 
-export const DEPARTMENT_DISPLAY_NAMES: Record<string, string> = {
-  GENERAL_CHAT: 'Umumiy chat',
-  BANK_PAYMENT: "Bank to'lovlari",
-  CONTRACT: 'Shartnomalar',
-  INVOICE: 'Hisob-faktura',
-  POWER_OF_ATTORNEY: 'Ishonchnoma',
-  WAYBILL: 'Yuk xati (TTN)',
-  RECONCILIATION: 'Akt sverka',
-  HR: "Kadrlar bo'limi",
-  COMPANY_INFO: "Korxona ma'lumotlari",
-};
+export const DEFAULT_PASSWORD = '1fin123';
+
+export const DEFAULT_DEPARTMENTS = [
+  { name: 'Umumiy chat', slug: 'general-chat' },
+  { name: "Bank to'lovlari", slug: 'bank-payment' },
+  { name: 'Shartnomalar', slug: 'contract' },
+  { name: 'Hisob-faktura', slug: 'invoice' },
+  { name: 'Ishonchnoma', slug: 'power-of-attorney' },
+  { name: 'Yuk xati (TTN)', slug: 'waybill' },
+  { name: 'Akt sverka', slug: 'reconciliation' },
+  { name: "Kadrlar bo'limi", slug: 'hr' },
+  { name: "Korxona ma'lumotlari", slug: 'company-info' },
+];
 
 export const MESSAGE_ARCHIVE_MONTHS = 3;

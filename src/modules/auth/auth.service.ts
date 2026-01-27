@@ -1,13 +1,12 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
-import { LoginDto, RegisterDto } from './dto';
+import { LoginDto } from './dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { MAX_SESSIONS_PER_USER } from '../../common/constants';
 import { Role } from '../../../generated/prisma/client';
@@ -20,50 +19,9 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto, ipAddress?: string, userAgent?: string) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { phone: dto.phone },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Phone number already exists');
-    }
-
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-
-    const user = await this.prisma.user.create({
-      data: {
-        phone: dto.phone,
-        password: hashedPassword,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-      },
-    });
-
-    const tokens = await this.createSession(
-      user.id,
-      user.role,
-      dto.deviceName,
-      dto.deviceType,
-      ipAddress,
-      userAgent,
-    );
-
-    return {
-      user: {
-        id: user.id,
-        phone: user.phone,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
-      ...tokens,
-    };
-  }
-
   async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {
     const user = await this.prisma.user.findUnique({
-      where: { phone: dto.phone },
+      where: { username: dto.username },
     });
 
     if (!user) {
@@ -92,10 +50,10 @@ export class AuthService {
     return {
       user: {
         id: user.id,
-        phone: user.phone,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        username: user.username,
+        name: user.name,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
       ...tokens,
     };

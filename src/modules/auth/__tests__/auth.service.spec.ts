@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth.service';
 import { PrismaService } from '../../../database/prisma.service';
@@ -11,13 +11,10 @@ jest.mock('bcrypt');
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prismaService: PrismaService;
-  let jwtService: JwtService;
 
   const mockPrismaService = {
     user: {
       findUnique: jest.fn(),
-      create: jest.fn(),
     },
     session: {
       findMany: jest.fn(),
@@ -56,76 +53,13 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    jwtService = module.get<JwtService>(JwtService);
 
     jest.clearAllMocks();
   });
 
-  describe('register', () => {
-    const registerDto = {
-      phone: '+998901234567',
-      password: 'password123',
-      firstName: 'John',
-      lastName: 'Doe',
-      deviceName: 'iPhone 15',
-      deviceType: 'mobile',
-    };
-
-    it('should register a new user successfully', async () => {
-      const mockUser = {
-        id: 'user-id',
-        phone: registerDto.phone,
-        firstName: registerDto.firstName,
-        lastName: registerDto.lastName,
-        role: Role.EMPLOYEE,
-      };
-
-      const mockSession = {
-        id: 'session-id',
-        userId: mockUser.id,
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-      mockPrismaService.user.create.mockResolvedValue(mockUser);
-      mockPrismaService.session.findMany.mockResolvedValue([]);
-      mockPrismaService.session.create.mockResolvedValue(mockSession);
-      mockPrismaService.session.update.mockResolvedValue(mockSession);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-      mockJwtService.signAsync
-        .mockResolvedValueOnce('access-token')
-        .mockResolvedValueOnce('refresh-token');
-
-      const result = await service.register(registerDto);
-
-      expect(result.user.phone).toBe(registerDto.phone);
-      expect(result.accessToken).toBe('access-token');
-      expect(result.refreshToken).toBe('refresh-token');
-      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
-        data: {
-          phone: registerDto.phone,
-          password: 'hashed-password',
-          firstName: registerDto.firstName,
-          lastName: registerDto.lastName,
-        },
-      });
-    });
-
-    it('should throw ConflictException if phone already exists', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'existing-user' });
-
-      await expect(service.register(registerDto)).rejects.toThrow(
-        ConflictException,
-      );
-      await expect(service.register(registerDto)).rejects.toThrow(
-        'Phone number already exists',
-      );
-    });
-  });
-
   describe('login', () => {
     const loginDto = {
-      phone: '+998901234567',
+      username: 'admin01',
       password: 'password123',
       deviceName: 'iPhone 15',
       deviceType: 'mobile',
@@ -133,12 +67,12 @@ describe('AuthService', () => {
 
     const mockUser = {
       id: 'user-id',
-      phone: loginDto.phone,
+      username: loginDto.username,
       password: 'hashed-password',
-      firstName: 'John',
-      lastName: 'Doe',
-      role: Role.EMPLOYEE,
+      name: 'Admin User',
+      role: Role.ADMIN,
       isActive: true,
+      mustChangePassword: false,
     };
 
     it('should login successfully with valid credentials', async () => {
@@ -159,9 +93,28 @@ describe('AuthService', () => {
 
       const result = await service.login(loginDto);
 
-      expect(result.user.phone).toBe(loginDto.phone);
+      expect(result.user.username).toBe(loginDto.username);
+      expect(result.user.name).toBe('Admin User');
+      expect(result.user.role).toBe(Role.ADMIN);
       expect(result.accessToken).toBe('access-token');
       expect(result.refreshToken).toBe('refresh-token');
+    });
+
+    it('should return mustChangePassword flag', async () => {
+      const userWithTempPassword = { ...mockUser, mustChangePassword: true };
+      const mockSession = { id: 'session-id', userId: mockUser.id };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(userWithTempPassword);
+      mockPrismaService.session.findMany.mockResolvedValue([]);
+      mockPrismaService.session.create.mockResolvedValue(mockSession);
+      mockPrismaService.session.update.mockResolvedValue(mockSession);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
+      mockJwtService.signAsync.mockResolvedValue('token');
+
+      const result = await service.login(loginDto);
+
+      expect(result.user.mustChangePassword).toBe(true);
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
@@ -195,6 +148,54 @@ describe('AuthService', () => {
         UnauthorizedException,
       );
       await expect(service.login(loginDto)).rejects.toThrow('Invalid credentials');
+    });
+  });
+
+  describe('refreshTokens', () => {
+    it('should refresh tokens successfully', async () => {
+      const mockSession = {
+        id: 'session-id',
+        userId: 'user-id',
+        refreshToken: 'hashed-refresh',
+        user: { id: 'user-id', role: Role.ADMIN },
+      };
+
+      mockPrismaService.session.findUnique.mockResolvedValue(mockSession);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed-refresh');
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('new-access-token')
+        .mockResolvedValueOnce('new-refresh-token');
+      mockPrismaService.session.update.mockResolvedValue({});
+
+      const result = await service.refreshTokens('user-id', 'session-id', 'old-refresh');
+
+      expect(result.accessToken).toBe('new-access-token');
+      expect(result.refreshToken).toBe('new-refresh-token');
+    });
+
+    it('should throw UnauthorizedException for invalid session', async () => {
+      mockPrismaService.session.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.refreshTokens('user-id', 'invalid-session', 'refresh'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException for invalid refresh token', async () => {
+      const mockSession = {
+        id: 'session-id',
+        userId: 'user-id',
+        refreshToken: 'hashed-refresh',
+        user: { id: 'user-id', role: Role.ADMIN },
+      };
+
+      mockPrismaService.session.findUnique.mockResolvedValue(mockSession);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.refreshTokens('user-id', 'session-id', 'wrong-refresh'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -259,21 +260,21 @@ describe('AuthService', () => {
 
   describe('session limit (max 3 devices)', () => {
     it('should remove oldest session when limit exceeded', async () => {
-      const registerDto = {
-        phone: '+998901234568',
+      const loginDto = {
+        username: 'testuser',
         password: 'password123',
-        firstName: 'Test',
-        lastName: 'User',
         deviceName: 'New Device',
         deviceType: 'mobile',
       };
 
       const mockUser = {
         id: 'user-id',
-        phone: registerDto.phone,
-        firstName: registerDto.firstName,
-        lastName: registerDto.lastName,
-        role: Role.EMPLOYEE,
+        username: loginDto.username,
+        password: 'hashed-password',
+        name: 'Test User',
+        role: Role.OPERATOR,
+        isActive: true,
+        mustChangePassword: false,
       };
 
       const existingSessions = [
@@ -282,8 +283,8 @@ describe('AuthService', () => {
         { id: 'session-3', createdAt: new Date('2024-01-03') },
       ];
 
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockPrismaService.session.findMany.mockResolvedValue(existingSessions);
       mockPrismaService.session.deleteMany.mockResolvedValue({ count: 1 });
       mockPrismaService.session.create.mockResolvedValue({
@@ -294,7 +295,7 @@ describe('AuthService', () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
       mockJwtService.signAsync.mockResolvedValue('token');
 
-      await service.register(registerDto);
+      await service.login(loginDto);
 
       expect(mockPrismaService.session.deleteMany).toHaveBeenCalledWith({
         where: {

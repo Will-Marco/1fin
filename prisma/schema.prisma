@@ -12,22 +12,12 @@ datasource db {
 // ============================================
 
 enum Role {
-  FOUNDER
+  SUPER_ADMIN
   ADMIN
+  OPERATOR
+  FOUNDER
+  DIRECTOR
   EMPLOYEE
-  CLIENT
-}
-
-enum DepartmentType {
-  GENERAL_CHAT
-  BANK_PAYMENT
-  CONTRACT
-  INVOICE
-  POWER_OF_ATTORNEY
-  WAYBILL
-  RECONCILIATION
-  HR
-  COMPANY_INFO
 }
 
 enum MessageStatus {
@@ -47,50 +37,70 @@ enum FileStatus {
 // ============================================
 
 model User {
+  id                 String   @id @default(cuid())
+  username           String   @unique
+  password           String
+  name               String
+  phone              String?
+  avatar             String?
+  role               Role
+  workerTypeId       String?  @map("worker_type_id")
+  mustChangePassword Boolean  @default(false) @map("must_change_password")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workerType        WorkerType?       @relation(fields: [workerTypeId], references: [id])
+  userCompanies     UserCompany[]
+  operatorCompanies OperatorCompany[]
+  sessions          Session[]
+  sentMessages      Message[]         @relation("SentMessages")
+  files             File[]
+  notifications     Notification[]
+  departmentMembers DepartmentMember[]
+
+  @@map("users")
+}
+
+model WorkerType {
   id        String   @id @default(cuid())
-  phone     String   @unique
-  password  String
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  avatar    String?
-  role      Role     @default(EMPLOYEE)
+  name      String   @unique
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  companies       CompanyUser[]
-  sessions        Session[]
-  sentMessages    Message[]      @relation("SentMessages")
-  files           File[]
-  notifications   Notification[]
+  users User[]
 
-  @@map("users")
+  @@map("worker_types")
 }
 
 model Company {
-  id          String   @id @default(cuid())
-  name        String
-  inn         String   @unique
-  logo        String?
-  requisites  Json?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  name      String
+  inn       String?  @unique
+  logo      String?
+  address   String?
+  requisites Json?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdById String @map("created_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  users                CompanyUser[]
-  departments          Department[]
-  departmentSettings   DepartmentSetting[]
+  userCompanies     UserCompany[]
+  operatorCompanies OperatorCompany[]
+  departments       Department[]
 
   @@map("companies")
 }
 
-model CompanyUser {
+// FOUNDER, DIRECTOR, EMPLOYEE → kompaniyaga bog'lanish
+model UserCompany {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
   companyId String   @map("company_id")
-  role      Role     @default(EMPLOYEE)
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -100,41 +110,60 @@ model CompanyUser {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, companyId])
-  @@map("company_users")
+  @@map("user_companies")
+}
+
+// OPERATOR → kompaniyalarga xizmat ko'rsatish
+model OperatorCompany {
+  id         String   @id @default(cuid())
+  operatorId String   @map("operator_id")
+  companyId  String   @map("company_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  operator User    @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([operatorId, companyId])
+  @@map("operator_companies")
 }
 
 model Department {
-  id        String         @id @default(cuid())
-  companyId String         @map("company_id")
-  type      DepartmentType
-  isActive  Boolean        @default(true) @map("is_active")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  name      String
+  slug      String
+  isDefault Boolean  @default(false) @map("is_default")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  members  DepartmentMember[]
   messages Message[]
   files    File[]
 
-  @@unique([companyId, type])
+  @@unique([companyId, slug])
   @@map("departments")
 }
 
-model DepartmentSetting {
-  id            String         @id @default(cuid())
-  companyId     String         @map("company_id")
-  type          DepartmentType
-  displayName   String         @map("display_name")
-  manualCount   Int?           @map("manual_count")
-  isEnabled     Boolean        @default(true) @map("is_enabled")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+model DepartmentMember {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  departmentId String   @map("department_id")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
-  @@unique([companyId, type])
-  @@map("department_settings")
+  @@unique([userId, departmentId])
+  @@map("department_members")
 }
 
 model Session {
@@ -181,14 +210,14 @@ model Message {
 }
 
 model MessageForward {
-  id                   String   @id @default(cuid())
-  messageId            String   @map("message_id")
-  fromDepartmentId     String   @map("from_department_id")
-  toDepartmentId       String   @map("to_department_id")
-  forwardedBy          String   @map("forwarded_by")
-  documentNumber       String?  @map("document_number")
-  note                 String?
-  createdAt            DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  messageId        String   @map("message_id")
+  fromDepartmentId String   @map("from_department_id")
+  toDepartmentId   String   @map("to_department_id")
+  forwardedBy      String   @map("forwarded_by")
+  documentNumber   String?  @map("document_number")
+  note             String?
+  createdAt        DateTime @default(now()) @map("created_at")
 
   // Relations
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
@@ -225,14 +254,14 @@ model File {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
   title     String
   body      String
   data      Json?
-  isRead    Boolean  @default(false) @map("is_read")
+  isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -241,15 +270,15 @@ model Notification {
 }
 
 model ActionLog {
-  id         String   @id @default(cuid())
-  userId     String   @map("user_id")
-  companyId  String?  @map("company_id")
-  action     String
-  entity     String
-  entityId   String?  @map("entity_id")
-  details    Json?
-  ipAddress  String?  @map("ip_address")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  companyId String?  @map("company_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@map("action_logs")
 }

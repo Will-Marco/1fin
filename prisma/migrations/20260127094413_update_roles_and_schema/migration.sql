@@ -1,8 +1,5 @@
 -- CreateEnum
-CREATE TYPE "Role" AS ENUM ('FOUNDER', 'ADMIN', 'EMPLOYEE', 'CLIENT');
-
--- CreateEnum
-CREATE TYPE "DepartmentType" AS ENUM ('GENERAL_CHAT', 'BANK_PAYMENT', 'CONTRACT', 'INVOICE', 'POWER_OF_ATTORNEY', 'WAYBILL', 'RECONCILIATION', 'HR', 'COMPANY_INFO');
+CREATE TYPE "Role" AS ENUM ('SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'FOUNDER', 'DIRECTOR', 'EMPLOYEE');
 
 -- CreateEnum
 CREATE TYPE "MessageStatus" AS ENUM ('SENT', 'DELIVERED', 'READ');
@@ -13,13 +10,14 @@ CREATE TYPE "FileStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 -- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "phone" TEXT,
+    "username" TEXT NOT NULL,
     "password" TEXT NOT NULL,
-    "first_name" TEXT NOT NULL,
-    "last_name" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "phone" TEXT,
     "avatar" TEXT,
-    "role" "Role" NOT NULL DEFAULT 'EMPLOYEE',
+    "role" "Role" NOT NULL,
+    "worker_type_id" TEXT,
+    "must_change_password" BOOLEAN NOT NULL DEFAULT false,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -28,13 +26,26 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
+CREATE TABLE "worker_types" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "worker_types_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "companies" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "inn" TEXT NOT NULL,
+    "inn" TEXT,
     "logo" TEXT,
+    "address" TEXT,
     "requisites" JSONB,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_by_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -42,23 +53,36 @@ CREATE TABLE "companies" (
 );
 
 -- CreateTable
-CREATE TABLE "company_users" (
+CREATE TABLE "user_companies" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "company_id" TEXT NOT NULL,
-    "role" "Role" NOT NULL DEFAULT 'EMPLOYEE',
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "company_users_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "user_companies_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "operator_companies" (
+    "id" TEXT NOT NULL,
+    "operator_id" TEXT NOT NULL,
+    "company_id" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "operator_companies_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "departments" (
     "id" TEXT NOT NULL,
     "company_id" TEXT NOT NULL,
-    "type" "DepartmentType" NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -67,17 +91,15 @@ CREATE TABLE "departments" (
 );
 
 -- CreateTable
-CREATE TABLE "department_settings" (
+CREATE TABLE "department_members" (
     "id" TEXT NOT NULL,
-    "company_id" TEXT NOT NULL,
-    "type" "DepartmentType" NOT NULL,
-    "display_name" TEXT NOT NULL,
-    "manual_count" INTEGER,
-    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "user_id" TEXT NOT NULL,
+    "department_id" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "department_settings_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "department_members_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -201,34 +223,49 @@ CREATE TABLE "messages_archive" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_phone_key" ON "users"("phone");
+CREATE UNIQUE INDEX "worker_types_name_key" ON "worker_types"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "companies_inn_key" ON "companies"("inn");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "company_users_user_id_company_id_key" ON "company_users"("user_id", "company_id");
+CREATE UNIQUE INDEX "user_companies_user_id_company_id_key" ON "user_companies"("user_id", "company_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "departments_company_id_type_key" ON "departments"("company_id", "type");
+CREATE UNIQUE INDEX "operator_companies_operator_id_company_id_key" ON "operator_companies"("operator_id", "company_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "department_settings_company_id_type_key" ON "department_settings"("company_id", "type");
+CREATE UNIQUE INDEX "departments_company_id_slug_key" ON "departments"("company_id", "slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "department_members_user_id_department_id_key" ON "department_members"("user_id", "department_id");
 
 -- AddForeignKey
-ALTER TABLE "company_users" ADD CONSTRAINT "company_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_worker_type_id_fkey" FOREIGN KEY ("worker_type_id") REFERENCES "worker_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "company_users" ADD CONSTRAINT "company_users_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_companies" ADD CONSTRAINT "user_companies_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_companies" ADD CONSTRAINT "user_companies_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "operator_companies" ADD CONSTRAINT "operator_companies_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "operator_companies" ADD CONSTRAINT "operator_companies_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "departments" ADD CONSTRAINT "departments_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "department_settings" ADD CONSTRAINT "department_settings_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "department_members" ADD CONSTRAINT "department_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "department_members" ADD CONSTRAINT "department_members_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
