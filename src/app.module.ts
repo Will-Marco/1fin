@@ -13,6 +13,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { UsersModule } from './modules/users/users.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     CompaniesModule,
     UsersModule,
+    DepartmentsModule,
   ],
   controllers: [],
   providers: [],
