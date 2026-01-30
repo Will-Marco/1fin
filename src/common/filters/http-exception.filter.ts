@@ -1,7 +1,7 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -33,6 +33,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     }
+    console.error(exception);
 
     response.status(status).json({
       success: false,

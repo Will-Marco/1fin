@@ -1,11 +1,11 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
+import { DEFAULT_DEPARTMENTS } from '../../common/constants';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
-import { DEFAULT_DEPARTMENTS } from '../../common/constants';
 
 @Injectable()
 export class CompaniesService {
@@ -21,7 +21,7 @@ export class CompaniesService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const company = await this.prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
         data: {
           name: dto.name,
@@ -39,9 +39,10 @@ export class CompaniesService {
           isDefault: true,
         })),
       });
-
-      return this.findOne(company.id);
+      return company;
     });
+
+    return this.findOne(company.id);
   }
 
   async findAll(page = 1, limit = 20) {

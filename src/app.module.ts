@@ -14,6 +14,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { UsersModule } from './modules/users/users.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { QueuesModule } from './queues/queues.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { DepartmentsModule } from './modules/departments/departments.module';
     CompaniesModule,
     UsersModule,
     DepartmentsModule,
+    MessagesModule,
+    QueuesModule,
+    NotificationsModule,
+    JobsModule,
   ],
   controllers: [],
   providers: [],

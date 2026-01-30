@@ -32,6 +32,19 @@ enum FileStatus {
   REJECTED
 }
 
+enum MessageType {
+  TEXT
+  FILE
+  VOICE
+  DOCUMENT // tasdiqlash kerak bo'lgan hujjat
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -51,14 +64,15 @@ model User {
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   // Relations
-  workerType        WorkerType?       @relation(fields: [workerTypeId], references: [id])
-  userCompanies     UserCompany[]
-  operatorCompanies OperatorCompany[]
-  sessions          Session[]
-  sentMessages      Message[]         @relation("SentMessages")
-  files             File[]
-  notifications     Notification[]
-  departmentMembers DepartmentMember[]
+  workerType         WorkerType?        @relation(fields: [workerTypeId], references: [id])
+  userCompanies      UserCompany[]
+  operatorCompanies  OperatorCompany[]
+  sessions           Session[]
+  sentMessages       Message[]          @relation("SentMessages")
+  files              File[]
+  notifications      Notification[]
+  departmentMembers  DepartmentMember[]
+  approvedDocuments  DocumentApproval[] @relation("DocumentApprover")
 
   @@map("users")
 }
@@ -184,29 +198,67 @@ model Session {
 }
 
 model Message {
-  id           String        @id @default(cuid())
-  departmentId String        @map("department_id")
-  senderId     String        @map("sender_id")
-  content      String?
-  isDeleted    Boolean       @default(false) @map("is_deleted")
-  deletedAt    DateTime?     @map("deleted_at")
-  deletedBy    String?       @map("deleted_by")
-  isEdited     Boolean       @default(false) @map("is_edited")
-  parentId     String?       @map("parent_id")
-  status       MessageStatus @default(SENT)
-  isOutgoing   Boolean       @default(true) @map("is_outgoing")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  id            String        @id @default(cuid())
+  departmentId  String        @map("department_id")
+  senderId      String        @map("sender_id")
+  content       String?
+  type          MessageType   @default(TEXT)
+  voiceDuration Int?          @map("voice_duration") // sekundlarda (ovozli xabar uchun)
+  replyToId     String?       @map("reply_to_id")
+  isDeleted     Boolean       @default(false) @map("is_deleted")
+  deletedAt     DateTime?     @map("deleted_at")
+  deletedBy     String?       @map("deleted_by")
+  isEdited      Boolean       @default(false) @map("is_edited")
+  parentId      String?       @map("parent_id")
+  status        MessageStatus @default(SENT)
+  isOutgoing    Boolean       @default(true) @map("is_outgoing")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  department Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  sender     User             @relation("SentMessages", fields: [senderId], references: [id])
-  parent     Message?         @relation("MessageVersions", fields: [parentId], references: [id])
-  versions   Message[]        @relation("MessageVersions")
-  files      File[]
-  forwards   MessageForward[]
+  department       Department        @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sender           User              @relation("SentMessages", fields: [senderId], references: [id])
+  replyTo          Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies          Message[]         @relation("MessageReplies")
+  parent           Message?          @relation("MessageVersions", fields: [parentId], references: [id])
+  versions         Message[]         @relation("MessageVersions")
+  files            File[]
+  forwards         MessageForward[]
+  edits            MessageEdit[]
+  documentApproval DocumentApproval?
 
   @@map("messages")
+}
+
+model MessageEdit {
+  id        String   @id @default(cuid())
+  messageId String   @map("message_id")
+  content   String   // oldingi matn
+  editedAt  DateTime @default(now()) @map("edited_at")
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_edits")
+}
+
+model DocumentApproval {
+  id              String         @id @default(cuid())
+  messageId       String         @unique @map("message_id")
+  documentName    String         @map("document_name")
+  documentNumber  String         @map("document_number")
+  status          DocumentStatus @default(PENDING)
+  rejectionReason String?        @map("rejection_reason")
+  approvedBy      String?        @map("approved_by")
+  approvedAt      DateTime?      @map("approved_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  message  Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  approver User?   @relation("DocumentApprover", fields: [approvedBy], references: [id])
+
+  @@map("document_approvals")
 }
 
 model MessageForward {
