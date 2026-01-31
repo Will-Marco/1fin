@@ -181,10 +181,11 @@ export class MessagesService {
           files: {
             select: {
               id: true,
+              originalName: true,
               fileName: true,
               fileSize: true,
               mimeType: true,
-              s3Key: true,
+              path: true,
             },
           },
           documentApproval: {
@@ -233,10 +234,11 @@ export class MessagesService {
         files: {
           select: {
             id: true,
+            originalName: true,
             fileName: true,
             fileSize: true,
             mimeType: true,
-            s3Key: true,
+            path: true,
           },
         },
         documentApproval: {

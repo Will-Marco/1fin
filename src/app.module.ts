@@ -18,6 +18,7 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { QueuesModule } from './queues/queues.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { JobsModule } from './jobs/jobs.module';
+import { FilesModule } from './modules/files/files.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { JobsModule } from './jobs/jobs.module';
     QueuesModule,
     NotificationsModule,
     JobsModule,
+    FilesModule,
   ],
   controllers: [],
   providers: [],
