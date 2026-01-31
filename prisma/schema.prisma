@@ -352,19 +352,60 @@ model ActionLog {
 // ============================================
 
 model MessageArchive {
-  id           String        @id
-  departmentId String        @map("department_id")
-  senderId     String        @map("sender_id")
-  content      String?
-  isDeleted    Boolean       @map("is_deleted")
-  deletedAt    DateTime?     @map("deleted_at")
-  deletedBy    String?       @map("deleted_by")
-  isEdited     Boolean       @map("is_edited")
-  parentId     String?       @map("parent_id")
-  status       MessageStatus
-  isOutgoing   Boolean       @map("is_outgoing")
-  createdAt    DateTime      @map("created_at")
-  archivedAt   DateTime      @default(now()) @map("archived_at")
+  id            String        @id
+  departmentId  String        @map("department_id")
+  senderId      String        @map("sender_id")
+  content       String?
+  type          MessageType
+  voiceDuration Int?          @map("voice_duration")
+  replyToId     String?       @map("reply_to_id")
+  isDeleted     Boolean       @map("is_deleted")
+  deletedAt     DateTime?     @map("deleted_at")
+  deletedBy     String?       @map("deleted_by")
+  isEdited      Boolean       @map("is_edited")
+  parentId      String?       @map("parent_id")
+  status        MessageStatus
+  isOutgoing    Boolean       @map("is_outgoing")
+  createdAt     DateTime      @map("created_at")
+  archivedAt    DateTime      @default(now()) @map("archived_at")
 
   @@map("messages_archive")
+}
+
+model FileArchive {
+  id             String     @id
+  departmentId   String?    @map("department_id")
+  messageId      String?    @map("message_id")
+  uploadedBy     String     @map("uploaded_by")
+  originalName   String     @map("original_name")
+  fileName       String     @map("file_name")
+  fileSize       Int        @map("file_size")
+  mimeType       String     @map("mime_type")
+  fileType       FileType   @map("file_type")
+  path           String
+  documentNumber String?    @map("document_number")
+  status         FileStatus
+  isOutgoing     Boolean    @map("is_outgoing")
+  isDeleted      Boolean    @map("is_deleted")
+  deletedAt      DateTime?  @map("deleted_at")
+  deletedBy      String?    @map("deleted_by")
+  createdAt      DateTime   @map("created_at")
+  archivedAt     DateTime   @default(now()) @map("archived_at")
+
+  @@map("files_archive")
+}
+
+model DocumentApprovalArchive {
+  id              String         @id
+  messageId       String         @map("message_id")
+  documentName    String         @map("document_name")
+  documentNumber  String         @map("document_number")
+  status          DocumentStatus
+  rejectionReason String?        @map("rejection_reason")
+  approvedBy      String?        @map("approved_by")
+  approvedAt      DateTime?      @map("approved_at")
+  createdAt       DateTime       @map("created_at")
+  archivedAt      DateTime       @default(now()) @map("archived_at")
+
+  @@map("document_approvals_archive")
 }

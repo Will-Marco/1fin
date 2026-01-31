@@ -19,6 +19,7 @@ import { QueuesModule } from './queues/queues.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { JobsModule } from './jobs/jobs.module';
 import { FilesModule } from './modules/files/files.module';
+import { ArchiveModule } from './modules/archive/archive.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { FilesModule } from './modules/files/files.module';
     NotificationsModule,
     JobsModule,
     FilesModule,
+    ArchiveModule,
   ],
   controllers: [],
   providers: [],
