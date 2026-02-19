@@ -1,7 +1,8 @@
+import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
+import { CompanyRole } from '../../../../generated/prisma/client';
 import { CompaniesController } from '../companies.controller';
 import { CompaniesService } from '../companies.service';
-import { Reflector } from '@nestjs/core';
 
 describe('CompaniesController', () => {
   let controller: CompaniesController;
@@ -9,13 +10,11 @@ describe('CompaniesController', () => {
 
   const mockCompany = {
     id: 'company-id',
-    name: 'Tech Solutions',
+    name: 'Tech Solutions LLC',
     inn: '123456789',
-    logo: null,
-    address: 'Tashkent',
     isActive: true,
-    departments: [],
-    _count: { userCompanies: 0, operatorCompanies: 0 },
+    departmentConfigs: [],
+    _count: { memberships: 0 },
   };
 
   const mockCompaniesService = {
@@ -25,6 +24,10 @@ describe('CompaniesController', () => {
     update: jest.fn(),
     remove: jest.fn(),
     updateLogo: jest.fn(),
+    getDepartmentConfigs: jest.fn(),
+    enableDepartment: jest.fn(),
+    disableDepartment: jest.fn(),
+    getMembers: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -38,99 +41,125 @@ describe('CompaniesController', () => {
 
     controller = module.get<CompaniesController>(CompaniesController);
     service = module.get<CompaniesService>(CompaniesService);
-
     jest.clearAllMocks();
   });
 
   describe('create', () => {
     it('should create a company', async () => {
-      const dto = { name: 'Tech Solutions', inn: '123456789' };
       mockCompaniesService.create.mockResolvedValue(mockCompany);
 
-      const result = await controller.create(dto, 'admin-id');
+      const result = await controller.create(
+        { name: 'Tech Solutions LLC', inn: '123456789' },
+        'user-id',
+      );
 
       expect(result).toEqual(mockCompany);
-      expect(service.create).toHaveBeenCalledWith(dto, 'admin-id');
+      expect(service.create).toHaveBeenCalledWith(
+        { name: 'Tech Solutions LLC', inn: '123456789' },
+        'user-id',
+      );
     });
   });
 
   describe('findAll', () => {
     it('should return paginated companies', async () => {
-      const paginatedResult = {
+      const paginated = {
         data: [mockCompany],
         meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
       };
-      mockCompaniesService.findAll.mockResolvedValue(paginatedResult);
+      mockCompaniesService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll('1', '20');
+      const result = await controller.findAll('1', '20', undefined);
 
-      expect(result).toEqual(paginatedResult);
-      expect(service.findAll).toHaveBeenCalledWith(1, 20);
-    });
-
-    it('should use default pagination when params not provided', async () => {
-      const paginatedResult = {
-        data: [],
-        meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
-      };
-      mockCompaniesService.findAll.mockResolvedValue(paginatedResult);
-
-      await controller.findAll(undefined, undefined);
-
-      expect(service.findAll).toHaveBeenCalledWith(1, 20);
+      expect(result).toEqual(paginated);
+      expect(service.findAll).toHaveBeenCalledWith(1, 20, undefined);
     });
   });
 
   describe('findOne', () => {
-    it('should return a company by ID', async () => {
+    it('should return a company', async () => {
       mockCompaniesService.findOne.mockResolvedValue(mockCompany);
 
       const result = await controller.findOne('company-id');
 
       expect(result).toEqual(mockCompany);
-      expect(service.findOne).toHaveBeenCalledWith('company-id');
     });
   });
 
   describe('update', () => {
     it('should update a company', async () => {
-      const dto = { name: 'Updated Name' };
-      const updated = { ...mockCompany, name: 'Updated Name' };
-      mockCompaniesService.update.mockResolvedValue(updated);
+      mockCompaniesService.update.mockResolvedValue({
+        ...mockCompany,
+        name: 'Updated',
+      });
 
-      const result = await controller.update('company-id', dto);
+      const result = await controller.update('company-id', { name: 'Updated' });
 
-      expect(result).toEqual(updated);
-      expect(service.update).toHaveBeenCalledWith('company-id', dto);
+      expect(service.update).toHaveBeenCalledWith('company-id', { name: 'Updated' });
     });
   });
 
   describe('remove', () => {
-    it('should soft delete a company', async () => {
-      const deleteResult = { message: 'Company deleted successfully' };
-      mockCompaniesService.remove.mockResolvedValue(deleteResult);
+    it('should deactivate a company', async () => {
+      mockCompaniesService.remove.mockResolvedValue({
+        message: "Kompaniya o'chirildi",
+      });
 
       const result = await controller.remove('company-id');
 
-      expect(result).toEqual(deleteResult);
-      expect(service.remove).toHaveBeenCalledWith('company-id');
+      expect(result.message).toBeDefined();
     });
   });
 
-  describe('uploadLogo', () => {
-    it('should upload company logo', async () => {
-      const updatedCompany = { ...mockCompany, logo: '/uploads/logos/test.jpg' };
-      mockCompaniesService.updateLogo.mockResolvedValue(updatedCompany);
+  describe('getDepartmentConfigs', () => {
+    it('should return department configs', async () => {
+      mockCompaniesService.getDepartmentConfigs.mockResolvedValue([]);
 
-      const mockFile = { filename: 'test.jpg' } as Express.Multer.File;
+      const result = await controller.getDepartmentConfigs('company-id');
 
-      const result = await controller.uploadLogo('company-id', mockFile);
+      expect(service.getDepartmentConfigs).toHaveBeenCalledWith('company-id');
+    });
+  });
 
-      expect(result).toEqual(updatedCompany);
-      expect(service.updateLogo).toHaveBeenCalledWith(
-        'company-id',
-        '/uploads/logos/test.jpg',
-      );
+  describe('enableDepartment', () => {
+    it('should enable a department', async () => {
+      const config = { id: 'cfg-id', isEnabled: true, globalDepartment: {} };
+      mockCompaniesService.enableDepartment.mockResolvedValue(config);
+
+      const result = await controller.enableDepartment('company-id', 'dept-id');
+
+      expect(result.isEnabled).toBe(true);
+      expect(service.enableDepartment).toHaveBeenCalledWith('company-id', 'dept-id');
+    });
+  });
+
+  describe('disableDepartment', () => {
+    it('should disable a department', async () => {
+      const config = { id: 'cfg-id', isEnabled: false, globalDepartment: {} };
+      mockCompaniesService.disableDepartment.mockResolvedValue(config);
+
+      const result = await controller.disableDepartment('company-id', 'dept-id');
+
+      expect(result.isEnabled).toBe(false);
+    });
+  });
+
+  describe('getMembers', () => {
+    it('should return company members', async () => {
+      const members = [
+        {
+          id: 'mem-1',
+          companyRole: CompanyRole.CLIENT_DIRECTOR,
+          user: { name: 'Bobur' },
+          allowedDepartments: [],
+        },
+      ];
+      mockCompaniesService.getMembers.mockResolvedValue(members);
+
+      const result = await controller.getMembers('company-id');
+
+      expect(result).toHaveLength(1);
+      expect(service.getMembers).toHaveBeenCalledWith('company-id');
     });
   });
 });

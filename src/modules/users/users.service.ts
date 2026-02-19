@@ -1,58 +1,34 @@
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-  ForbiddenException,
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { DEFAULT_PASSWORD } from '../../common/constants';
 import { PrismaService } from '../../database/prisma.service';
 import {
-  CreateUserDto,
-  UpdateUserDto,
-  AssignCompanyDto,
-  CreateWorkerTypeDto,
+    AssignMembershipDto,
+    CreateClientUserDto,
+    CreateSystemUserDto,
+    UpdateMembershipDto,
+    UpdateUserDto,
 } from './dto';
-import { DEFAULT_PASSWORD } from '../../common/constants';
-import { Role } from '../../../generated/prisma/client';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateUserDto, currentUserRole: Role) {
-    if (dto.role === Role.SUPER_ADMIN) {
-      throw new ForbiddenException('Cannot create SUPER_ADMIN user');
-    }
+  // ─────────────────────────────────────────────
+  // USER CRUD
+  // ─────────────────────────────────────────────
 
-    if (dto.role === Role.ADMIN && currentUserRole !== Role.SUPER_ADMIN) {
-      throw new ForbiddenException('Only SUPER_ADMIN can create ADMIN users');
-    }
-
-    const existing = await this.prisma.user.findUnique({
-      where: { username: dto.username },
-    });
-    if (existing) {
-      throw new ConflictException('Username already exists');
-    }
-
-    if (
-      (dto.role === Role.OPERATOR || dto.role === Role.EMPLOYEE) &&
-      !dto.workerTypeId
-    ) {
-      throw new BadRequestException(
-        'workerTypeId is required for OPERATOR and EMPLOYEE roles',
-      );
-    }
-
-    if (dto.workerTypeId) {
-      const workerType = await this.prisma.workerType.findUnique({
-        where: { id: dto.workerTypeId },
-      });
-      if (!workerType || !workerType.isActive) {
-        throw new NotFoundException('Worker type not found');
-      }
-    }
+  /**
+   * Create a 1FIN system user (FIN_DIRECTOR / FIN_ADMIN / FIN_EMPLOYEE).
+   * Called by FIN_DIRECTOR or FIN_ADMIN.
+   */
+  async createSystemUser(dto: CreateSystemUserDto) {
+    await this.ensureUsernameAvailable(dto.username);
 
     const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
@@ -62,8 +38,33 @@ export class UsersService {
         password: hashedPassword,
         name: dto.name,
         phone: dto.phone,
-        role: dto.role,
-        workerTypeId: dto.workerTypeId,
+        avatar: dto.avatar,
+        rank: dto.rank ?? 0,
+        systemRole: dto.systemRole,
+        mustChangePassword: true,
+      },
+    });
+
+    return this.findOne(user.id);
+  }
+
+  /**
+   * Create a client user (CLIENT_FOUNDER / CLIENT_DIRECTOR / CLIENT_EMPLOYEE).
+   * No systemRole — company assignment is done separately via membership.
+   */
+  async createClientUser(dto: CreateClientUserDto) {
+    await this.ensureUsernameAvailable(dto.username);
+
+    const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        username: dto.username,
+        password: hashedPassword,
+        name: dto.name,
+        phone: dto.phone,
+        avatar: dto.avatar,
+        rank: dto.rank ?? 0,
         mustChangePassword: true,
       },
     });
@@ -74,19 +75,32 @@ export class UsersService {
   async findAll(
     page = 1,
     limit = 20,
-    role?: Role,
-    companyId?: string,
+    filters?: {
+      search?: string;
+      companyId?: string;
+      hasSystemRole?: boolean;
+    },
   ) {
     const skip = (page - 1) * limit;
-
     const where: any = { isActive: true };
-    if (role) where.role = role;
 
-    if (companyId) {
+    if (filters?.search) {
       where.OR = [
-        { userCompanies: { some: { companyId, isActive: true } } },
-        { operatorCompanies: { some: { companyId, isActive: true } } },
+        { username: { contains: filters.search, mode: 'insensitive' } },
+        { name: { contains: filters.search, mode: 'insensitive' } },
       ];
+    }
+
+    if (filters?.hasSystemRole === true) {
+      where.systemRole = { not: null };
+    } else if (filters?.hasSystemRole === false) {
+      where.systemRole = null;
+    }
+
+    if (filters?.companyId) {
+      where.memberships = {
+        some: { companyId: filters.companyId, isActive: true },
+      };
     }
 
     const [users, total] = await Promise.all([
@@ -101,10 +115,11 @@ export class UsersService {
           name: true,
           phone: true,
           avatar: true,
-          role: true,
+          rank: true,
+          systemRole: true,
+          notificationsEnabled: true,
           isActive: true,
           mustChangePassword: true,
-          workerType: { select: { id: true, name: true } },
           createdAt: true,
         },
       }),
@@ -131,28 +146,37 @@ export class UsersService {
         name: true,
         phone: true,
         avatar: true,
-        role: true,
+        rank: true,
+        systemRole: true,
+        notificationsEnabled: true,
         isActive: true,
         mustChangePassword: true,
-        workerType: { select: { id: true, name: true } },
-        userCompanies: {
-          where: { isActive: true },
-          include: {
-            company: { select: { id: true, name: true, inn: true } },
-          },
-        },
-        operatorCompanies: {
-          where: { isActive: true },
-          include: {
-            company: { select: { id: true, name: true, inn: true } },
-          },
-        },
         createdAt: true,
+        updatedAt: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            companyRole: true,
+            isActive: true,
+            createdAt: true,
+            company: {
+              select: { id: true, name: true, inn: true, logo: true },
+            },
+            allowedDepartments: {
+              select: {
+                globalDepartment: {
+                  select: { id: true, name: true, slug: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Foydalanuvchi topilmadi');
     }
 
     return user;
@@ -160,15 +184,6 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto) {
     await this.findOne(id);
-
-    if (dto.workerTypeId) {
-      const workerType = await this.prisma.workerType.findUnique({
-        where: { id: dto.workerTypeId },
-      });
-      if (!workerType || !workerType.isActive) {
-        throw new NotFoundException('Worker type not found');
-      }
-    }
 
     await this.prisma.user.update({
       where: { id },
@@ -178,152 +193,193 @@ export class UsersService {
     return this.findOne(id);
   }
 
-  async remove(id: string) {
-    const user = await this.findOne(id);
+  /**
+   * Soft-delete user (set isActive = false).
+   * Also deactivates all company memberships.
+   */
+  async deactivate(id: string) {
+    await this.findOne(id);
 
-    if (user.role === Role.SUPER_ADMIN) {
-      throw new ForbiddenException('Cannot delete SUPER_ADMIN user');
-    }
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+      }),
+      this.prisma.userCompanyMembership.updateMany({
+        where: { userId: id },
+        data: { isActive: false },
+      }),
+    ]);
 
-    await this.prisma.user.update({
-      where: { id },
-      data: { isActive: false },
-    });
-
-    return { message: 'User deleted successfully' };
+    return { message: 'Foydalanuvchi o\'chirildi' };
   }
 
-  async assignCompany(userId: string, dto: AssignCompanyDto) {
-    const user = await this.findOne(userId);
+  // ─────────────────────────────────────────────
+  // MEMBERSHIP MANAGEMENT
+  // ─────────────────────────────────────────────
+
+  /**
+   * Assign a user to a company with a role and department access.
+   * One user can only have ONE membership per company.
+   */
+  async assignMembership(userId: string, dto: AssignMembershipDto) {
+    await this.findOne(userId);
 
     const company = await this.prisma.company.findUnique({
       where: { id: dto.companyId },
     });
     if (!company || !company.isActive) {
-      throw new NotFoundException('Company not found');
+      throw new NotFoundException('Kompaniya topilmadi');
     }
 
-    if (user.role === Role.OPERATOR) {
-      const existing = await this.prisma.operatorCompany.findUnique({
-        where: {
-          operatorId_companyId: { operatorId: userId, companyId: dto.companyId },
-        },
-      });
-      if (existing) {
-        throw new ConflictException('Operator already assigned to this company');
-      }
+    // Check if any of the department IDs are valid
+    if (dto.allowedDepartmentIds.length > 0) {
+      await this.validateDepartmentIds(dto.allowedDepartmentIds, dto.companyId);
+    }
 
-      await this.prisma.operatorCompany.create({
-        data: { operatorId: userId, companyId: dto.companyId },
-      });
-    } else if (
-      ([Role.FOUNDER, Role.DIRECTOR, Role.EMPLOYEE] as string[]).includes(user.role as string)
-    ) {
-      if (user.role !== Role.FOUNDER) {
-        const existingAssignment = await this.prisma.userCompany.findFirst({
-          where: { userId, isActive: true },
-        });
-        if (existingAssignment) {
-          throw new ConflictException(
-            `${user.role} can only be assigned to one company`,
-          );
-        }
-      }
-
-      const existing = await this.prisma.userCompany.findUnique({
-        where: {
-          userId_companyId: { userId, companyId: dto.companyId },
-        },
-      });
-      if (existing) {
-        throw new ConflictException('User already assigned to this company');
-      }
-
-      await this.prisma.userCompany.create({
-        data: { userId, companyId: dto.companyId },
-      });
-    } else {
-      throw new BadRequestException(
-        'SUPER_ADMIN and ADMIN cannot be assigned to companies',
+    const existing = await this.prisma.userCompanyMembership.findUnique({
+      where: { userId_companyId: { userId, companyId: dto.companyId } },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'Foydalanuvchi bu kompaniyada allaqachon ro\'yxatdan o\'tgan',
       );
     }
 
-    return this.findOne(userId);
-  }
-
-  async unassignCompany(userId: string, companyId: string) {
-    const user = await this.findOne(userId);
-
-    if (user.role === Role.OPERATOR) {
-      const assignment = await this.prisma.operatorCompany.findUnique({
-        where: {
-          operatorId_companyId: { operatorId: userId, companyId },
+    const membership = await this.prisma.userCompanyMembership.create({
+      data: {
+        userId,
+        companyId: dto.companyId,
+        companyRole: dto.companyRole,
+        allowedDepartments: {
+          create: dto.allowedDepartmentIds.map((deptId) => ({
+            globalDepartmentId: deptId,
+          })),
         },
-      });
-      if (!assignment) {
-        throw new NotFoundException('Assignment not found');
-      }
-      await this.prisma.operatorCompany.delete({
-        where: { id: assignment.id },
-      });
-    } else {
-      const assignment = await this.prisma.userCompany.findUnique({
-        where: {
-          userId_companyId: { userId, companyId },
-        },
-      });
-      if (!assignment) {
-        throw new NotFoundException('Assignment not found');
-      }
-      await this.prisma.userCompany.delete({
-        where: { id: assignment.id },
-      });
-    }
-
-    return this.findOne(userId);
-  }
-
-  // WorkerType CRUD
-
-  async createWorkerType(dto: CreateWorkerTypeDto) {
-    const existing = await this.prisma.workerType.findUnique({
-      where: { name: dto.name },
-    });
-    if (existing) {
-      throw new ConflictException('Worker type with this name already exists');
-    }
-
-    return this.prisma.workerType.create({
-      data: { name: dto.name },
-    });
-  }
-
-  async findAllWorkerTypes() {
-    return this.prisma.workerType.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
+      },
       select: {
         id: true,
-        name: true,
+        companyRole: true,
         isActive: true,
-        createdAt: true,
+        company: { select: { id: true, name: true } },
+        allowedDepartments: {
+          select: {
+            globalDepartment: { select: { id: true, name: true, slug: true } },
+          },
+        },
       },
     });
+
+    return membership;
   }
 
-  async removeWorkerType(id: string) {
-    const workerType = await this.prisma.workerType.findUnique({
-      where: { id },
+  /**
+   * Update an existing membership's role and/or department access.
+   * allowedDepartmentIds fully replaces existing department access.
+   */
+  async updateMembership(
+    userId: string,
+    membershipId: string,
+    dto: UpdateMembershipDto,
+  ) {
+    const membership = await this.prisma.userCompanyMembership.findFirst({
+      where: { id: membershipId, userId },
     });
-    if (!workerType) {
-      throw new NotFoundException('Worker type not found');
+
+    if (!membership) {
+      throw new NotFoundException('Membership topilmadi');
     }
 
-    await this.prisma.workerType.update({
-      where: { id },
-      data: { isActive: false },
+    if (
+      dto.allowedDepartmentIds !== undefined &&
+      dto.allowedDepartmentIds.length > 0
+    ) {
+      await this.validateDepartmentIds(
+        dto.allowedDepartmentIds,
+        membership.companyId,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (dto.companyRole) {
+        await tx.userCompanyMembership.update({
+          where: { id: membershipId },
+          data: { companyRole: dto.companyRole },
+        });
+      }
+
+      if (dto.allowedDepartmentIds !== undefined) {
+        // Replace department access
+        await tx.membershipDepartmentAccess.deleteMany({
+          where: { userCompanyMembershipId: membershipId },
+        });
+        if (dto.allowedDepartmentIds.length > 0) {
+          await tx.membershipDepartmentAccess.createMany({
+            data: dto.allowedDepartmentIds.map((deptId) => ({
+              userCompanyMembershipId: membershipId,
+              globalDepartmentId: deptId,
+            })),
+          });
+        }
+      }
     });
 
-    return { message: 'Worker type deleted successfully' };
+    return this.findOne(userId);
+  }
+
+  /**
+   * Remove a user from a company (hard delete membership).
+   */
+  async removeMembership(userId: string, membershipId: string) {
+    const membership = await this.prisma.userCompanyMembership.findFirst({
+      where: { id: membershipId, userId },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('Membership topilmadi');
+    }
+
+    await this.prisma.userCompanyMembership.delete({
+      where: { id: membershipId },
+    });
+
+    return { message: 'Membership o\'chirildi' };
+  }
+
+  // ─────────────────────────────────────────────
+  // PRIVATE HELPERS
+  // ─────────────────────────────────────────────
+
+  private async ensureUsernameAvailable(username: string) {
+    const existing = await this.prisma.user.findUnique({
+      where: { username },
+    });
+    if (existing) {
+      throw new ConflictException('Bu username allaqachon band');
+    }
+  }
+
+  /**
+   * Validates that all given department IDs exist as GlobalDepartments
+   * AND are enabled for the given company (CompanyDepartmentConfig).
+   */
+  private async validateDepartmentIds(deptIds: string[], companyId: string) {
+    const configs = await this.prisma.companyDepartmentConfig.findMany({
+      where: {
+        companyId,
+        globalDepartmentId: { in: deptIds },
+        isEnabled: true,
+      },
+      select: { globalDepartmentId: true },
+    });
+
+    const validIds = new Set(configs.map((c) => c.globalDepartmentId));
+
+    const invalidIds = deptIds.filter((id) => !validIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new BadRequestException(
+        `Quyidagi department IDlar bu kompaniya uchun mavjud emas yoki o'chirilgan: ${invalidIds.join(', ')}`,
+      );
+    }
   }
 }

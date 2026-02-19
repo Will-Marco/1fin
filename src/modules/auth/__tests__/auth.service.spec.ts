@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import { AuthService } from '../auth.service';
+import { SystemRole } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
-import { Role } from '../../../../generated/prisma/client';
+import { AuthService } from '../auth.service';
 
 jest.mock('bcrypt');
 
@@ -70,7 +70,7 @@ describe('AuthService', () => {
       username: loginDto.username,
       password: 'hashed-password',
       name: 'Admin User',
-      role: Role.ADMIN,
+      systemRole: SystemRole.FIN_ADMIN,
       isActive: true,
       mustChangePassword: false,
     };
@@ -95,7 +95,7 @@ describe('AuthService', () => {
 
       expect(result.user.username).toBe(loginDto.username);
       expect(result.user.name).toBe('Admin User');
-      expect(result.user.role).toBe(Role.ADMIN);
+      expect(result.user.systemRole).toBe(SystemRole.FIN_ADMIN);
       expect(result.accessToken).toBe('access-token');
       expect(result.refreshToken).toBe('refresh-token');
     });
@@ -157,7 +157,7 @@ describe('AuthService', () => {
         id: 'session-id',
         userId: 'user-id',
         refreshToken: 'hashed-refresh',
-        user: { id: 'user-id', role: Role.ADMIN },
+        user: { id: 'user-id', systemRole: SystemRole.FIN_ADMIN },
       };
 
       mockPrismaService.session.findUnique.mockResolvedValue(mockSession);
@@ -187,7 +187,7 @@ describe('AuthService', () => {
         id: 'session-id',
         userId: 'user-id',
         refreshToken: 'hashed-refresh',
-        user: { id: 'user-id', role: Role.ADMIN },
+        user: { id: 'user-id', systemRole: SystemRole.FIN_ADMIN },
       };
 
       mockPrismaService.session.findUnique.mockResolvedValue(mockSession);
@@ -272,7 +272,7 @@ describe('AuthService', () => {
         username: loginDto.username,
         password: 'hashed-password',
         name: 'Test User',
-        role: Role.OPERATOR,
+        systemRole: SystemRole.FIN_EMPLOYEE,
         isActive: true,
         mustChangePassword: false,
       };

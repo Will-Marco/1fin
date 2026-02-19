@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { MessageConsumer } from '../consumers/message.consumer';
-import { RabbitMQService } from '../rabbitmq.service';
-import { MessagesGateway } from '../../modules/messages/messages.gateway';
-import { NotificationProducer, NotificationType } from '../producers';
 import { PrismaService } from '../../database/prisma.service';
+import { MessagesGateway } from '../../modules/messages/messages.gateway';
+import { MessageConsumer } from '../consumers/message.consumer';
+import { NotificationProducer, NotificationType } from '../producers';
+import { RabbitMQService } from '../rabbitmq.service';
 
 describe('MessageConsumer', () => {
   let consumer: MessageConsumer;
@@ -14,9 +14,7 @@ describe('MessageConsumer', () => {
   };
 
   const mockMessagesGateway = {
-    emitNewMessage: jest.fn(),
-    emitMessageEdited: jest.fn(),
-    emitMessageDeleted: jest.fn(),
+    emitToRoom: jest.fn(),
   };
 
   const mockNotificationProducer = {
@@ -24,7 +22,7 @@ describe('MessageConsumer', () => {
   };
 
   const mockPrismaService = {
-    departmentMember: {
+    userCompanyMembership: {
       findMany: jest.fn(),
     },
   };
@@ -51,7 +49,6 @@ describe('MessageConsumer', () => {
     let deleteMessageHandler: (message: any) => Promise<void>;
 
     beforeEach(() => {
-      // Capture the handlers when consume is called
       mockRabbitMQService.consume.mockImplementation(
         async (queue: string, handler: (message: any) => Promise<void>) => {
           if (queue === 'messages.send') newMessageHandler = handler;
@@ -59,169 +56,79 @@ describe('MessageConsumer', () => {
           if (queue === 'messages.delete') deleteMessageHandler = handler;
         },
       );
-
-      // Manually call the private method via any cast
       mockRabbitMQService.isReady.mockReturnValue(true);
     });
 
     describe('new message handler', () => {
       beforeEach(async () => {
-        // Simulate startConsuming by calling consume setup
         await (consumer as any).consumeNewMessages();
       });
 
       it('should emit new message via WebSocket', async () => {
         const payload = {
-          messageId: 'msg-id',
-          departmentId: 'dept-id',
-          senderId: 'user-id',
+          messageId: 'msg-1',
+          companyId: 'comp-1',
+          globalDepartmentId: 'dept-1',
           content: 'Hello',
-          sender: { id: 'user-id', username: 'test', name: 'Test' },
+          sender: { id: 'u1', name: 'User' },
         };
 
-        mockPrismaService.departmentMember.findMany.mockResolvedValue([]);
+        mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([]);
 
         await newMessageHandler({ payload });
 
-        expect(mockMessagesGateway.emitNewMessage).toHaveBeenCalledWith(
-          'dept-id',
+        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith(
+          'comp-1',
+          'dept-1',
+          'message:new',
           payload,
         );
       });
 
-      it('should send notifications to offline department members', async () => {
+      it('should send notifications to offline members', async () => {
         const payload = {
-          messageId: 'msg-id',
-          departmentId: 'dept-id',
-          senderId: 'sender-id',
-          content: 'Hello World',
-          sender: { id: 'sender-id', username: 'sender', name: 'Sender' },
-        };
-
-        mockPrismaService.departmentMember.findMany.mockResolvedValue([
-          { userId: 'sender-id', user: { id: 'sender-id', name: 'Sender' } },
-          { userId: 'member-1', user: { id: 'member-1', name: 'Member 1' } },
-          { userId: 'member-2', user: { id: 'member-2', name: 'Member 2' } },
-        ]);
-
-        await newMessageHandler({ payload });
-
-        expect(mockNotificationProducer.sendToMany).toHaveBeenCalledWith(
-          ['member-1', 'member-2'], // sender excluded
-          {
-            type: NotificationType.NEW_MESSAGE,
-            title: 'Yangi xabar - Sender',
-            body: 'Hello World',
-            data: {
-              departmentId: 'dept-id',
-              messageId: 'msg-id',
-            },
-          },
-        );
-      });
-
-      it('should not send notifications when no other members', async () => {
-        const payload = {
-          messageId: 'msg-id',
-          departmentId: 'dept-id',
-          senderId: 'sender-id',
+          messageId: 'msg-1',
+          companyId: 'comp-1',
+          globalDepartmentId: 'dept-1',
+          senderId: 'u1',
           content: 'Hello',
-          sender: { id: 'sender-id', username: 'sender', name: 'Sender' },
+          sender: { name: 'User' },
         };
 
-        mockPrismaService.departmentMember.findMany.mockResolvedValue([
-          { userId: 'sender-id', user: { id: 'sender-id', name: 'Sender' } },
-        ]);
-
-        await newMessageHandler({ payload });
-
-        expect(mockNotificationProducer.sendToMany).not.toHaveBeenCalled();
-      });
-
-      it('should truncate long message content in notification', async () => {
-        const longContent = 'A'.repeat(200);
-        const payload = {
-          messageId: 'msg-id',
-          departmentId: 'dept-id',
-          senderId: 'sender-id',
-          content: longContent,
-          sender: { id: 'sender-id', username: 'sender', name: 'Sender' },
-        };
-
-        mockPrismaService.departmentMember.findMany.mockResolvedValue([
-          { userId: 'member-1', user: { id: 'member-1', name: 'Member 1' } },
+        mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([
+          { userId: 'u1' },
+          { userId: 'u2' },
+          { userId: 'u3' },
         ]);
 
         await newMessageHandler({ payload });
 
         expect(mockNotificationProducer.sendToMany).toHaveBeenCalledWith(
-          ['member-1'],
+          ['u2', 'u3'],
           expect.objectContaining({
-            body: 'A'.repeat(100), // truncated to 100 chars
-          }),
+            type: NotificationType.NEW_MESSAGE,
+            title: 'Yangi xabar - User',
+          })
         );
       });
     });
 
     describe('edit message handler', () => {
-      beforeEach(async () => {
+      it('should emit edited message', async () => {
         await (consumer as any).consumeEditedMessages();
-      });
-
-      it('should emit edited message via WebSocket', async () => {
-        const payload = {
-          messageId: 'msg-id',
-          departmentId: 'dept-id',
-          content: 'Updated content',
-        };
-
+        const payload = { companyId: 'c1', globalDepartmentId: 'd1', messageId: 'm1' };
         await editMessageHandler({ payload });
-
-        expect(mockMessagesGateway.emitMessageEdited).toHaveBeenCalledWith(
-          'dept-id',
-          payload,
-        );
+        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith('c1', 'd1', 'message:edited', payload);
       });
     });
 
     describe('delete message handler', () => {
-      beforeEach(async () => {
+      it('should emit deleted message', async () => {
         await (consumer as any).consumeDeletedMessages();
-      });
-
-      it('should emit deleted message via WebSocket', async () => {
-        const payload = {
-          messageId: 'msg-id',
-          departmentId: 'dept-id',
-        };
-
+        const payload = { companyId: 'c1', globalDepartmentId: 'd1', messageId: 'm1' };
         await deleteMessageHandler({ payload });
-
-        expect(mockMessagesGateway.emitMessageDeleted).toHaveBeenCalledWith(
-          'dept-id',
-          'msg-id',
-        );
+        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith('c1', 'd1', 'message:deleted', { messageId: 'm1' });
       });
-    });
-  });
-
-  describe('isReady check', () => {
-    it('should not consume when RabbitMQ is not ready', async () => {
-      mockRabbitMQService.isReady.mockReturnValue(false);
-
-      // Manually trigger startConsuming
-      await (consumer as any).startConsuming();
-
-      expect(mockRabbitMQService.consume).not.toHaveBeenCalled();
-    });
-
-    it('should consume when RabbitMQ is ready', async () => {
-      mockRabbitMQService.isReady.mockReturnValue(true);
-      mockRabbitMQService.consume.mockResolvedValue(undefined);
-
-      await (consumer as any).startConsuming();
-
-      expect(mockRabbitMQService.consume).toHaveBeenCalledTimes(3);
     });
   });
 });

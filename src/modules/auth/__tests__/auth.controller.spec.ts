@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { SystemRole } from '../../../../generated/prisma/client';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
-import { Role } from '../../../../generated/prisma/client';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -41,7 +41,7 @@ describe('AuthController', () => {
           id: 'user-id',
           username: loginDto.username,
           name: 'Admin User',
-          role: Role.ADMIN,
+          systemRole: SystemRole.FIN_ADMIN,
           mustChangePassword: false,
         },
         accessToken: 'access-token',
@@ -153,7 +153,7 @@ describe('AuthController', () => {
         id: 'user-id',
         username: 'admin01',
         name: 'Admin User',
-        role: Role.ADMIN,
+        systemRole: SystemRole.FIN_ADMIN,
         sessionId: 'session-id',
       };
 

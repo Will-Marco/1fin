@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
+import { DocumentStatus } from '../../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { NotificationProducer } from '../queues/producers';
-import { DocumentStatus } from '../../generated/prisma/client';
 
 @Injectable()
 export class DocumentReminderJob {
@@ -23,31 +23,26 @@ export class DocumentReminderJob {
 
     try {
       // Barcha PENDING hujjatlarni olish
-      const pendingDocuments = await this.prisma.documentApproval.findMany({
+      const pendingDocuments = await this.prisma.document.findMany({
         where: { status: DocumentStatus.PENDING },
-        include: {
-          message: {
-            include: {
-              department: {
-                include: {
-                  members: {
-                    include: {
-                      user: { select: { id: true } },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
       });
 
       this.logger.log(`Found ${pendingDocuments.length} pending documents`);
 
-      // Har bir hujjat uchun notification yuborish
       for (const doc of pendingDocuments) {
-        const departmentMembers = doc.message.department.members;
-        const userIds = departmentMembers.map((m) => m.user.id);
+        // Ushbu bo'limga kirish huquqi bor aktiv foydalanuvchilarni topish
+        const memberships = await this.prisma.userCompanyMembership.findMany({
+          where: {
+            companyId: doc.companyId,
+            isActive: true,
+            allowedDepartments: {
+              some: { globalDepartmentId: doc.globalDepartmentId },
+            },
+          },
+          select: { userId: true },
+        });
+
+        const userIds = memberships.map((m) => m.userId);
 
         if (userIds.length > 0) {
           await this.notificationProducer.sendDocumentReminder({
@@ -55,8 +50,8 @@ export class DocumentReminderJob {
             documentId: doc.id,
             documentName: doc.documentName,
             documentNumber: doc.documentNumber,
-            companyId: doc.message.department.companyId,
-            departmentId: doc.message.departmentId,
+            companyId: doc.companyId,
+            globalDepartmentId: doc.globalDepartmentId,
           });
 
           this.logger.log(

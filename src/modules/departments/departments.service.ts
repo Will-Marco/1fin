@@ -1,11 +1,10 @@
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CreateDepartmentDto, UpdateDepartmentDto, AddMemberDto } from './dto';
+import { CreateGlobalDepartmentDto, UpdateGlobalDepartmentDto } from './dto';
 
 @Injectable()
 export class DepartmentsService {
@@ -20,242 +19,125 @@ export class DepartmentsService {
       .trim();
   }
 
-  async create(companyId: string, dto: CreateDepartmentDto) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    });
-    if (!company || !company.isActive) {
-      throw new NotFoundException('Company not found');
-    }
+  // ─────────────────────────────────────────────
+  // GLOBAL DEPARTMENT CRUD (1FIN admin only)
+  // ─────────────────────────────────────────────
 
-    const slug = this.generateSlug(dto.name);
+  async create(dto: CreateGlobalDepartmentDto) {
+    const slug = dto.slug ?? this.generateSlug(dto.name);
 
-    const existing = await this.prisma.department.findUnique({
-      where: { companyId_slug: { companyId, slug } },
+    const existing = await this.prisma.globalDepartment.findUnique({
+      where: { slug },
     });
     if (existing) {
-      throw new ConflictException('Department with this name already exists');
+      throw new ConflictException('Bu slug bilan department allaqachon mavjud');
     }
 
-    return this.prisma.department.create({
+    return this.prisma.globalDepartment.create({
       data: {
-        companyId,
         name: dto.name,
         slug,
-        isDefault: false,
+        isActive: true,
       },
-    });
-  }
-
-  async findAll(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    });
-    if (!company || !company.isActive) {
-      throw new NotFoundException('Company not found');
-    }
-
-    return this.prisma.department.findMany({
-      where: { companyId, isActive: true },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
       select: {
         id: true,
         name: true,
         slug: true,
-        isDefault: true,
         isActive: true,
         createdAt: true,
-        _count: { select: { members: true } },
       },
     });
   }
 
-  async findOne(companyId: string, departmentId: string) {
-    const department = await this.prisma.department.findFirst({
-      where: { id: departmentId, companyId, isActive: true },
+  async findAll(includeInactive = false) {
+    return this.prisma.globalDepartment.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      orderBy: { createdAt: 'asc' },
       select: {
         id: true,
         name: true,
         slug: true,
-        isDefault: true,
         isActive: true,
         createdAt: true,
-        _count: { select: { members: true } },
+        _count: {
+          select: { companyConfigs: { where: { isEnabled: true } } },
+        },
+      },
+    });
+  }
+
+  async findOne(id: string) {
+    const dept = await this.prisma.globalDepartment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: { companyConfigs: { where: { isEnabled: true } } },
+        },
       },
     });
 
-    if (!department) {
-      throw new NotFoundException('Department not found');
+    if (!dept) {
+      throw new NotFoundException('Global department topilmadi');
     }
 
-    return department;
+    return dept;
   }
 
-  async update(companyId: string, departmentId: string, dto: UpdateDepartmentDto) {
-    const department = await this.prisma.department.findFirst({
-      where: { id: departmentId, companyId, isActive: true },
-    });
-
-    if (!department) {
-      throw new NotFoundException('Department not found');
-    }
-
-    if (department.isDefault) {
-      throw new ForbiddenException('Cannot update default department');
-    }
+  async update(id: string, dto: UpdateGlobalDepartmentDto) {
+    await this.findOne(id);
 
     const updateData: any = {};
 
     if (dto.name) {
-      const slug = this.generateSlug(dto.name);
-
-      const existing = await this.prisma.department.findFirst({
-        where: {
-          companyId,
-          slug,
-          id: { not: departmentId },
-        },
-      });
-      if (existing) {
-        throw new ConflictException('Department with this name already exists');
-      }
-
       updateData.name = dto.name;
-      updateData.slug = slug;
     }
 
-    return this.prisma.department.update({
-      where: { id: departmentId },
+    if (dto.slug) {
+      const existing = await this.prisma.globalDepartment.findUnique({
+        where: { slug: dto.slug },
+      });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('Bu slug bilan department allaqachon mavjud');
+      }
+      updateData.slug = dto.slug;
+    }
+
+    if (dto.isActive !== undefined) {
+      updateData.isActive = dto.isActive;
+    }
+
+    return this.prisma.globalDepartment.update({
+      where: { id },
       data: updateData,
       select: {
         id: true,
         name: true,
         slug: true,
-        isDefault: true,
         isActive: true,
-        createdAt: true,
+        updatedAt: true,
       },
     });
   }
 
-  async remove(companyId: string, departmentId: string) {
-    const department = await this.prisma.department.findFirst({
-      where: { id: departmentId, companyId, isActive: true },
-    });
+  /**
+   * Soft-deactivate: sets isActive=false.
+   * Note: This does NOT remove CompanyDepartmentConfigs.
+   * Those configs become effectively hidden until re-activated.
+   */
+  async deactivate(id: string) {
+    await this.findOne(id);
 
-    if (!department) {
-      throw new NotFoundException('Department not found');
-    }
-
-    if (department.isDefault) {
-      throw new ForbiddenException('Cannot delete default department');
-    }
-
-    await this.prisma.department.update({
-      where: { id: departmentId },
+    await this.prisma.globalDepartment.update({
+      where: { id },
       data: { isActive: false },
     });
 
-    return { message: 'Department deleted successfully' };
-  }
-
-  async addMember(companyId: string, departmentId: string, dto: AddMemberDto) {
-    const department = await this.prisma.department.findFirst({
-      where: { id: departmentId, companyId, isActive: true },
-    });
-
-    if (!department) {
-      throw new NotFoundException('Department not found');
-    }
-
-    // Check if user belongs to this company
-    const userInCompany = await this.prisma.userCompany.findFirst({
-      where: { userId: dto.userId, companyId, isActive: true },
-    });
-
-    const operatorInCompany = await this.prisma.operatorCompany.findFirst({
-      where: { operatorId: dto.userId, companyId, isActive: true },
-    });
-
-    if (!userInCompany && !operatorInCompany) {
-      throw new ForbiddenException('User does not belong to this company');
-    }
-
-    const existing = await this.prisma.departmentMember.findUnique({
-      where: {
-        userId_departmentId: { userId: dto.userId, departmentId },
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException('User is already a member of this department');
-    }
-
-    await this.prisma.departmentMember.create({
-      data: {
-        userId: dto.userId,
-        departmentId,
-      },
-    });
-
-    return this.getMembers(companyId, departmentId);
-  }
-
-  async removeMember(companyId: string, departmentId: string, userId: string) {
-    const department = await this.prisma.department.findFirst({
-      where: { id: departmentId, companyId, isActive: true },
-    });
-
-    if (!department) {
-      throw new NotFoundException('Department not found');
-    }
-
-    const member = await this.prisma.departmentMember.findUnique({
-      where: {
-        userId_departmentId: { userId, departmentId },
-      },
-    });
-
-    if (!member) {
-      throw new NotFoundException('Member not found in this department');
-    }
-
-    await this.prisma.departmentMember.delete({
-      where: { id: member.id },
-    });
-
-    return { message: 'Member removed successfully' };
-  }
-
-  async getMembers(companyId: string, departmentId: string) {
-    const department = await this.prisma.department.findFirst({
-      where: { id: departmentId, companyId, isActive: true },
-    });
-
-    if (!department) {
-      throw new NotFoundException('Department not found');
-    }
-
-    const members = await this.prisma.departmentMember.findMany({
-      where: { departmentId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            avatar: true,
-            role: true,
-            workerType: { select: { id: true, name: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return members.map((m) => ({
-      ...m.user,
-      joinedAt: m.createdAt,
-    }));
+    return { message: 'Global department o\'chirildi' };
   }
 }

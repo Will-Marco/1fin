@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { RabbitMQService } from '../rabbitmq.service';
-import { QUEUES } from '../constants';
-import { MessagesGateway } from '../../modules/messages/messages.gateway';
-import { NotificationProducer, NotificationType } from '../producers';
 import { PrismaService } from '../../database/prisma.service';
+import { MessagesGateway } from '../../modules/messages/messages.gateway';
+import { QUEUES } from '../constants';
+import { NotificationProducer, NotificationType } from '../producers';
+import { RabbitMQService } from '../rabbitmq.service';
 
 @Injectable()
 export class MessageConsumer implements OnModuleInit {
@@ -37,7 +37,12 @@ export class MessageConsumer implements OnModuleInit {
       const { payload } = message;
 
       // 1. WebSocket orqali online userlarga yuborish
-      this.messagesGateway.emitNewMessage(payload.departmentId, payload);
+      this.messagesGateway.emitToRoom(
+        payload.companyId,
+        payload.globalDepartmentId,
+        'message:new',
+        payload,
+      );
 
       // 2. Offline userlar uchun notification
       await this.sendNotificationToOfflineUsers(payload);
@@ -49,7 +54,12 @@ export class MessageConsumer implements OnModuleInit {
       const { payload } = message;
 
       // WebSocket orqali yuborish
-      this.messagesGateway.emitMessageEdited(payload.departmentId, payload);
+      this.messagesGateway.emitToRoom(
+        payload.companyId,
+        payload.globalDepartmentId,
+        'message:edited',
+        payload,
+      );
     });
   }
 
@@ -58,29 +68,36 @@ export class MessageConsumer implements OnModuleInit {
       const { payload } = message;
 
       // WebSocket orqali yuborish
-      this.messagesGateway.emitMessageDeleted(
-        payload.departmentId,
-        payload.messageId,
+      this.messagesGateway.emitToRoom(
+        payload.companyId,
+        payload.globalDepartmentId,
+        'message:deleted',
+        { messageId: payload.messageId },
       );
     });
   }
 
   private async sendNotificationToOfflineUsers(payload: any) {
     try {
-      // Department a'zolarini olish
-      const members = await this.prisma.departmentMember.findMany({
-        where: { departmentId: payload.departmentId },
-        include: {
-          user: {
-            select: { id: true, name: true },
+      // Company a'zolarini va ularning department accessini olish
+      const memberships = await this.prisma.userCompanyMembership.findMany({
+        where: {
+          companyId: payload.companyId,
+          isActive: true,
+          allowedDepartments: {
+            some: { globalDepartmentId: payload.globalDepartmentId },
           },
         },
+        select: { userId: true },
       });
 
-      // Sender dan boshqa a'zolarga notification
-      const offlineUserIds = members
+      // Sender dan boshqa a'zolarga notification yuborish
+      const offlineUserIds = memberships
         .filter((m) => m.userId !== payload.senderId)
         .map((m) => m.userId);
+
+      // System staff ga ham yuborish (optional, but for simplicity we can include them if they were active)
+      // For now, only company members.
 
       if (offlineUserIds.length > 0) {
         await this.notificationProducer.sendToMany(offlineUserIds, {
@@ -88,7 +105,8 @@ export class MessageConsumer implements OnModuleInit {
           title: `Yangi xabar - ${payload.sender.name}`,
           body: payload.content?.substring(0, 100) || 'Yangi xabar',
           data: {
-            departmentId: payload.departmentId,
+            companyId: payload.companyId,
+            globalDepartmentId: payload.globalDepartmentId,
             messageId: payload.messageId,
           },
         });

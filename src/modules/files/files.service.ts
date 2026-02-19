@@ -1,14 +1,14 @@
 import {
-  Injectable,
-  Inject,
-  BadRequestException,
-  NotFoundException,
-  ForbiddenException,
+    BadRequestException,
+    ForbiddenException,
+    Inject,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
+import { FileType, SystemRole } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { STORAGE_PROVIDER, StorageProvider } from './storage/storage.interface';
 import { UploadFileDto } from './dto/upload-file.dto';
-import { FileType, Role } from '../../../generated/prisma/client';
+import { STORAGE_PROVIDER, StorageProvider } from './storage/storage.interface';
 
 // Fayl o'lchamlari (baytlarda)
 const FILE_SIZE_LIMITS = {
@@ -108,15 +108,15 @@ export class FilesService {
     const savedFile = await this.prisma.file.create({
       data: {
         uploadedBy: userId,
-        departmentId: dto.departmentId,
+        globalDepartmentId: dto.globalDepartmentId,
         messageId: dto.messageId,
+        documentId: dto.documentId,
         originalName: uploaded.originalName,
         fileName: uploaded.fileName,
         fileSize: uploaded.size,
         mimeType: uploaded.mimeType,
         fileType,
         path: uploaded.path,
-        documentNumber: dto.documentNumber,
       },
       include: {
         uploader: {
@@ -152,7 +152,7 @@ export class FilesService {
   /**
    * Faylni olish
    */
-  async findOne(id: string, userId: string, userRole: Role) {
+  async findOne(id: string, userId: string, systemRole: SystemRole | null) {
     const file = await this.prisma.file.findUnique({
       where: { id },
       include: {
@@ -167,7 +167,7 @@ export class FilesService {
     }
 
     // O'chirilgan fayllarni faqat admin ko'rishi mumkin
-    if (file.isDeleted && !this.isAdmin(userRole)) {
+    if (file.isDeleted && !this.isAdmin(systemRole)) {
       throw new NotFoundException('Fayl topilmadi');
     }
 
@@ -181,19 +181,19 @@ export class FilesService {
    * Department fayllarini olish
    */
   async findByDepartment(
-    departmentId: string,
+    globalDepartmentId: string,
     userId: string,
-    userRole: Role,
+    systemRole: SystemRole | null,
     page: number = 1,
     limit: number = 20,
     includeDeleted: boolean = false,
   ) {
     const skip = (page - 1) * limit;
 
-    const where: any = { departmentId };
+    const where: any = { globalDepartmentId };
 
     // O'chirilgan fayllarni faqat admin ko'rishi mumkin
-    if (!includeDeleted || !this.isAdmin(userRole)) {
+    if (!includeDeleted || !this.isAdmin(systemRole)) {
       where.isDeleted = false;
     }
 
@@ -229,7 +229,7 @@ export class FilesService {
   /**
    * Faylni o'chirish (soft delete)
    */
-  async remove(id: string, userId: string, userRole: Role) {
+  async remove(id: string, userId: string, systemRole: SystemRole | null) {
     const file = await this.prisma.file.findUnique({ where: { id } });
 
     if (!file) {
@@ -237,7 +237,7 @@ export class FilesService {
     }
 
     // Faqat yuklagan yoki admin o'chirishi mumkin
-    if (file.uploadedBy !== userId && !this.isAdmin(userRole)) {
+    if (file.uploadedBy !== userId && !this.isAdmin(systemRole)) {
       throw new ForbiddenException('Ushbu faylni o\'chirish huquqi yo\'q');
     }
 
@@ -258,20 +258,20 @@ export class FilesService {
    */
   async getDeleted(
     userId: string,
-    userRole: Role,
-    departmentId?: string,
+    systemRole: SystemRole | null,
+    globalDepartmentId?: string,
     page: number = 1,
     limit: number = 20,
   ) {
-    if (!this.isAdmin(userRole)) {
+    if (!this.isAdmin(systemRole)) {
       throw new ForbiddenException('Faqat admin ko\'rishi mumkin');
     }
 
     const skip = (page - 1) * limit;
 
     const where: any = { isDeleted: true };
-    if (departmentId) {
-      where.departmentId = departmentId;
+    if (globalDepartmentId) {
+      where.globalDepartmentId = globalDepartmentId;
     }
 
     const [files, total] = await Promise.all([
@@ -306,8 +306,8 @@ export class FilesService {
   /**
    * Faylni tiklash (admin only)
    */
-  async restore(id: string, userId: string, userRole: Role) {
-    if (!this.isAdmin(userRole)) {
+  async restore(id: string, userId: string, systemRole: SystemRole | null) {
+    if (!this.isAdmin(systemRole)) {
       throw new ForbiddenException('Faqat admin tiklashi mumkin');
     }
 
@@ -336,8 +336,8 @@ export class FilesService {
   /**
    * Faylni butunlay o'chirish (admin only)
    */
-  async permanentDelete(id: string, userId: string, userRole: Role) {
-    if (!this.isAdmin(userRole)) {
+  async permanentDelete(id: string, userId: string, systemRole: SystemRole | null) {
+    if (!this.isAdmin(systemRole)) {
       throw new ForbiddenException('Faqat admin o\'chirishi mumkin');
     }
 
@@ -369,7 +369,7 @@ export class FilesService {
     }
   }
 
-  private isAdmin(role: Role): boolean {
-    return role === Role.SUPER_ADMIN || role === Role.ADMIN;
+  private isAdmin(role: SystemRole | null): boolean {
+    return role === SystemRole.FIN_ADMIN || role === SystemRole.FIN_DIRECTOR;
   }
 }

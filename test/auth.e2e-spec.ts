@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
+import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { PrismaService } from '../src/database/prisma.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { ResponseInterceptor } from '../src/common/interceptors/response.interceptor';
+import { PrismaService } from '../src/database/prisma.service';
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication;
@@ -27,7 +27,7 @@ describe('AuthController (e2e)', () => {
         username,
         password: hashedPassword,
         name,
-        role: role as any,
+        systemRole: role as any,
       },
     });
   }
@@ -93,7 +93,7 @@ describe('AuthController (e2e)', () => {
           username: 'tempuser',
           password: hashedPassword,
           name: 'Temp User',
-          role: 'OPERATOR',
+          systemRole: 'OPERATOR' as any,
           mustChangePassword: true,
         },
       });

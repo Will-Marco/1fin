@@ -3,7 +3,7 @@ import { IsOptional, IsString } from 'class-validator';
 export class UploadFileDto {
   @IsOptional()
   @IsString()
-  departmentId?: string;
+  globalDepartmentId?: string;
 
   @IsOptional()
   @IsString()
@@ -11,5 +11,5 @@ export class UploadFileDto {
 
   @IsOptional()
   @IsString()
-  documentNumber?: string;
+  documentId?: string;
 }

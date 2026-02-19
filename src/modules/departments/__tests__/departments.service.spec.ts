@@ -1,70 +1,30 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import {
-  ConflictException,
-  NotFoundException,
-  ForbiddenException,
+    ConflictException,
+    NotFoundException,
 } from '@nestjs/common';
-import { DepartmentsService } from '../departments.service';
+import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../database/prisma.service';
+import { DepartmentsService } from '../departments.service';
 
-describe('DepartmentsService', () => {
+describe('DepartmentsService (GlobalDepartment)', () => {
   let service: DepartmentsService;
 
-  const mockCompany = {
-    id: 'company-id',
-    name: 'Test Company',
-    isActive: true,
-  };
-
-  const mockDepartment = {
+  const mockDept = {
     id: 'dept-id',
-    companyId: 'company-id',
-    name: 'Marketing',
-    slug: 'marketing',
-    isDefault: false,
+    name: "Bank to'lovlari",
+    slug: 'bank-payment',
     isActive: true,
     createdAt: new Date(),
-  };
-
-  const mockDefaultDepartment = {
-    ...mockDepartment,
-    id: 'default-dept-id',
-    name: 'Umumiy chat',
-    slug: 'general-chat',
-    isDefault: true,
-  };
-
-  const mockUser = {
-    id: 'user-id',
-    username: 'testuser',
-    name: 'Test User',
-    avatar: null,
-    role: 'EMPLOYEE',
-    workerType: { id: 'wt-id', name: 'Buxgalter' },
+    updatedAt: new Date(),
+    _count: { companyConfigs: 3 },
   };
 
   const mockPrismaService = {
-    company: {
+    globalDepartment: {
       findUnique: jest.fn(),
-    },
-    department: {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
-    },
-    userCompany: {
-      findFirst: jest.fn(),
-    },
-    operatorCompany: {
-      findFirst: jest.fn(),
-    },
-    departmentMember: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      delete: jest.fn(),
     },
   };
 
@@ -80,213 +40,153 @@ describe('DepartmentsService', () => {
     jest.clearAllMocks();
   });
 
+  // ─────────────────────────────────────────────
+  // create
+  // ─────────────────────────────────────────────
+
   describe('create', () => {
-    it('should create a department', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.department.findUnique.mockResolvedValue(null);
-      mockPrismaService.department.create.mockResolvedValue(mockDepartment);
+    it('should create a global department with auto-generated slug', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(null);
+      mockPrismaService.globalDepartment.create.mockResolvedValue(mockDept);
 
-      const result = await service.create('company-id', { name: 'Marketing' });
+      const result = await service.create({ name: "Bank to'lovlari" });
 
-      expect(result.name).toBe('Marketing');
-      expect(mockPrismaService.department.create).toHaveBeenCalledWith({
-        data: {
-          companyId: 'company-id',
-          name: 'Marketing',
-          slug: 'marketing',
-          isDefault: false,
-        },
+      expect(result.slug).toBe('bank-payment');
+      expect(mockPrismaService.globalDepartment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: "Bank to'lovlari", isActive: true }),
+        }),
+      );
+    });
+
+    it('should use provided slug if given', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(null);
+      mockPrismaService.globalDepartment.create.mockResolvedValue({
+        ...mockDept,
+        slug: 'custom-slug',
       });
+
+      const result = await service.create({
+        name: "Umumiy chat",
+        slug: 'custom-slug',
+      });
+
+      expect(result.slug).toBe('custom-slug');
     });
 
-    it('should throw NotFoundException if company not found', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(null);
+    it('should throw ConflictException if slug already exists', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(mockDept);
 
       await expect(
-        service.create('invalid', { name: 'Marketing' }),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw ConflictException if department exists', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.department.findUnique.mockResolvedValue(mockDepartment);
-
-      await expect(
-        service.create('company-id', { name: 'Marketing' }),
+        service.create({ name: "Bank to'lovlari" }),
       ).rejects.toThrow(ConflictException);
     });
   });
+
+  // ─────────────────────────────────────────────
+  // findAll
+  // ─────────────────────────────────────────────
 
   describe('findAll', () => {
-    it('should return all departments', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.department.findMany.mockResolvedValue([
-        { ...mockDefaultDepartment, _count: { members: 5 } },
-        { ...mockDepartment, _count: { members: 3 } },
-      ]);
+    it('should return only active departments by default', async () => {
+      mockPrismaService.globalDepartment.findMany.mockResolvedValue([mockDept]);
 
-      const result = await service.findAll('company-id');
-
-      expect(result).toHaveLength(2);
-      expect(mockPrismaService.department.findMany).toHaveBeenCalledWith({
-        where: { companyId: 'company-id', isActive: true },
-        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-        select: expect.any(Object),
-      });
-    });
-
-    it('should throw NotFoundException if company not found', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(null);
-
-      await expect(service.findAll('invalid')).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('update', () => {
-    it('should update a custom department', async () => {
-      mockPrismaService.department.findFirst
-        .mockResolvedValueOnce(mockDepartment)
-        .mockResolvedValueOnce(null);
-      mockPrismaService.department.update.mockResolvedValue({
-        ...mockDepartment,
-        name: 'Sales',
-        slug: 'sales',
-      });
-
-      const result = await service.update('company-id', 'dept-id', {
-        name: 'Sales',
-      });
-
-      expect(result.name).toBe('Sales');
-    });
-
-    it('should throw ForbiddenException for default department', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(
-        mockDefaultDepartment,
-      );
-
-      await expect(
-        service.update('company-id', 'default-dept-id', { name: 'New Name' }),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should throw NotFoundException if department not found', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(null);
-
-      await expect(
-        service.update('company-id', 'invalid', { name: 'New Name' }),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('remove', () => {
-    it('should soft delete a custom department', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.department.update.mockResolvedValue({
-        ...mockDepartment,
-        isActive: false,
-      });
-
-      const result = await service.remove('company-id', 'dept-id');
-
-      expect(result.message).toBe('Department deleted successfully');
-    });
-
-    it('should throw ForbiddenException for default department', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(
-        mockDefaultDepartment,
-      );
-
-      await expect(
-        service.remove('company-id', 'default-dept-id'),
-      ).rejects.toThrow(ForbiddenException);
-    });
-  });
-
-  describe('addMember', () => {
-    it('should add a member to department', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({
-        id: 'uc-id',
-      });
-      mockPrismaService.operatorCompany.findFirst.mockResolvedValue(null);
-      mockPrismaService.departmentMember.findUnique.mockResolvedValue(null);
-      mockPrismaService.departmentMember.create.mockResolvedValue({});
-      mockPrismaService.departmentMember.findMany.mockResolvedValue([
-        { user: mockUser, createdAt: new Date() },
-      ]);
-
-      const result = await service.addMember('company-id', 'dept-id', {
-        userId: 'user-id',
-      });
+      const result = await service.findAll();
 
       expect(result).toHaveLength(1);
-      expect(mockPrismaService.departmentMember.create).toHaveBeenCalled();
+      expect(mockPrismaService.globalDepartment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { isActive: true },
+        }),
+      );
     });
 
-    it('should throw ForbiddenException if user not in company', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.userCompany.findFirst.mockResolvedValue(null);
-      mockPrismaService.operatorCompany.findFirst.mockResolvedValue(null);
+    it('should return all including inactive when includeInactive=true', async () => {
+      mockPrismaService.globalDepartment.findMany.mockResolvedValue([
+        mockDept,
+        { ...mockDept, id: 'dept-inactive', isActive: false },
+      ]);
 
-      await expect(
-        service.addMember('company-id', 'dept-id', { userId: 'user-id' }),
-      ).rejects.toThrow(ForbiddenException);
+      const result = await service.findAll(true);
+
+      expect(result).toHaveLength(2);
+      expect(mockPrismaService.globalDepartment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // findOne
+  // ─────────────────────────────────────────────
+
+  describe('findOne', () => {
+    it('should return a global department', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(mockDept);
+
+      const result = await service.findOne('dept-id');
+
+      expect(result.slug).toBe('bank-payment');
     });
 
-    it('should throw ConflictException if already a member', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({
-        id: 'uc-id',
-      });
-      mockPrismaService.departmentMember.findUnique.mockResolvedValue({
-        id: 'dm-id',
+    it('should throw NotFoundException if not found', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // update
+  // ─────────────────────────────────────────────
+
+  describe('update', () => {
+    it('should update department name', async () => {
+      mockPrismaService.globalDepartment.findUnique
+        .mockResolvedValueOnce(mockDept) // findOne check
+        .mockResolvedValueOnce(null);    // slug uniqueness check
+
+      mockPrismaService.globalDepartment.update.mockResolvedValue({
+        ...mockDept,
+        name: 'Updated Name',
+        slug: 'updated-name',
       });
 
+      const result = await service.update('dept-id', {
+        name: 'Updated Name',
+        slug: 'updated-name',
+      });
+
+      expect(result.slug).toBe('updated-name');
+    });
+
+    it('should throw ConflictException if new slug already taken by another dept', async () => {
+      mockPrismaService.globalDepartment.findUnique
+        .mockResolvedValueOnce(mockDept)                          // findOne check
+        .mockResolvedValueOnce({ id: 'other-dept', slug: 'taken' }); // slug conflict
+
       await expect(
-        service.addMember('company-id', 'dept-id', { userId: 'user-id' }),
+        service.update('dept-id', { slug: 'taken' }),
       ).rejects.toThrow(ConflictException);
     });
   });
 
-  describe('removeMember', () => {
-    it('should remove a member from department', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.departmentMember.findUnique.mockResolvedValue({
-        id: 'dm-id',
+  // ─────────────────────────────────────────────
+  // deactivate
+  // ─────────────────────────────────────────────
+
+  describe('deactivate', () => {
+    it('should soft-delete a global department', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(mockDept);
+      mockPrismaService.globalDepartment.update.mockResolvedValue({});
+
+      const result = await service.deactivate('dept-id');
+
+      expect(result.message).toBe("Global department o'chirildi");
+      expect(mockPrismaService.globalDepartment.update).toHaveBeenCalledWith({
+        where: { id: 'dept-id' },
+        data: { isActive: false },
       });
-      mockPrismaService.departmentMember.delete.mockResolvedValue({});
-
-      const result = await service.removeMember(
-        'company-id',
-        'dept-id',
-        'user-id',
-      );
-
-      expect(result.message).toBe('Member removed successfully');
-    });
-
-    it('should throw NotFoundException if member not found', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.departmentMember.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.removeMember('company-id', 'dept-id', 'user-id'),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('getMembers', () => {
-    it('should return all members of a department', async () => {
-      mockPrismaService.department.findFirst.mockResolvedValue(mockDepartment);
-      mockPrismaService.departmentMember.findMany.mockResolvedValue([
-        { user: mockUser, createdAt: new Date() },
-      ]);
-
-      const result = await service.getMembers('company-id', 'dept-id');
-
-      expect(result).toHaveLength(1);
-      expect(result[0].username).toBe('testuser');
     });
   });
 });

@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import {
+    IsBoolean,
+    IsNumber,
+    IsOptional,
+    IsString,
+    Min,
+} from 'class-validator';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({ example: 'Ali Valiyev' })
@@ -12,10 +18,16 @@ export class UpdateUserDto {
   @IsOptional()
   phone?: string;
 
-  @ApiPropertyOptional({ example: 'worker-type-id' })
+  @ApiPropertyOptional({ example: 'https://...' })
   @IsString()
   @IsOptional()
-  workerTypeId?: string;
+  avatar?: string;
+
+  @ApiPropertyOptional({ example: 2, description: 'UI display rank' })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  rank?: number;
 
   @ApiPropertyOptional({ example: true })
   @IsBoolean()

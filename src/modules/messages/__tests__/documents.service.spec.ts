@@ -1,51 +1,37 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import {
-  NotFoundException,
-  ForbiddenException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
-import { DocumentsService } from '../documents.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { DocumentStatus } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
-import { Role, DocumentStatus } from '../../../../generated/prisma/client';
+import { DocumentsService } from '../documents.service';
 
 describe('DocumentsService', () => {
   let service: DocumentsService;
 
   const mockDocument = {
-    id: 'doc-id',
-    messageId: 'msg-id',
-    documentName: 'Contract',
-    documentNumber: 'DOC-001',
+    id: 'doc-1',
+    documentName: 'Test Doc',
+    documentNumber: '123',
+    companyId: 'company-1',
+    globalDepartmentId: 'dept-1',
     status: DocumentStatus.PENDING,
-    rejectionReason: null,
-    approvedBy: null,
-    approvedAt: null,
-    message: {
-      id: 'msg-id',
-      department: {
-        id: 'dept-id',
-        companyId: 'company-id',
-      },
-      sender: {
-        id: 'sender-id',
-        username: 'sender',
-        name: 'Sender',
-      },
-    },
+    createdById: 'user-1',
+    expiresAt: new Date(),
+    createdAt: new Date(),
   };
 
   const mockPrismaService = {
-    documentApproval: {
+    document: {
+      create: jest.fn(),
       findUnique: jest.fn(),
-      findMany: jest.fn(),
       update: jest.fn(),
+      findMany: jest.fn(),
       count: jest.fn(),
     },
-    userCompany: {
-      findFirst: jest.fn(),
-    },
-    operatorCompany: {
-      findFirst: jest.fn(),
+    documentActionLog: {
+      create: jest.fn(),
     },
   };
 
@@ -61,157 +47,97 @@ describe('DocumentsService', () => {
     jest.clearAllMocks();
   });
 
+  describe('create', () => {
+    it('should create a document and log the action', async () => {
+      mockPrismaService.document.create.mockResolvedValue(mockDocument);
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        documentName: 'Test Doc',
+        documentNumber: '123',
+      };
+
+      const result = await service.create('user-1', dto);
+
+      expect(result).toEqual(mockDocument);
+      expect(mockPrismaService.document.create).toHaveBeenCalled();
+      expect(mockPrismaService.documentActionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'CREATED' }),
+        }),
+      );
+    });
+  });
+
   describe('approve', () => {
     it('should approve a pending document', async () => {
-      mockPrismaService.documentApproval.findUnique.mockResolvedValue(mockDocument);
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({ id: 'uc-id' });
-      mockPrismaService.documentApproval.update.mockResolvedValue({
+      mockPrismaService.document.findUnique.mockResolvedValue(mockDocument);
+      mockPrismaService.document.update.mockResolvedValue({
         ...mockDocument,
-        status: DocumentStatus.APPROVED,
-        approvedBy: 'user-id',
-        approvedAt: new Date(),
-        approver: { id: 'user-id', username: 'approver', name: 'Approver' },
+        status: DocumentStatus.ACCEPTED,
       });
 
-      const result = await service.approve('doc-id', 'user-id', Role.DIRECTOR);
+      const result = await service.approve('doc-1', 'admin-1');
 
-      expect(result.status).toBe(DocumentStatus.APPROVED);
-      expect(mockPrismaService.documentApproval.update).toHaveBeenCalledWith({
-        where: { id: 'doc-id' },
-        data: expect.objectContaining({
-          status: DocumentStatus.APPROVED,
-          approvedBy: 'user-id',
+      expect(result.status).toBe(DocumentStatus.ACCEPTED);
+      expect(mockPrismaService.documentActionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'ACCEPTED' }),
         }),
-        include: expect.any(Object),
-      });
+      );
     });
 
-    it('should allow ADMIN to approve', async () => {
-      mockPrismaService.documentApproval.findUnique.mockResolvedValue(mockDocument);
-      mockPrismaService.documentApproval.update.mockResolvedValue({
+    it('should throw BadRequestException if document is not pending', async () => {
+      mockPrismaService.document.findUnique.mockResolvedValue({
         ...mockDocument,
-        status: DocumentStatus.APPROVED,
+        status: DocumentStatus.ACCEPTED,
       });
 
-      await service.approve('doc-id', 'admin-id', Role.ADMIN);
-
-      expect(mockPrismaService.userCompany.findFirst).not.toHaveBeenCalled();
-    });
-
-    it('should throw BadRequestException if already processed', async () => {
-      mockPrismaService.documentApproval.findUnique.mockResolvedValue({
-        ...mockDocument,
-        status: DocumentStatus.APPROVED,
-      });
-
-      await expect(
-        service.approve('doc-id', 'user-id', Role.DIRECTOR),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw ForbiddenException for OPERATOR', async () => {
-      mockPrismaService.documentApproval.findUnique.mockResolvedValue(mockDocument);
-      mockPrismaService.operatorCompany.findFirst.mockResolvedValue({ id: 'oc-id' });
-
-      await expect(
-        service.approve('doc-id', 'operator-id', Role.OPERATOR),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.approve('doc-1', 'admin-1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('reject', () => {
-    it('should reject a pending document with reason', async () => {
-      mockPrismaService.documentApproval.findUnique.mockResolvedValue(mockDocument);
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({ id: 'uc-id' });
-      mockPrismaService.documentApproval.update.mockResolvedValue({
+    it('should reject a pending document with a reason', async () => {
+      mockPrismaService.document.findUnique.mockResolvedValue(mockDocument);
+      mockPrismaService.document.update.mockResolvedValue({
         ...mockDocument,
         status: DocumentStatus.REJECTED,
-        rejectionReason: 'Invalid document',
-        approvedBy: 'user-id',
       });
 
-      const result = await service.reject(
-        'doc-id',
-        { reason: 'Invalid document' },
-        'user-id',
-        Role.DIRECTOR,
-      );
+      const result = await service.reject('doc-1', 'admin-1', {
+        reason: 'Invalid signature',
+      });
 
       expect(result.status).toBe(DocumentStatus.REJECTED);
-      expect(mockPrismaService.documentApproval.update).toHaveBeenCalledWith({
-        where: { id: 'doc-id' },
-        data: expect.objectContaining({
-          status: DocumentStatus.REJECTED,
-          rejectionReason: 'Invalid document',
-        }),
-        include: expect.any(Object),
-      });
-    });
-  });
-
-  describe('getPending', () => {
-    it('should return pending documents for company', async () => {
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({ id: 'uc-id' });
-      mockPrismaService.documentApproval.findMany.mockResolvedValue([mockDocument]);
-
-      const result = await service.getPending('company-id', 'user-id', Role.DIRECTOR);
-
-      expect(result).toHaveLength(1);
-      expect(mockPrismaService.documentApproval.findMany).toHaveBeenCalledWith({
-        where: {
-          status: DocumentStatus.PENDING,
-          message: {
-            department: {
-              companyId: 'company-id',
-            },
-          },
-        },
-        include: expect.any(Object),
-        orderBy: { createdAt: 'asc' },
-      });
-    });
-
-    it('should throw ForbiddenException if no company access', async () => {
-      mockPrismaService.userCompany.findFirst.mockResolvedValue(null);
-      mockPrismaService.operatorCompany.findFirst.mockResolvedValue(null);
-
-      await expect(
-        service.getPending('company-id', 'user-id', Role.EMPLOYEE),
-      ).rejects.toThrow(ForbiddenException);
-    });
-  });
-
-  describe('getAll', () => {
-    it('should return paginated documents', async () => {
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({ id: 'uc-id' });
-      mockPrismaService.documentApproval.findMany.mockResolvedValue([mockDocument]);
-      mockPrismaService.documentApproval.count.mockResolvedValue(1);
-
-      const result = await service.getAll('company-id', 'user-id', Role.DIRECTOR);
-
-      expect(result.data).toHaveLength(1);
-      expect(result.meta.total).toBe(1);
-    });
-
-    it('should filter by status', async () => {
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({ id: 'uc-id' });
-      mockPrismaService.documentApproval.findMany.mockResolvedValue([]);
-      mockPrismaService.documentApproval.count.mockResolvedValue(0);
-
-      await service.getAll(
-        'company-id',
-        'user-id',
-        Role.DIRECTOR,
-        DocumentStatus.APPROVED,
-      );
-
-      expect(mockPrismaService.documentApproval.findMany).toHaveBeenCalledWith(
+      expect(mockPrismaService.documentActionLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            status: DocumentStatus.APPROVED,
+          data: expect.objectContaining({
+            action: 'REJECTED',
+            details: { reason: 'Invalid signature' },
           }),
         }),
       );
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a document if found', async () => {
+      mockPrismaService.document.findUnique.mockResolvedValue(mockDocument);
+
+      const result = await service.findOne('doc-1');
+
+      expect(result).toEqual(mockDocument);
+    });
+
+    it('should throw NotFoundException if document not found', async () => {
+      mockPrismaService.document.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -1,29 +1,29 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  MaxFileSizeValidator,
-  Param,
-  ParseFilePipe,
-  Patch,
-  Post,
-  Query,
-  UploadedFile,
-  UploadedFiles,
-  UseGuards,
-  UseInterceptors,
+    Body,
+    Controller,
+    Delete,
+    Get,
+    MaxFileSizeValidator,
+    Param,
+    ParseFilePipe,
+    Patch,
+    Post,
+    Query,
+    UploadedFile,
+    UploadedFiles,
+    UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { Role } from 'generated/prisma/enums';
-import { CurrentUser, Roles } from 'src/common/decorators';
-import { RolesGuard } from 'src/common/guards';
+import { SystemRole } from '../../../generated/prisma/client';
+import { CurrentUser, SystemRoles } from '../../common/decorators';
+import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { UploadFileDto } from './dto/upload-file.dto';
 import { FilesService } from './files.service';
 
 @Controller('files')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, SystemRoleGuard)
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
@@ -43,7 +43,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
     @Body() dto: UploadFileDto,
-    @CurrentUser() userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     return this.filesService.upload(file, dto, userId);
   }
@@ -57,7 +57,7 @@ export class FilesController {
   async uploadMultiple(
     @UploadedFiles() files: Express.Multer.File[],
     @Body() dto: UploadFileDto,
-    @CurrentUser() userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     return this.filesService.uploadMultiple(files, dto, userId);
   }
@@ -69,10 +69,10 @@ export class FilesController {
   @Get(':id')
   async findOne(
     @Param('id') id: string,
-    @CurrentUser() userId: string,
-    @CurrentUser('role') role: Role,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
-    return this.filesService.findOne(id, userId, role);
+    return this.filesService.findOne(id, userId, systemRole);
   }
 
   /**
@@ -81,17 +81,17 @@ export class FilesController {
    */
   @Get('department/:departmentId')
   async findByDepartment(
-    @Param('departmentId') departmentId: string,
+    @Param('departmentId') globalDepartmentId: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
     @Query('includeDeleted') includeDeleted: string = 'false',
-    @CurrentUser() userId: string,
-    @CurrentUser('role') role: Role,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
     return this.filesService.findByDepartment(
-      departmentId,
+      globalDepartmentId,
       userId,
-      role,
+      systemRole,
       parseInt(page) || 1,
       parseInt(limit) || 20,
       includeDeleted === 'true',
@@ -105,10 +105,10 @@ export class FilesController {
   @Delete(':id')
   async remove(
     @Param('id') id: string,
-    @CurrentUser() userId: string,
-    @CurrentUser('role') role: Role,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
-    return this.filesService.remove(id, userId, role);
+    return this.filesService.remove(id, userId, systemRole);
   }
 
   /**
@@ -116,18 +116,18 @@ export class FilesController {
    * GET /files/deleted
    */
   @Get('admin/deleted')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   async getDeleted(
-    @Query('departmentId') departmentId: string,
+    @Query('globalDepartmentId') globalDepartmentId: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
-    @CurrentUser() userId: string,
-    @CurrentUser('role') role: Role,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
     return this.filesService.getDeleted(
       userId,
-      role,
-      departmentId,
+      systemRole,
+      globalDepartmentId,
       parseInt(page) || 1,
       parseInt(limit) || 20,
     );
@@ -138,13 +138,13 @@ export class FilesController {
    * PATCH /files/:id/restore
    */
   @Patch(':id/restore')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   async restore(
     @Param('id') id: string,
-    @CurrentUser() userId: string,
-    @CurrentUser('role') role: Role,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
-    return this.filesService.restore(id, userId, role);
+    return this.filesService.restore(id, userId, systemRole);
   }
 
   /**
@@ -152,12 +152,12 @@ export class FilesController {
    * DELETE /files/:id/permanent
    */
   @Delete(':id/permanent')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   async permanentDelete(
     @Param('id') id: string,
-    @CurrentUser() userId: string,
-    @CurrentUser('role') role: Role,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
-    return this.filesService.permanentDelete(id, userId, role);
+    return this.filesService.permanentDelete(id, userId, systemRole);
   }
 }

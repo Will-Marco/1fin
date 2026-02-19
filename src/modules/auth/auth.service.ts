@@ -10,7 +10,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { LoginDto, ChangePasswordDto, UpdateProfileDto } from './dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { MAX_SESSIONS_PER_USER } from '../../common/constants';
-import { Role } from '../../../generated/prisma/client';
+import { SystemRole } from '../../../generated/prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -41,7 +41,7 @@ export class AuthService {
 
     const tokens = await this.createSession(
       user.id,
-      user.role,
+      user.systemRole,
       dto.deviceName,
       dto.deviceType,
       ipAddress,
@@ -53,7 +53,8 @@ export class AuthService {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role,
+        rank: user.rank,
+        systemRole: user.systemRole,
         mustChangePassword: user.mustChangePassword,
       },
       ...tokens,
@@ -81,7 +82,7 @@ export class AuthService {
 
     const tokens = await this.generateTokens(
       session.user.id,
-      session.user.role,
+      session.user.systemRole,
       sessionId,
     );
 
@@ -163,7 +164,8 @@ export class AuthService {
         name: true,
         phone: true,
         avatar: true,
-        role: true,
+        rank: true,
+        systemRole: true,
       },
     });
 
@@ -184,7 +186,8 @@ export class AuthService {
         name: true,
         phone: true,
         avatar: true,
-        role: true,
+        rank: true,
+        systemRole: true,
       },
     });
   }
@@ -206,7 +209,7 @@ export class AuthService {
 
   private async createSession(
     userId: string,
-    role: Role,
+    systemRole: SystemRole | null,
     deviceName: string,
     deviceType: string,
     ipAddress?: string,
@@ -241,7 +244,7 @@ export class AuthService {
       },
     });
 
-    const tokens = await this.generateTokens(userId, role, session.id);
+    const tokens = await this.generateTokens(userId, systemRole, session.id);
 
     const hashedRefreshToken = await bcrypt.hash(tokens.refreshToken, 10);
 
@@ -253,12 +256,20 @@ export class AuthService {
     return tokens;
   }
 
-  private async generateTokens(userId: string, role: Role, sessionId: string) {
+  private async generateTokens(
+    userId: string,
+    systemRole: SystemRole | null,
+    sessionId: string,
+  ) {
     const payload: JwtPayload = {
       sub: userId,
-      role,
       sessionId,
     };
+
+    // Only include systemRole if user is 1FIN employee
+    if (systemRole) {
+      payload.systemRole = systemRole;
+    }
 
     const accessExpiresIn = this.parseExpiration(
       this.configService.get<string>('jwt.accessExpiresIn', '15m'),

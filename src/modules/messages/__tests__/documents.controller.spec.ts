@@ -1,32 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { DocumentStatus } from '../../../../generated/prisma/client';
 import { DocumentsController } from '../documents.controller';
 import { DocumentsService } from '../documents.service';
-import { Role, DocumentStatus } from '../../../../generated/prisma/client';
 
 describe('DocumentsController', () => {
   let controller: DocumentsController;
   let service: DocumentsService;
 
   const mockDocument = {
-    id: 'doc-id',
-    messageId: 'msg-id',
-    documentName: 'Contract',
-    documentNumber: 'DOC-001',
+    id: 'doc-1',
+    documentName: 'Test Doc',
+    documentNumber: '123',
+    companyId: 'company-1',
+    globalDepartmentId: 'dept-1',
     status: DocumentStatus.PENDING,
-    rejectionReason: null,
-    approvedBy: null,
-    approvedAt: null,
-    message: {
-      id: 'msg-id',
-      sender: { id: 'sender-id', username: 'sender', name: 'Sender' },
-    },
+    createdById: 'user-1',
   };
 
   const mockDocumentsService = {
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
     approve: jest.fn(),
     reject: jest.fn(),
-    getPending: jest.fn(),
-    getAll: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -42,119 +38,58 @@ describe('DocumentsController', () => {
     jest.clearAllMocks();
   });
 
+  describe('create', () => {
+    it('should create a document', async () => {
+      mockDocumentsService.create.mockResolvedValue(mockDocument);
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        documentName: 'Test Doc',
+        documentNumber: '123',
+      };
+
+      const result = await controller.create(dto, 'user-1');
+
+      expect(result).toEqual(mockDocument);
+      expect(service.create).toHaveBeenCalledWith('user-1', dto);
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return paginated documents', async () => {
+      mockDocumentsService.findAll.mockResolvedValue({ data: [mockDocument], meta: {} });
+
+      const result = await controller.findAll('company-1', 'dept-1', undefined, undefined, '1', '20');
+
+      expect(result.data).toHaveLength(1);
+      expect(service.findAll).toHaveBeenCalledWith(1, 20, {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        status: undefined,
+        search: undefined,
+      });
+    });
+  });
+
   describe('approve', () => {
     it('should approve a document', async () => {
-      const approvedDoc = {
-        ...mockDocument,
-        status: DocumentStatus.APPROVED,
-        approvedBy: 'user-id',
-        approvedAt: new Date(),
-      };
-      mockDocumentsService.approve.mockResolvedValue(approvedDoc);
+      mockDocumentsService.approve.mockResolvedValue({ ...mockDocument, status: DocumentStatus.ACCEPTED });
 
-      const result = await controller.approve('doc-id', 'user-id', Role.DIRECTOR);
+      const result = await controller.approve('doc-1', 'admin-1');
 
-      expect(result.status).toBe(DocumentStatus.APPROVED);
-      expect(service.approve).toHaveBeenCalledWith('doc-id', 'user-id', Role.DIRECTOR);
+      expect(result.status).toBe(DocumentStatus.ACCEPTED);
+      expect(service.approve).toHaveBeenCalledWith('doc-1', 'admin-1');
     });
   });
 
   describe('reject', () => {
-    it('should reject a document with reason', async () => {
-      const rejectedDoc = {
-        ...mockDocument,
-        status: DocumentStatus.REJECTED,
-        rejectionReason: 'Invalid document',
-        approvedBy: 'user-id',
-      };
-      mockDocumentsService.reject.mockResolvedValue(rejectedDoc);
+    it('should reject a document', async () => {
+      mockDocumentsService.reject.mockResolvedValue({ ...mockDocument, status: DocumentStatus.REJECTED });
 
-      const result = await controller.reject(
-        'doc-id',
-        { reason: 'Invalid document' },
-        'user-id',
-        Role.DIRECTOR,
-      );
+      const result = await controller.reject('doc-1', { reason: 'Invalid' }, 'admin-1');
 
       expect(result.status).toBe(DocumentStatus.REJECTED);
-      expect(result.rejectionReason).toBe('Invalid document');
-      expect(service.reject).toHaveBeenCalledWith(
-        'doc-id',
-        { reason: 'Invalid document' },
-        'user-id',
-        Role.DIRECTOR,
-      );
-    });
-  });
-
-  describe('getPending', () => {
-    it('should return pending documents', async () => {
-      mockDocumentsService.getPending.mockResolvedValue([mockDocument]);
-
-      const result = await controller.getPending('company-id', 'user-id', Role.DIRECTOR);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].status).toBe(DocumentStatus.PENDING);
-      expect(service.getPending).toHaveBeenCalledWith(
-        'company-id',
-        'user-id',
-        Role.DIRECTOR,
-      );
-    });
-  });
-
-  describe('getAll', () => {
-    it('should return paginated documents', async () => {
-      const mockResult = {
-        data: [mockDocument],
-        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
-      };
-      mockDocumentsService.getAll.mockResolvedValue(mockResult);
-
-      const result = await controller.getAll(
-        'company-id',
-        undefined,
-        '1',
-        '20',
-        'user-id',
-        Role.DIRECTOR,
-      );
-
-      expect(result.data).toHaveLength(1);
-      expect(service.getAll).toHaveBeenCalledWith(
-        'company-id',
-        'user-id',
-        Role.DIRECTOR,
-        undefined,
-        1,
-        20,
-      );
-    });
-
-    it('should filter by status', async () => {
-      const mockResult = {
-        data: [],
-        meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
-      };
-      mockDocumentsService.getAll.mockResolvedValue(mockResult);
-
-      await controller.getAll(
-        'company-id',
-        DocumentStatus.APPROVED,
-        '1',
-        '20',
-        'user-id',
-        Role.DIRECTOR,
-      );
-
-      expect(service.getAll).toHaveBeenCalledWith(
-        'company-id',
-        'user-id',
-        Role.DIRECTOR,
-        DocumentStatus.APPROVED,
-        1,
-        20,
-      );
+      expect(service.reject).toHaveBeenCalledWith('doc-1', 'admin-1', { reason: 'Invalid' });
     });
   });
 });

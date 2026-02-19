@@ -1,45 +1,35 @@
+import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DepartmentsController } from '../departments.controller';
 import { DepartmentsService } from '../departments.service';
 
-describe('DepartmentsController', () => {
+describe('DepartmentsController (GlobalDepartment)', () => {
   let controller: DepartmentsController;
   let service: DepartmentsService;
 
-  const mockDepartment = {
+  const mockDept = {
     id: 'dept-id',
-    name: 'Marketing',
-    slug: 'marketing',
-    isDefault: false,
+    name: "Bank to'lovlari",
+    slug: 'bank-payment',
     isActive: true,
     createdAt: new Date(),
+    _count: { companyConfigs: 3 },
   };
 
-  const mockMember = {
-    id: 'user-id',
-    username: 'testuser',
-    name: 'Test User',
-    avatar: null,
-    role: 'EMPLOYEE',
-    joinedAt: new Date(),
-  };
-
-  const mockDepartmentsService = {
+  const mockDeptService = {
     create: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
-    remove: jest.fn(),
-    addMember: jest.fn(),
-    removeMember: jest.fn(),
-    getMembers: jest.fn(),
+    deactivate: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DepartmentsController],
       providers: [
-        { provide: DepartmentsService, useValue: mockDepartmentsService },
+        { provide: DepartmentsService, useValue: mockDeptService },
+        Reflector,
       ],
     }).compile();
 
@@ -49,113 +39,65 @@ describe('DepartmentsController', () => {
   });
 
   describe('create', () => {
-    it('should create a department', async () => {
-      mockDepartmentsService.create.mockResolvedValue(mockDepartment);
+    it('should create a global department', async () => {
+      mockDeptService.create.mockResolvedValue(mockDept);
 
-      const result = await controller.create('company-id', { name: 'Marketing' });
+      const result = await controller.create({ name: "Bank to'lovlari" });
 
-      expect(result).toEqual(mockDepartment);
-      expect(service.create).toHaveBeenCalledWith('company-id', {
-        name: 'Marketing',
-      });
+      expect(result).toEqual(mockDept);
+      expect(service.create).toHaveBeenCalledWith({ name: "Bank to'lovlari" });
     });
   });
 
   describe('findAll', () => {
-    it('should return all departments', async () => {
-      mockDepartmentsService.findAll.mockResolvedValue([mockDepartment]);
+    it('should return active departments', async () => {
+      mockDeptService.findAll.mockResolvedValue([mockDept]);
 
-      const result = await controller.findAll('company-id');
+      const result = await controller.findAll(undefined);
 
       expect(result).toHaveLength(1);
-      expect(service.findAll).toHaveBeenCalledWith('company-id');
+      expect(service.findAll).toHaveBeenCalledWith(false);
+    });
+
+    it('should include inactive when query param is true', async () => {
+      mockDeptService.findAll.mockResolvedValue([mockDept]);
+
+      await controller.findAll('true');
+
+      expect(service.findAll).toHaveBeenCalledWith(true);
     });
   });
 
   describe('findOne', () => {
     it('should return a department', async () => {
-      mockDepartmentsService.findOne.mockResolvedValue(mockDepartment);
+      mockDeptService.findOne.mockResolvedValue(mockDept);
 
-      const result = await controller.findOne('company-id', 'dept-id');
+      const result = await controller.findOne('dept-id');
 
-      expect(result).toEqual(mockDepartment);
-      expect(service.findOne).toHaveBeenCalledWith('company-id', 'dept-id');
+      expect(result).toEqual(mockDept);
     });
   });
 
   describe('update', () => {
     it('should update a department', async () => {
-      const updated = { ...mockDepartment, name: 'Sales' };
-      mockDepartmentsService.update.mockResolvedValue(updated);
+      mockDeptService.update.mockResolvedValue({ ...mockDept, name: 'Updated' });
 
-      const result = await controller.update('company-id', 'dept-id', {
-        name: 'Sales',
-      });
+      const result = await controller.update('dept-id', { name: 'Updated' });
 
-      expect(result.name).toBe('Sales');
-      expect(service.update).toHaveBeenCalledWith('company-id', 'dept-id', {
-        name: 'Sales',
-      });
+      expect(service.update).toHaveBeenCalledWith('dept-id', { name: 'Updated' });
     });
   });
 
-  describe('remove', () => {
-    it('should delete a department', async () => {
-      mockDepartmentsService.remove.mockResolvedValue({
-        message: 'Department deleted successfully',
+  describe('deactivate', () => {
+    it('should deactivate a department', async () => {
+      mockDeptService.deactivate.mockResolvedValue({
+        message: "Global department o'chirildi",
       });
 
-      const result = await controller.remove('company-id', 'dept-id');
+      const result = await controller.deactivate('dept-id');
 
-      expect(result.message).toBe('Department deleted successfully');
-      expect(service.remove).toHaveBeenCalledWith('company-id', 'dept-id');
-    });
-  });
-
-  describe('addMember', () => {
-    it('should add a member to department', async () => {
-      mockDepartmentsService.addMember.mockResolvedValue([mockMember]);
-
-      const result = await controller.addMember('company-id', 'dept-id', {
-        userId: 'user-id',
-      });
-
-      expect(result).toHaveLength(1);
-      expect(service.addMember).toHaveBeenCalledWith('company-id', 'dept-id', {
-        userId: 'user-id',
-      });
-    });
-  });
-
-  describe('removeMember', () => {
-    it('should remove a member from department', async () => {
-      mockDepartmentsService.removeMember.mockResolvedValue({
-        message: 'Member removed successfully',
-      });
-
-      const result = await controller.removeMember(
-        'company-id',
-        'dept-id',
-        'user-id',
-      );
-
-      expect(result.message).toBe('Member removed successfully');
-      expect(service.removeMember).toHaveBeenCalledWith(
-        'company-id',
-        'dept-id',
-        'user-id',
-      );
-    });
-  });
-
-  describe('getMembers', () => {
-    it('should return all members of a department', async () => {
-      mockDepartmentsService.getMembers.mockResolvedValue([mockMember]);
-
-      const result = await controller.getMembers('company-id', 'dept-id');
-
-      expect(result).toHaveLength(1);
-      expect(service.getMembers).toHaveBeenCalledWith('company-id', 'dept-id');
+      expect(result.message).toBeDefined();
+      expect(service.deactivate).toHaveBeenCalledWith('dept-id');
     });
   });
 });

@@ -1,9 +1,8 @@
 import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
-import { DEFAULT_DEPARTMENTS } from '../../common/constants';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
 
@@ -11,63 +10,89 @@ import { CreateCompanyDto, UpdateCompanyDto } from './dto';
 export class CompaniesService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Create a company and automatically link ALL active GlobalDepartments
+   * via CompanyDepartmentConfig (enabled by default).
+   */
   async create(dto: CreateCompanyDto, createdById: string) {
     if (dto.inn) {
       const existing = await this.prisma.company.findUnique({
         where: { inn: dto.inn },
       });
       if (existing) {
-        throw new ConflictException('Company with this INN already exists');
+        throw new ConflictException('Bu INN bilan kompaniya allaqachon mavjud');
       }
     }
 
+    // Get all active global departments
+    const globalDepts = await this.prisma.globalDepartment.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    });
+
     const company = await this.prisma.$transaction(async (tx) => {
-      const company = await tx.company.create({
+      const created = await tx.company.create({
         data: {
           name: dto.name,
           inn: dto.inn,
           address: dto.address,
+          requisites: dto.requisites,
           createdById,
         },
       });
 
-      await tx.department.createMany({
-        data: DEFAULT_DEPARTMENTS.map((dept) => ({
-          companyId: company.id,
-          name: dept.name,
-          slug: dept.slug,
-          isDefault: true,
-        })),
-      });
-      return company;
+      // Link all global departments to this company
+      if (globalDepts.length > 0) {
+        await tx.companyDepartmentConfig.createMany({
+          data: globalDepts.map((dept) => ({
+            companyId: created.id,
+            globalDepartmentId: dept.id,
+            isEnabled: true,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return created;
     });
 
     return this.findOne(company.id);
   }
 
-  async findAll(page = 1, limit = 20) {
+  async findAll(page = 1, limit = 20, search?: string) {
     const skip = (page - 1) * limit;
+    const where: any = { isActive: true };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { inn: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [companies, total] = await Promise.all([
       this.prisma.company.findMany({
-        where: { isActive: true },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          departments: {
-            where: { isActive: true },
-            select: { id: true, name: true, slug: true, isDefault: true },
-          },
+        select: {
+          id: true,
+          name: true,
+          inn: true,
+          logo: true,
+          address: true,
+          isActive: true,
+          createdAt: true,
           _count: {
             select: {
-              userCompanies: true,
-              operatorCompanies: true,
+              memberships: { where: { isActive: true } },
+              departmentConfigs: { where: { isEnabled: true } },
             },
           },
         },
       }),
-      this.prisma.company.count({ where: { isActive: true } }),
+      this.prisma.company.count({ where }),
     ]);
 
     return {
@@ -84,23 +109,37 @@ export class CompaniesService {
   async findOne(id: string) {
     const company = await this.prisma.company.findUnique({
       where: { id },
-      include: {
-        departments: {
-          where: { isActive: true },
-          select: { id: true, name: true, slug: true, isDefault: true },
+      select: {
+        id: true,
+        name: true,
+        inn: true,
+        logo: true,
+        address: true,
+        requisites: true,
+        isActive: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+        departmentConfigs: {
           orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            isEnabled: true,
+            globalDepartment: {
+              select: { id: true, name: true, slug: true, isActive: true },
+            },
+          },
         },
         _count: {
           select: {
-            userCompanies: true,
-            operatorCompanies: true,
+            memberships: { where: { isActive: true } },
           },
         },
       },
     });
 
     if (!company || !company.isActive) {
-      throw new NotFoundException('Company not found');
+      throw new NotFoundException('Kompaniya topilmadi');
     }
 
     return company;
@@ -114,7 +153,7 @@ export class CompaniesService {
         where: { inn: dto.inn },
       });
       if (existing && existing.id !== id) {
-        throw new ConflictException('Company with this INN already exists');
+        throw new ConflictException('Bu INN bilan kompaniya allaqachon mavjud');
       }
     }
 
@@ -134,7 +173,7 @@ export class CompaniesService {
       data: { isActive: false },
     });
 
-    return { message: 'Company deleted successfully' };
+    return { message: 'Kompaniya o\'chirildi' };
   }
 
   async updateLogo(id: string, logoPath: string) {
@@ -146,5 +185,120 @@ export class CompaniesService {
     });
 
     return this.findOne(id);
+  }
+
+  // ─────────────────────────────────────────────
+  // DEPARTMENT CONFIG MANAGEMENT
+  // ─────────────────────────────────────────────
+
+  /**
+   * Get all department configs for a company (enabled + disabled).
+   */
+  async getDepartmentConfigs(companyId: string) {
+    await this.findOne(companyId);
+
+    return this.prisma.companyDepartmentConfig.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        isEnabled: true,
+        globalDepartment: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
+    });
+  }
+
+  /**
+   * Enable a department for a company.
+   */
+  async enableDepartment(companyId: string, globalDepartmentId: string) {
+    await this.findOne(companyId);
+
+    const config = await this.prisma.companyDepartmentConfig.findUnique({
+      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+    });
+
+    if (!config) {
+      // Create config if it doesn't exist
+      return this.prisma.companyDepartmentConfig.create({
+        data: { companyId, globalDepartmentId, isEnabled: true },
+        select: {
+          id: true,
+          isEnabled: true,
+          globalDepartment: { select: { id: true, name: true, slug: true } },
+        },
+      });
+    }
+
+    return this.prisma.companyDepartmentConfig.update({
+      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+      data: { isEnabled: true },
+      select: {
+        id: true,
+        isEnabled: true,
+        globalDepartment: { select: { id: true, name: true, slug: true } },
+      },
+    });
+  }
+
+  /**
+   * Disable a department for a company.
+   */
+  async disableDepartment(companyId: string, globalDepartmentId: string) {
+    await this.findOne(companyId);
+
+    const config = await this.prisma.companyDepartmentConfig.findUnique({
+      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+    });
+
+    if (!config) {
+      throw new NotFoundException('Department bu kompaniya uchun topilmadi');
+    }
+
+    return this.prisma.companyDepartmentConfig.update({
+      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+      data: { isEnabled: false },
+      select: {
+        id: true,
+        isEnabled: true,
+        globalDepartment: { select: { id: true, name: true, slug: true } },
+      },
+    });
+  }
+
+  /**
+   * Get all active members of a company with their roles and department access.
+   */
+  async getMembers(companyId: string) {
+    await this.findOne(companyId);
+
+    return this.prisma.userCompanyMembership.findMany({
+      where: { companyId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        companyRole: true,
+        isActive: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            phone: true,
+            avatar: true,
+            rank: true,
+            isActive: true,
+          },
+        },
+        allowedDepartments: {
+          select: {
+            globalDepartment: { select: { id: true, name: true, slug: true } },
+          },
+        },
+      },
+    });
   }
 }

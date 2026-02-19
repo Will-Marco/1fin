@@ -1,21 +1,17 @@
 import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  Inject,
-  forwardRef,
-  Optional,
+    BadRequestException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
+    Optional,
 } from '@nestjs/common';
+import { MessageStatus, SystemRole } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import {
-  CreateMessageDto,
-  UpdateMessageDto,
-  ForwardMessageDto,
-  MessageType,
-} from './dto';
-import { Role, DocumentStatus } from '../../../generated/prisma/client';
 import { MessageProducer } from '../../queues/producers';
+import {
+    CreateMessageDto,
+    UpdateMessageDto
+} from './dto';
 
 @Injectable()
 export class MessagesService {
@@ -24,82 +20,71 @@ export class MessagesService {
     @Optional() private messageProducer?: MessageProducer,
   ) {}
 
-  private async checkDepartmentAccess(
-    departmentId: string,
+  /**
+   * Check if user has access to a specific department in a company.
+   */
+  private async checkAccess(
+    companyId: string,
+    globalDepartmentId: string,
     userId: string,
-    userRole: Role,
-  ): Promise<{ department: any; companyId: string }> {
-    const department = await this.prisma.department.findUnique({
-      where: { id: departmentId },
-      include: { company: true },
-    });
-
-    if (!department || !department.isActive) {
-      throw new NotFoundException('Department not found');
+    userSystemRole?: SystemRole | null,
+  ) {
+    // 1FIN staff (FIN_DIRECTOR, FIN_ADMIN, FIN_EMPLOYEE) have global access
+    if (userSystemRole) {
+      return true;
     }
 
-    // SUPER_ADMIN va ADMIN barcha departmentlarga kirishi mumkin
-    if (userRole === Role.SUPER_ADMIN || userRole === Role.ADMIN) {
-      return { department, companyId: department.companyId };
-    }
-
-    // Boshqa rollar uchun membership tekshirish
-    const isMember = await this.prisma.departmentMember.findUnique({
+    // Client users must have an active membership with access to this department
+    const membership = await this.prisma.userCompanyMembership.findFirst({
       where: {
-        userId_departmentId: { userId, departmentId },
+        userId,
+        companyId,
+        isActive: true,
+        allowedDepartments: {
+          some: { globalDepartmentId },
+        },
       },
     });
 
-    if (!isMember) {
-      throw new ForbiddenException('You are not a member of this department');
+    if (!membership) {
+      throw new ForbiddenException('Sizda ushbu bo\'limga kirish huquqi yo\'q');
     }
 
-    return { department, companyId: department.companyId };
+    return true;
   }
 
-  async create(
-    departmentId: string,
-    dto: CreateMessageDto,
-    userId: string,
-    userRole: Role,
-  ) {
-    await this.checkDepartmentAccess(departmentId, userId, userRole);
-
-    // Validation
-    if (dto.type === MessageType.VOICE && !dto.voiceDuration) {
-      throw new BadRequestException('Voice duration is required for voice messages');
+  async create(userId: string, userSystemRole: SystemRole | null, dto: CreateMessageDto) {
+    if (!dto.companyId || !dto.globalDepartmentId) {
+      throw new BadRequestException('companyId va globalDepartmentId majburiy');
     }
 
-    if (dto.type === MessageType.DOCUMENT) {
-      if (!dto.documentName || !dto.documentNumber) {
-        throw new BadRequestException(
-          'Document name and number are required for document messages',
-        );
-      }
-    }
+    await this.checkAccess(dto.companyId, dto.globalDepartmentId, userId, userSystemRole);
 
+    // Reply validation
     if (dto.replyToId) {
       const replyToMessage = await this.prisma.message.findFirst({
-        where: { id: dto.replyToId, departmentId, isDeleted: false },
+        where: { id: dto.replyToId, companyId: dto.companyId, isDeleted: false },
       });
       if (!replyToMessage) {
-        throw new NotFoundException('Reply message not found');
+        throw new NotFoundException('Reply qilinayotgan xabar topilmadi');
       }
     }
 
     // Create message
     const message = await this.prisma.message.create({
       data: {
-        departmentId,
+        companyId: dto.companyId,
+        globalDepartmentId: dto.globalDepartmentId,
         senderId: userId,
         content: dto.content,
-        type: dto.type || 'TEXT',
+        type: (dto.type as any) || 'TEXT',
         voiceDuration: dto.voiceDuration,
         replyToId: dto.replyToId,
+        status: MessageStatus.SENT,
       },
       include: {
         sender: {
-          select: { id: true, username: true, name: true, avatar: true, role: true },
+          select: { id: true, username: true, name: true, avatar: true, systemRole: true },
         },
         replyTo: {
           select: {
@@ -111,26 +96,17 @@ export class MessagesService {
       },
     });
 
-    // Create DocumentApproval if type is DOCUMENT
-    if (dto.type === MessageType.DOCUMENT) {
-      await this.prisma.documentApproval.create({
-        data: {
-          messageId: message.id,
-          documentName: dto.documentName!,
-          documentNumber: dto.documentNumber!,
-        },
-      });
-    }
-
-    // RabbitMQ ga yuborish
+    // Notify via WebSocket/RabbitMQ
     if (this.messageProducer) {
       await this.messageProducer.sendNewMessage({
         messageId: message.id,
-        departmentId,
+        // @ts-ignore - Update MessagePayload interface later or ignore if it's transient
+        companyId: dto.companyId,
+        globalDepartmentId: dto.globalDepartmentId,
         senderId: userId,
         content: dto.content,
-        type: dto.type || 'TEXT',
-        replyToId: dto.replyToId,
+        type: message.type,
+        replyToId: dto.replyToId as any,
         createdAt: message.createdAt,
         sender: {
           id: message.sender.id,
@@ -141,35 +117,39 @@ export class MessagesService {
       });
     }
 
-    return this.findOne(message.id, userId, userRole);
+    return message;
   }
 
   async findAll(
-    departmentId: string,
+    companyId: string,
+    globalDepartmentId: string,
     userId: string,
-    userRole: Role,
+    userSystemRole: SystemRole | null,
     page = 1,
     limit = 50,
   ) {
-    await this.checkDepartmentAccess(departmentId, userId, userRole);
+    await this.checkAccess(companyId, globalDepartmentId, userId, userSystemRole);
 
     const skip = (page - 1) * limit;
 
-    // ADMIN ko'rish: o'chirilganlarni ham ko'radi
-    const whereDeleted =
-      userRole === Role.SUPER_ADMIN || userRole === Role.ADMIN
-        ? {}
-        : { isDeleted: false };
+    // 1FIN staff sees all, others see only non-deleted
+    const where: any = {
+      companyId,
+      globalDepartmentId,
+    };
+    if (!userSystemRole) {
+      where.isDeleted = false;
+    }
 
     const [messages, total] = await Promise.all([
       this.prisma.message.findMany({
-        where: { departmentId, ...whereDeleted },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           sender: {
-            select: { id: true, username: true, name: true, avatar: true, role: true },
+            select: { id: true, username: true, name: true, avatar: true, systemRole: true },
           },
           replyTo: {
             select: {
@@ -178,35 +158,15 @@ export class MessagesService {
               sender: { select: { id: true, name: true } },
             },
           },
-          files: {
-            select: {
-              id: true,
-              originalName: true,
-              fileName: true,
-              fileSize: true,
-              mimeType: true,
-              path: true,
-            },
-          },
-          documentApproval: {
-            select: {
-              id: true,
-              documentName: true,
-              documentNumber: true,
-              status: true,
-              rejectionReason: true,
-              approvedBy: true,
-              approvedAt: true,
-            },
-          },
+          files: true,
           _count: { select: { edits: true } },
         },
       }),
-      this.prisma.message.count({ where: { departmentId, ...whereDeleted } }),
+      this.prisma.message.count({ where }),
     ]);
 
     return {
-      data: messages.map((msg) => this.formatMessage(msg, userId, userRole)),
+      data: messages.map((msg) => this.formatMessage(msg, userSystemRole)),
       meta: {
         total,
         page,
@@ -216,13 +176,12 @@ export class MessagesService {
     };
   }
 
-  async findOne(messageId: string, userId: string, userRole: Role) {
+  async findOne(messageId: string, userId: string, userSystemRole: SystemRole | null) {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
       include: {
-        department: true,
         sender: {
-          select: { id: true, username: true, name: true, avatar: true, role: true },
+          select: { id: true, username: true, name: true, avatar: true, systemRole: true },
         },
         replyTo: {
           select: {
@@ -231,273 +190,100 @@ export class MessagesService {
             sender: { select: { id: true, name: true } },
           },
         },
-        files: {
-          select: {
-            id: true,
-            originalName: true,
-            fileName: true,
-            fileSize: true,
-            mimeType: true,
-            path: true,
-          },
-        },
-        documentApproval: {
-          select: {
-            id: true,
-            documentName: true,
-            documentNumber: true,
-            status: true,
-            rejectionReason: true,
-            approvedBy: true,
-            approvedAt: true,
-          },
-        },
-        _count: { select: { edits: true } },
+        files: true,
       },
     });
 
     if (!message) {
-      throw new NotFoundException('Message not found');
+      throw new NotFoundException('Xabar topilmadi');
     }
 
-    // Check access
-    await this.checkDepartmentAccess(message.departmentId, userId, userRole);
+    await this.checkAccess(message.companyId, message.globalDepartmentId, userId, userSystemRole);
 
-    return this.formatMessage(message, userId, userRole);
+    return this.formatMessage(message, userSystemRole);
   }
 
   async update(
     messageId: string,
     dto: UpdateMessageDto,
     userId: string,
-    userRole: Role,
+    userSystemRole: SystemRole | null,
   ) {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
     });
 
-    if (!message) {
-      throw new NotFoundException('Message not found');
-    }
-
+    if (!message) throw new NotFoundException('Xabar topilmadi');
     if (message.senderId !== userId) {
-      throw new ForbiddenException('You can only edit your own messages');
+      throw new ForbiddenException('Faqat o\'zingizning xabaringizni tahrirlashingiz mumkin');
     }
+    if (message.isDeleted) throw new BadRequestException('O\'chirilgan xabarni tahrirlab bo\'lmaydi');
+    if (message.type !== 'TEXT') throw new BadRequestException('Faqat matnli xabarlarni tahrirlash mumkin');
 
-    if (message.isDeleted) {
-      throw new ForbiddenException('Cannot edit deleted message');
-    }
-
-    if (message.type !== 'TEXT') {
-      throw new ForbiddenException('Only text messages can be edited');
-    }
-
-    // Save old content to edit history
+    // Save history
     await this.prisma.messageEdit.create({
-      data: {
-        messageId,
-        content: message.content || '',
-      },
+      data: { messageId, content: message.content || '' },
     });
 
-    // Update message
-    await this.prisma.message.update({
+    const updated = await this.prisma.message.update({
       where: { id: messageId },
-      data: {
-        content: dto.content,
-        isEdited: true,
-      },
+      data: { content: dto.content, isEdited: true },
     });
 
-    // RabbitMQ ga yuborish
     if (this.messageProducer) {
       await this.messageProducer.sendEditedMessage({
         messageId,
-        departmentId: message.departmentId,
+        // @ts-ignore
+        companyId: message.companyId,
+        globalDepartmentId: message.globalDepartmentId,
         content: dto.content,
         editedAt: new Date(),
-      });
+      } as any);
     }
 
-    return this.findOne(messageId, userId, userRole);
+    return this.findOne(messageId, userId, userSystemRole);
   }
 
-  async remove(messageId: string, userId: string, userRole: Role) {
+  async remove(messageId: string, userId: string, userSystemRole: SystemRole | null) {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
     });
 
-    if (!message) {
-      throw new NotFoundException('Message not found');
+    if (!message) throw new NotFoundException('Xabar topilmadi');
+    if (message.senderId !== userId && !userSystemRole) {
+      throw new ForbiddenException('Xabarni o\'chirish huquqi yo\'q');
     }
-
-    if (message.senderId !== userId) {
-      throw new ForbiddenException('You can only delete your own messages');
-    }
-
-    const deletedAt = new Date();
 
     await this.prisma.message.update({
       where: { id: messageId },
       data: {
         isDeleted: true,
-        deletedAt,
+        deletedAt: new Date(),
         deletedBy: userId,
       },
     });
 
-    // RabbitMQ ga yuborish
     if (this.messageProducer) {
       await this.messageProducer.sendDeletedMessage({
         messageId,
-        departmentId: message.departmentId,
+        // @ts-ignore
+        companyId: message.companyId,
+        globalDepartmentId: message.globalDepartmentId,
         deletedBy: userId,
-        deletedAt,
-      });
+        deletedAt: new Date(),
+      } as any);
     }
 
-    return { message: 'Message deleted successfully' };
+    return { message: 'Xabar o\'chirildi' };
   }
 
-  async forward(
-    messageId: string,
-    dto: ForwardMessageDto,
-    userId: string,
-    userRole: Role,
-  ) {
-    const message = await this.prisma.message.findUnique({
-      where: { id: messageId },
-      include: { department: true },
-    });
-
-    if (!message || message.isDeleted) {
-      throw new NotFoundException('Message not found');
-    }
-
-    // Check source department access
-    await this.checkDepartmentAccess(message.departmentId, userId, userRole);
-
-    // Check target department exists and in same company
-    const targetDept = await this.prisma.department.findUnique({
-      where: { id: dto.toDepartmentId },
-    });
-
-    if (!targetDept || !targetDept.isActive) {
-      throw new NotFoundException('Target department not found');
-    }
-
-    if (targetDept.companyId !== message.department.companyId) {
-      throw new ForbiddenException('Can only forward within same company');
-    }
-
-    // Check target department access
-    await this.checkDepartmentAccess(dto.toDepartmentId, userId, userRole);
-
-    // Create forward record
-    await this.prisma.messageForward.create({
-      data: {
-        messageId,
-        fromDepartmentId: message.departmentId,
-        toDepartmentId: dto.toDepartmentId,
-        forwardedBy: userId,
-        note: dto.note,
-      },
-    });
-
-    // Create new message in target department
-    const forwardedMessage = await this.prisma.message.create({
-      data: {
-        departmentId: dto.toDepartmentId,
-        senderId: userId,
-        content: message.content,
-        type: message.type,
-        voiceDuration: message.voiceDuration,
-        parentId: messageId, // reference to original
-      },
-    });
-
-    return this.findOne(forwardedMessage.id, userId, userRole);
-  }
-
-  async getEditHistory(messageId: string, userId: string, userRole: Role) {
-    // Only ADMIN can see edit history
-    if (userRole !== Role.SUPER_ADMIN && userRole !== Role.ADMIN) {
-      throw new ForbiddenException('Only admins can view edit history');
-    }
-
-    const message = await this.prisma.message.findUnique({
-      where: { id: messageId },
-      include: {
-        edits: {
-          orderBy: { editedAt: 'desc' },
-        },
-      },
-    });
-
-    if (!message) {
-      throw new NotFoundException('Message not found');
-    }
-
-    return {
-      currentContent: message.content,
-      editHistory: message.edits,
-    };
-  }
-
-  async getDeletedMessages(
-    departmentId: string,
-    userId: string,
-    userRole: Role,
-    page = 1,
-    limit = 50,
-  ) {
-    // Only ADMIN can see deleted messages
-    if (userRole !== Role.SUPER_ADMIN && userRole !== Role.ADMIN) {
-      throw new ForbiddenException('Only admins can view deleted messages');
-    }
-
-    await this.checkDepartmentAccess(departmentId, userId, userRole);
-
-    const skip = (page - 1) * limit;
-
-    const [messages, total] = await Promise.all([
-      this.prisma.message.findMany({
-        where: { departmentId, isDeleted: true },
-        skip,
-        take: limit,
-        orderBy: { deletedAt: 'desc' },
-        include: {
-          sender: {
-            select: { id: true, username: true, name: true, avatar: true },
-          },
-        },
-      }),
-      this.prisma.message.count({ where: { departmentId, isDeleted: true } }),
-    ]);
-
-    return {
-      data: messages,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
-  private formatMessage(message: any, userId: string, userRole: Role) {
-    const isAdmin = userRole === Role.SUPER_ADMIN || userRole === Role.ADMIN;
-
-    // Hide deleted message content for non-admins
-    if (message.isDeleted && !isAdmin) {
+  private formatMessage(message: any, userSystemRole: SystemRole | null) {
+    if (message.isDeleted && !userSystemRole) {
       return {
         ...message,
-        content: null,
-        isDeleted: true,
+        content: 'Bu xabar o\'chirilgan',
       };
     }
-
     return message;
   }
 }

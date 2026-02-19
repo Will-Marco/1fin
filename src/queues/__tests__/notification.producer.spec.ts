@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationProducer, NotificationType, NotificationPayload } from '../producers/notification.producer';
-import { RabbitMQService } from '../rabbitmq.service';
 import { EXCHANGES, ROUTING_KEYS } from '../constants';
+import { NotificationPayload, NotificationProducer, NotificationType } from '../producers/notification.producer';
+import { RabbitMQService } from '../rabbitmq.service';
 
 describe('NotificationProducer', () => {
   let producer: NotificationProducer;
@@ -117,12 +117,12 @@ describe('NotificationProducer', () => {
   describe('sendDocumentReminder', () => {
     it('should publish document reminder to exchange', async () => {
       const payload = {
-        userIds: ['user-1', 'user-2'],
-        documentId: 'doc-id',
-        documentName: 'Contract',
-        documentNumber: 'DOC-001',
-        companyId: 'company-id',
-        departmentId: 'dept-id',
+        userIds: ['user-1'],
+        documentId: 'doc-1',
+        documentName: 'Doc',
+        documentNumber: '123',
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
       };
 
       await producer.sendDocumentReminder(payload);

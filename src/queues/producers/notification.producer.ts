@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { RabbitMQService } from '../rabbitmq.service';
 import { EXCHANGES, ROUTING_KEYS } from '../constants';
+import { RabbitMQService } from '../rabbitmq.service';
 
 export enum NotificationType {
   NEW_MESSAGE = 'NEW_MESSAGE',
@@ -56,7 +56,7 @@ export class NotificationProducer {
     documentName: string;
     documentNumber: string;
     companyId: string;
-    departmentId: string;
+    globalDepartmentId: string;
   }) {
     await this.rabbitMQService.publish(
       EXCHANGES.DOCUMENTS,

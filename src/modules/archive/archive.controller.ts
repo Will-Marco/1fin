@@ -1,35 +1,36 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
+    ApiBearerAuth,
+    ApiOperation,
+    ApiResponse,
+    ApiTags,
 } from '@nestjs/swagger';
+import { SystemRole } from '../../../generated/prisma/client';
+import { SystemRoles } from '../../common/decorators';
+import { SystemRoleGuard } from '../../common/guards';
+import { JwtAuthGuard } from '../auth/guards';
 import { ArchiveService } from './archive.service';
 import {
-  SearchMessagesArchiveDto,
-  SearchFilesArchiveDto,
-  SearchDocumentApprovalsArchiveDto,
+    SearchDocumentsArchiveDto,
+    SearchFilesArchiveDto,
+    SearchMessagesArchiveDto,
 } from './dto';
-import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../../common/guards';
-import { Roles } from '../../common/decorators';
-import { Role } from '../../../generated/prisma/client';
 
 @ApiTags('Archive')
 @Controller('archive')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, SystemRoleGuard)
 @ApiBearerAuth()
 export class ArchiveController {
   constructor(private readonly archiveService: ArchiveService) {}
 
   @Get('messages')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Search archived messages' })
   @ApiResponse({ status: 200, description: 'Archived messages list' })
   async searchMessages(@Query() dto: SearchMessagesArchiveDto) {
     return this.archiveService.searchMessages({
-      departmentId: dto.departmentId,
+      globalDepartmentId: dto.globalDepartmentId,
+      companyId: dto.companyId,
       senderId: dto.senderId,
       content: dto.content,
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
@@ -40,12 +41,12 @@ export class ArchiveController {
   }
 
   @Get('files')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Search archived files' })
   @ApiResponse({ status: 200, description: 'Archived files list' })
   async searchFiles(@Query() dto: SearchFilesArchiveDto) {
     return this.archiveService.searchFiles({
-      departmentId: dto.departmentId,
+      globalDepartmentId: dto.globalDepartmentId,
       fileName: dto.fileName,
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
@@ -54,12 +55,14 @@ export class ArchiveController {
     });
   }
 
-  @Get('document-approvals')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Search archived document approvals' })
-  @ApiResponse({ status: 200, description: 'Archived document approvals list' })
-  async searchDocumentApprovals(@Query() dto: SearchDocumentApprovalsArchiveDto) {
-    return this.archiveService.searchDocumentApprovals({
+  @Get('documents')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Search archived documents' })
+  @ApiResponse({ status: 200, description: 'Archived documents list' })
+  async searchDocuments(@Query() dto: SearchDocumentsArchiveDto) {
+    return this.archiveService.searchDocuments({
+      globalDepartmentId: dto.globalDepartmentId,
+      companyId: dto.companyId,
       documentNumber: dto.documentNumber,
       documentName: dto.documentName,
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
@@ -70,7 +73,7 @@ export class ArchiveController {
   }
 
   @Get('statistics')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Get archive statistics' })
   @ApiResponse({ status: 200, description: 'Archive statistics' })
   async getStatistics() {
@@ -78,15 +81,15 @@ export class ArchiveController {
   }
 
   @Post('run')
-  @Roles(Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Manually trigger archive process (Super Admin only)' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR)
+  @ApiOperation({ summary: 'Manually trigger archive process (FIN_DIRECTOR only)' })
   @ApiResponse({ status: 200, description: 'Archive result' })
   async runArchive() {
-    const messageResult = await this.archiveService.archiveOldMessages();
+    const archiveResult = await this.archiveService.archiveOldData();
     const orphanFilesCount = await this.archiveService.archiveOrphanFiles();
 
     return {
-      ...messageResult,
+      ...archiveResult,
       orphanFilesArchived: orphanFilesCount,
     };
   }

@@ -1,12 +1,17 @@
-import { IsOptional, IsString, IsDateString, IsInt, Min } from 'class-validator';
-import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class SearchMessagesArchiveDto {
-  @ApiPropertyOptional({ description: 'Department ID' })
+  @ApiPropertyOptional({ description: 'Global Department ID' })
   @IsOptional()
   @IsString()
-  departmentId?: string;
+  globalDepartmentId?: string;
+
+  @ApiPropertyOptional({ description: 'Company ID' })
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 
   @ApiPropertyOptional({ description: 'Sender ID' })
   @IsOptional()
@@ -44,10 +49,10 @@ export class SearchMessagesArchiveDto {
 }
 
 export class SearchFilesArchiveDto {
-  @ApiPropertyOptional({ description: 'Department ID' })
+  @ApiPropertyOptional({ description: 'Global Department ID' })
   @IsOptional()
   @IsString()
-  departmentId?: string;
+  globalDepartmentId?: string;
 
   @ApiPropertyOptional({ description: 'File name search' })
   @IsOptional()
@@ -79,7 +84,17 @@ export class SearchFilesArchiveDto {
   limit?: number = 20;
 }
 
-export class SearchDocumentApprovalsArchiveDto {
+export class SearchDocumentsArchiveDto {
+  @ApiPropertyOptional({ description: 'Global Department ID' })
+  @IsOptional()
+  @IsString()
+  globalDepartmentId?: string;
+
+  @ApiPropertyOptional({ description: 'Company ID' })
+  @IsOptional()
+  @IsString()
+  companyId?: string;
+
   @ApiPropertyOptional({ description: 'Document number' })
   @IsOptional()
   @IsString()

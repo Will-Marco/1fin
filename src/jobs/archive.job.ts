@@ -17,14 +17,14 @@ export class ArchiveJob {
     this.logger.log('Archive job started');
 
     try {
-      // Eski xabarlarni arxivlash
-      const messageResult = await this.archiveService.archiveOldMessages();
+      // Eski xabarlar va hujjatlarni arxivlash
+      const archiveResult = await this.archiveService.archiveOldData();
 
       this.logger.log(
-        `Archived: ${messageResult.messagesArchived} messages, ${messageResult.filesArchived} files, ${messageResult.documentApprovalsArchived} document approvals`,
+        `Archived: ${archiveResult.messagesArchived} messages, ${archiveResult.documentsArchived} documents, ${archiveResult.filesArchived} files`,
       );
       this.logger.log(
-        `Deleted: ${messageResult.messageEditsDeleted} edits, ${messageResult.messageForwardsDeleted} forwards`,
+        `Deleted: ${archiveResult.messageEditsDeleted} edits, ${archiveResult.messageForwardsDeleted} forwards`,
       );
 
       // Xabarga bog'lanmagan eski fayllarni arxivlash

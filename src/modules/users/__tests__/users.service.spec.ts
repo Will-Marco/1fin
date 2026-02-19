@@ -1,14 +1,16 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import {
-  ConflictException,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
+    BadRequestException,
+    ConflictException,
+    NotFoundException,
 } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users.service';
+import {
+    CompanyRole,
+    SystemRole,
+} from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
-import { Role } from '../../../../generated/prisma/client';
+import { UsersService } from '../users.service';
 
 jest.mock('bcrypt');
 
@@ -17,17 +19,26 @@ describe('UsersService', () => {
 
   const mockUser = {
     id: 'user-id',
-    username: 'operator01',
-    name: 'Operator User',
+    username: 'fin_employee01',
+    name: 'Ali Valiyev',
     phone: '+998901234567',
     avatar: null,
-    role: Role.OPERATOR,
+    rank: 0,
+    systemRole: SystemRole.FIN_EMPLOYEE,
+    notificationsEnabled: true,
     isActive: true,
     mustChangePassword: true,
-    workerType: { id: 'wt-id', name: 'Buxgalter' },
-    userCompanies: [],
-    operatorCompanies: [],
     createdAt: new Date(),
+    updatedAt: new Date(),
+    memberships: [],
+  };
+
+  const mockClientUser = {
+    ...mockUser,
+    id: 'client-user-id',
+    username: 'client_director01',
+    systemRole: null,
+    memberships: [],
   };
 
   const mockPrismaService = {
@@ -38,26 +49,26 @@ describe('UsersService', () => {
       update: jest.fn(),
       count: jest.fn(),
     },
-    workerType: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
     company: {
       findUnique: jest.fn(),
     },
-    userCompany: {
+    userCompanyMembership: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
       delete: jest.fn(),
     },
-    operatorCompany: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      delete: jest.fn(),
+    membershipDepartmentAccess: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
     },
+    companyDepartmentConfig: {
+      findMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -72,87 +83,88 @@ describe('UsersService', () => {
     jest.clearAllMocks();
   });
 
-  describe('create', () => {
-    const createDto = {
-      username: 'operator01',
-      name: 'Operator User',
-      role: Role.OPERATOR,
-      workerTypeId: 'wt-id',
+  // ─────────────────────────────────────────────
+  // createSystemUser
+  // ─────────────────────────────────────────────
+
+  describe('createSystemUser', () => {
+    const dto = {
+      username: 'fin_employee01',
+      name: 'Ali Valiyev',
+      systemRole: SystemRole.FIN_EMPLOYEE,
     };
 
-    it('should create a user with default password', async () => {
+    it('should create a system user with default password', async () => {
       mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(mockUser);
-      mockPrismaService.workerType.findUnique.mockResolvedValue({
-        id: 'wt-id',
-        name: 'Buxgalter',
-        isActive: true,
-      });
+        .mockResolvedValueOnce(null)       // username check
+        .mockResolvedValueOnce(mockUser);  // findOne
       mockPrismaService.user.create.mockResolvedValue(mockUser);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-1fin123');
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
-      const result = await service.create(createDto, Role.ADMIN);
+      const result = await service.createSystemUser(dto);
 
-      expect(result.username).toBe('operator01');
+      expect(result.username).toBe('fin_employee01');
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          username: 'operator01',
+          username: 'fin_employee01',
+          systemRole: SystemRole.FIN_EMPLOYEE,
           mustChangePassword: true,
         }),
       });
     });
 
-    it('should throw ForbiddenException when creating SUPER_ADMIN', async () => {
-      const dto = { ...createDto, role: Role.SUPER_ADMIN };
-      await expect(service.create(dto, Role.ADMIN)).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('should throw ForbiddenException when ADMIN creates ADMIN', async () => {
-      const dto = { ...createDto, role: Role.ADMIN };
-      await expect(service.create(dto, Role.ADMIN)).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('should allow SUPER_ADMIN to create ADMIN', async () => {
-      const dto = {
-        username: 'admin01',
-        name: 'Admin',
-        role: Role.ADMIN,
-      };
-      const adminUser = { ...mockUser, role: Role.ADMIN, workerType: null };
-
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(adminUser);
-      mockPrismaService.user.create.mockResolvedValue(adminUser);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-
-      const result = await service.create(dto, Role.SUPER_ADMIN);
-
-      expect(result.role).toBe(Role.ADMIN);
-    });
-
-    it('should throw ConflictException if username exists', async () => {
+    it('should throw ConflictException if username already exists', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.create(createDto, Role.ADMIN)).rejects.toThrow(
+      await expect(service.createSystemUser(dto)).rejects.toThrow(
         ConflictException,
       );
     });
+  });
 
-    it('should throw BadRequestException if OPERATOR has no workerTypeId', async () => {
-      const dto = { username: 'op01', name: 'Op', role: Role.OPERATOR };
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+  // ─────────────────────────────────────────────
+  // createClientUser
+  // ─────────────────────────────────────────────
 
-      await expect(service.create(dto, Role.ADMIN)).rejects.toThrow(
-        BadRequestException,
+  describe('createClientUser', () => {
+    const dto = {
+      username: 'client_director01',
+      name: 'Bobur Toshmatov',
+    };
+
+    it('should create a client user without systemRole', async () => {
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockClientUser);
+      mockPrismaService.user.create.mockResolvedValue(mockClientUser);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+
+      const result = await service.createClientUser(dto);
+
+      expect(result.systemRole).toBeNull();
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          username: 'client_director01',
+          mustChangePassword: true,
+        }),
+      });
+      // systemRole should NOT be set
+      const createCall = mockPrismaService.user.create.mock.calls[0][0];
+      expect(createCall.data.systemRole).toBeUndefined();
+    });
+
+    it('should throw ConflictException if username already exists', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'existing' });
+
+      await expect(service.createClientUser(dto)).rejects.toThrow(
+        ConflictException,
       );
     });
   });
+
+  // ─────────────────────────────────────────────
+  // findAll
+  // ─────────────────────────────────────────────
 
   describe('findAll', () => {
     it('should return paginated users', async () => {
@@ -162,225 +174,232 @@ describe('UsersService', () => {
       const result = await service.findAll(1, 20);
 
       expect(result.data).toHaveLength(1);
-      expect(result.meta.total).toBe(1);
+      expect(result.meta).toMatchObject({ total: 1, page: 1, limit: 20, totalPages: 1 });
     });
 
-    it('should filter by role', async () => {
-      mockPrismaService.user.findMany.mockResolvedValue([]);
-      mockPrismaService.user.count.mockResolvedValue(0);
+    it('should filter by hasSystemRole=true (1FIN staff)', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
 
-      await service.findAll(1, 20, Role.OPERATOR);
+      await service.findAll(1, 20, { hasSystemRole: true });
 
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ role: Role.OPERATOR }),
+          where: expect.objectContaining({ systemRole: { not: null } }),
+        }),
+      );
+    });
+
+    it('should filter by hasSystemRole=false (client users)', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockClientUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(1, 20, { hasSystemRole: false });
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ systemRole: null }),
         }),
       );
     });
   });
 
+  // ─────────────────────────────────────────────
+  // findOne
+  // ─────────────────────────────────────────────
+
   describe('findOne', () => {
-    it('should return a user', async () => {
+    it('should return a user with memberships', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.findOne('user-id');
 
-      expect(result.username).toBe('operator01');
+      expect(result.username).toBe('fin_employee01');
     });
 
-    it('should throw NotFoundException', async () => {
+    it('should throw NotFoundException if user not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid')).rejects.toThrow(
+      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // update
+  // ─────────────────────────────────────────────
+
+  describe('update', () => {
+    it('should update user info', async () => {
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(mockUser)
+        .mockResolvedValueOnce({ ...mockUser, name: 'Updated Name' });
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      const result = await service.update('user-id', { name: 'Updated Name' });
+
+      expect(result.name).toBe('Updated Name');
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-id' },
+        data: { name: 'Updated Name' },
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // deactivate
+  // ─────────────────────────────────────────────
+
+  describe('deactivate', () => {
+    it('should soft-delete user and deactivate memberships', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.$transaction.mockResolvedValue([]);
+
+      const result = await service.deactivate('user-id');
+
+      expect(result.message).toBe("Foydalanuvchi o'chirildi");
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // assignMembership
+  // ─────────────────────────────────────────────
+
+  describe('assignMembership', () => {
+    const dto = {
+      companyId: 'company-id',
+      companyRole: CompanyRole.CLIENT_DIRECTOR,
+      allowedDepartmentIds: ['dept-id-1'],
+    };
+
+    const mockMembership = {
+      id: 'membership-id',
+      companyRole: CompanyRole.CLIENT_DIRECTOR,
+      isActive: true,
+      company: { id: 'company-id', name: 'Test Company' },
+      allowedDepartments: [],
+    };
+
+    it('should create a membership', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.company.findUnique.mockResolvedValue({
+        id: 'company-id',
+        name: 'Test',
+        isActive: true,
+      });
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
+        { globalDepartmentId: 'dept-id-1' },
+      ]);
+      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue(null);
+      mockPrismaService.userCompanyMembership.create.mockResolvedValue(mockMembership);
+
+      const result = await service.assignMembership('user-id', dto);
+
+      expect(result.companyRole).toBe(CompanyRole.CLIENT_DIRECTOR);
+    });
+
+    it('should throw NotFoundException if company not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.company.findUnique.mockResolvedValue(null);
+
+      await expect(service.assignMembership('user-id', dto)).rejects.toThrow(
         NotFoundException,
       );
     });
-  });
 
-  describe('remove', () => {
-    it('should soft delete a user', async () => {
+    it('should throw ConflictException if user already in company', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
-      mockPrismaService.user.update.mockResolvedValue({
-        ...mockUser,
-        isActive: false,
+      mockPrismaService.company.findUnique.mockResolvedValue({
+        id: 'company-id',
+        isActive: true,
+      });
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
+        { globalDepartmentId: 'dept-id-1' },
+      ]);
+      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+        id: 'existing-membership',
       });
 
-      const result = await service.remove('user-id');
-
-      expect(result.message).toBe('User deleted successfully');
+      await expect(service.assignMembership('user-id', dto)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
-    it('should throw ForbiddenException when deleting SUPER_ADMIN', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        ...mockUser,
-        role: Role.SUPER_ADMIN,
+    it('should throw BadRequestException if department IDs are invalid', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.company.findUnique.mockResolvedValue({
+        id: 'company-id',
+        isActive: true,
       });
+      // Returns empty array — none of the dept IDs match
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([]);
 
-      await expect(service.remove('user-id')).rejects.toThrow(
-        ForbiddenException,
+      await expect(service.assignMembership('user-id', dto)).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
 
-  describe('assignCompany', () => {
-    const company = { id: 'company-id', name: 'Test', isActive: true };
+  // ─────────────────────────────────────────────
+  // updateMembership
+  // ─────────────────────────────────────────────
 
-    it('should assign OPERATOR to company', async () => {
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(mockUser)
-        .mockResolvedValueOnce(mockUser);
-      mockPrismaService.company.findUnique.mockResolvedValue(company);
-      mockPrismaService.operatorCompany.findUnique.mockResolvedValue(null);
-      mockPrismaService.operatorCompany.create.mockResolvedValue({});
-
-      await service.assignCompany('user-id', { companyId: 'company-id' });
-
-      expect(mockPrismaService.operatorCompany.create).toHaveBeenCalled();
-    });
-
-    it('should assign FOUNDER to company', async () => {
-      const founderUser = { ...mockUser, role: Role.FOUNDER };
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(founderUser)
-        .mockResolvedValueOnce(founderUser);
-      mockPrismaService.company.findUnique.mockResolvedValue(company);
-      mockPrismaService.userCompany.findUnique.mockResolvedValue(null);
-      mockPrismaService.userCompany.create.mockResolvedValue({});
-
-      await service.assignCompany('user-id', { companyId: 'company-id' });
-
-      expect(mockPrismaService.userCompany.create).toHaveBeenCalled();
-    });
-
-    it('should throw ConflictException if DIRECTOR already has company', async () => {
-      const directorUser = { ...mockUser, role: Role.DIRECTOR };
-      mockPrismaService.user.findUnique.mockResolvedValue(directorUser);
-      mockPrismaService.company.findUnique.mockResolvedValue(company);
-      mockPrismaService.userCompany.findFirst.mockResolvedValue({
-        id: 'existing',
+  describe('updateMembership', () => {
+    it('should update membership via transaction', async () => {
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'membership-id',
+        userId: 'user-id',
+        companyId: 'company-id',
       });
-
-      await expect(
-        service.assignCompany('user-id', { companyId: 'company-id' }),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('should throw BadRequestException for SUPER_ADMIN/ADMIN', async () => {
-      const adminUser = { ...mockUser, role: Role.ADMIN };
-      mockPrismaService.user.findUnique.mockResolvedValue(adminUser);
-      mockPrismaService.company.findUnique.mockResolvedValue(company);
-
-      await expect(
-        service.assignCompany('user-id', { companyId: 'company-id' }),
-      ).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe('unassignCompany', () => {
-    it('should unassign OPERATOR from company', async () => {
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
+        { globalDepartmentId: 'dept-id-2' },
+      ]);
+      mockPrismaService.$transaction.mockResolvedValue([]);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
-      mockPrismaService.operatorCompany.findUnique.mockResolvedValue({
-        id: 'oc-id',
-      });
-      mockPrismaService.operatorCompany.delete.mockResolvedValue({});
 
-      await service.unassignCompany('user-id', 'company-id');
-
-      expect(mockPrismaService.operatorCompany.delete).toHaveBeenCalledWith({
-        where: { id: 'oc-id' },
+      const result = await service.updateMembership('user-id', 'membership-id', {
+        companyRole: CompanyRole.CLIENT_EMPLOYEE,
+        allowedDepartmentIds: ['dept-id-2'],
       });
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException if assignment not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
-      mockPrismaService.operatorCompany.findUnique.mockResolvedValue(null);
+    it('should throw NotFoundException if membership not found', async () => {
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.unassignCompany('user-id', 'company-id'),
+        service.updateMembership('user-id', 'bad-id', {}),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('createWorkerType', () => {
-    it('should create a worker type', async () => {
-      mockPrismaService.workerType.findUnique.mockResolvedValue(null);
-      mockPrismaService.workerType.create.mockResolvedValue({
-        id: 'wt-new',
-        name: 'Yurist',
-        isActive: true,
-        createdAt: new Date(),
+  // ─────────────────────────────────────────────
+  // removeMembership
+  // ─────────────────────────────────────────────
+
+  describe('removeMembership', () => {
+    it('should delete a membership', async () => {
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'membership-id',
+        userId: 'user-id',
       });
+      mockPrismaService.userCompanyMembership.delete.mockResolvedValue({});
 
-      const result = await service.createWorkerType({ name: 'Yurist' });
+      const result = await service.removeMembership('user-id', 'membership-id');
 
-      expect(result.name).toBe('Yurist');
-      expect(mockPrismaService.workerType.create).toHaveBeenCalledWith({
-        data: { name: 'Yurist' },
+      expect(result.message).toBe("Membership o'chirildi");
+      expect(mockPrismaService.userCompanyMembership.delete).toHaveBeenCalledWith({
+        where: { id: 'membership-id' },
       });
     });
 
-    it('should throw ConflictException if name already exists', async () => {
-      mockPrismaService.workerType.findUnique.mockResolvedValue({
-        id: 'wt-existing',
-        name: 'Buxgalter',
-      });
+    it('should throw NotFoundException if membership not found', async () => {
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.createWorkerType({ name: 'Buxgalter' }),
-      ).rejects.toThrow(ConflictException);
-    });
-  });
-
-  describe('findAllWorkerTypes', () => {
-    it('should return all active worker types', async () => {
-      const workerTypes = [
-        { id: 'wt-1', name: 'Buxgalter', isActive: true, createdAt: new Date() },
-        { id: 'wt-2', name: 'Yurist', isActive: true, createdAt: new Date() },
-      ];
-      mockPrismaService.workerType.findMany.mockResolvedValue(workerTypes);
-
-      const result = await service.findAllWorkerTypes();
-
-      expect(result).toHaveLength(2);
-      expect(mockPrismaService.workerType.findMany).toHaveBeenCalledWith({
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          isActive: true,
-          createdAt: true,
-        },
-      });
-    });
-  });
-
-  describe('removeWorkerType', () => {
-    it('should soft delete a worker type', async () => {
-      mockPrismaService.workerType.findUnique.mockResolvedValue({
-        id: 'wt-id',
-        name: 'Buxgalter',
-      });
-      mockPrismaService.workerType.update.mockResolvedValue({
-        id: 'wt-id',
-        isActive: false,
-      });
-
-      const result = await service.removeWorkerType('wt-id');
-
-      expect(result.message).toBe('Worker type deleted successfully');
-      expect(mockPrismaService.workerType.update).toHaveBeenCalledWith({
-        where: { id: 'wt-id' },
-        data: { isActive: false },
-      });
-    });
-
-    it('should throw NotFoundException if worker type not found', async () => {
-      mockPrismaService.workerType.findUnique.mockResolvedValue(null);
-
-      await expect(service.removeWorkerType('invalid')).rejects.toThrow(
-        NotFoundException,
-      );
+        service.removeMembership('user-id', 'bad-id'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

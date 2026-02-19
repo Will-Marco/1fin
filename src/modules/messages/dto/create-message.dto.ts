@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString,
-  IsOptional,
   IsEnum,
   IsInt,
-  Min,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
   Max,
+  Min,
 } from 'class-validator';
 
 export enum MessageType {
@@ -16,6 +17,16 @@ export enum MessageType {
 }
 
 export class CreateMessageDto {
+  @ApiProperty({ example: 'company-uuid' })
+  @IsString()
+  @IsNotEmpty()
+  companyId: string;
+
+  @ApiProperty({ example: 'dept-uuid' })
+  @IsString()
+  @IsNotEmpty()
+  globalDepartmentId: string;
+
   @ApiPropertyOptional({ example: 'Salom, hammaga!' })
   @IsString()
   @IsOptional()
@@ -37,14 +48,4 @@ export class CreateMessageDto {
   @Max(300) // 5 daqiqa
   @IsOptional()
   voiceDuration?: number;
-
-  @ApiPropertyOptional({ example: 'Shartnoma', description: 'Hujjat nomi (DOCUMENT type uchun)' })
-  @IsString()
-  @IsOptional()
-  documentName?: string;
-
-  @ApiPropertyOptional({ example: 'DOC-2024-001', description: 'Hujjat raqami (DOCUMENT type uchun)' })
-  @IsString()
-  @IsOptional()
-  documentNumber?: string;
 }

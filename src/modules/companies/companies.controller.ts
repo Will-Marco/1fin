@@ -1,48 +1,53 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  UseInterceptors,
-  UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
+    Body,
+    Controller,
+    Delete,
+    FileTypeValidator,
+    Get,
+    MaxFileSizeValidator,
+    Param,
+    ParseFilePipe,
+    Patch,
+    Post,
+    Query,
+    UploadedFile,
+    UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiConsumes,
-  ApiQuery,
-} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+    ApiBearerAuth,
+    ApiConsumes,
+    ApiOperation,
+    ApiQuery,
+    ApiResponse,
+    ApiTags,
+} from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { SystemRole } from '../../../generated/prisma/client';
+import { CurrentUser, SystemRoles } from '../../common/decorators';
+import { SystemRoleGuard } from '../../common/guards';
+import { JwtAuthGuard } from '../auth/guards';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
-import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../../common/guards';
-import { Roles, CurrentUser } from '../../common/decorators';
-import { Role } from '../../../generated/prisma/client';
 
 @ApiTags('Companies')
 @Controller('companies')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, SystemRoleGuard)
 @ApiBearerAuth()
 export class CompaniesController {
   constructor(private companiesService: CompaniesService) {}
 
+  // ─────────────────────────────────────────────
+  // COMPANY CRUD
+  // ─────────────────────────────────────────────
+
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Create a new company' })
-  @ApiResponse({ status: 201, description: 'Company created successfully' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Create a new company (auto-links all global departments)' })
+  @ApiResponse({ status: 201, description: 'Company created' })
+  @ApiResponse({ status: 409, description: 'INN already exists' })
   async create(
     @Body() dto: CreateCompanyDto,
     @CurrentUser('id') userId: string,
@@ -51,23 +56,26 @@ export class CompaniesController {
   }
 
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Get all companies' })
-  @ApiResponse({ status: 200, description: 'List of companies' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get all companies (paginated)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     return this.companiesService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      search,
     );
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a company by ID' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get company by ID (with department configs)' })
   @ApiResponse({ status: 200, description: 'Company details' })
   @ApiResponse({ status: 404, description: 'Company not found' })
   async findOne(@Param('id') id: string) {
@@ -75,31 +83,26 @@ export class CompaniesController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Update a company' })
-  @ApiResponse({ status: 200, description: 'Company updated successfully' })
-  @ApiResponse({ status: 404, description: 'Company not found' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateCompanyDto,
-  ) {
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Update company info' })
+  @ApiResponse({ status: 200, description: 'Company updated' })
+  async update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
     return this.companiesService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Delete a company (soft delete)' })
-  @ApiResponse({ status: 200, description: 'Company deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Company not found' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Deactivate company (soft delete)' })
+  @ApiResponse({ status: 200, description: 'Company deactivated' })
   async remove(@Param('id') id: string) {
     return this.companiesService.remove(id);
   }
 
   @Patch(':id/logo')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Upload company logo' })
   @ApiConsumes('multipart/form-data')
-  @ApiResponse({ status: 200, description: 'Logo uploaded successfully' })
+  @ApiResponse({ status: 200, description: 'Logo uploaded' })
   @UseInterceptors(
     FileInterceptor('logo', {
       storage: diskStorage({
@@ -124,5 +127,47 @@ export class CompaniesController {
     file: Express.Multer.File,
   ) {
     return this.companiesService.updateLogo(id, `/uploads/logos/${file.filename}`);
+  }
+
+  // ─────────────────────────────────────────────
+  // DEPARTMENT CONFIG
+  // ─────────────────────────────────────────────
+
+  @Get(':id/departments')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get all department configs for a company' })
+  async getDepartmentConfigs(@Param('id') id: string) {
+    return this.companiesService.getDepartmentConfigs(id);
+  }
+
+  @Post(':id/departments/:deptId/enable')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Enable a global department for this company' })
+  async enableDepartment(
+    @Param('id') companyId: string,
+    @Param('deptId') deptId: string,
+  ) {
+    return this.companiesService.enableDepartment(companyId, deptId);
+  }
+
+  @Post(':id/departments/:deptId/disable')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Disable a global department for this company' })
+  async disableDepartment(
+    @Param('id') companyId: string,
+    @Param('deptId') deptId: string,
+  ) {
+    return this.companiesService.disableDepartment(companyId, deptId);
+  }
+
+  // ─────────────────────────────────────────────
+  // MEMBERS
+  // ─────────────────────────────────────────────
+
+  @Get(':id/members')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get all active members of a company with roles' })
+  async getMembers(@Param('id') id: string) {
+    return this.companiesService.getMembers(id);
   }
 }

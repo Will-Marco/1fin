@@ -1,16 +1,15 @@
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 
 interface AuthenticatedSocket extends Socket {
@@ -30,9 +29,6 @@ export class MessagesGateway
   @WebSocketServer()
   server: Server;
 
-  private connectedUsers: Map<string, Set<string>> = new Map(); // departmentId -> Set<socketId>
-  private userSockets: Map<string, string> = new Map(); // socketId -> userId
-
   constructor(
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -49,15 +45,14 @@ export class MessagesGateway
         return;
       }
 
-      const payload = this.jwtService.verify(token, {
+      const payload: any = this.jwtService.verify(token, {
         secret: this.configService.get('jwt.secret'),
       });
 
       client.userId = payload.sub;
-      client.userRole = payload.role;
-      this.userSockets.set(client.id, payload.sub);
+      client.userRole = payload.systemRole;
 
-      console.log(`Client connected: ${client.id}, User: ${payload.sub}`);
+      console.log(`Client connected: ${client.id}, User: ${client.userId}, Role: ${client.userRole}`);
     } catch (error) {
       console.log('Authentication failed:', error.message);
       client.disconnect();
@@ -65,94 +60,74 @@ export class MessagesGateway
   }
 
   handleDisconnect(client: AuthenticatedSocket) {
-    // Remove from all departments
-    this.connectedUsers.forEach((sockets, departmentId) => {
-      sockets.delete(client.id);
-      if (sockets.size === 0) {
-        this.connectedUsers.delete(departmentId);
-      }
-    });
-
-    const userId = this.userSockets.get(client.id);
-    this.userSockets.delete(client.id);
-
-    if (userId) {
-      // Notify others about offline status
-      this.server.emit('user:offline', { userId });
+    if (client.userId) {
+      this.server.emit('user:offline', { userId: client.userId });
     }
-
     console.log(`Client disconnected: ${client.id}`);
   }
 
   @SubscribeMessage('join:department')
   async handleJoinDepartment(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { departmentId: string },
+    @MessageBody() data: { companyId: string; globalDepartmentId: string },
   ) {
-    const { departmentId } = data;
+    const { companyId, globalDepartmentId } = data;
 
-    // Verify membership (simplified check)
-    const isMember = await this.prisma.departmentMember.findFirst({
-      where: {
-        departmentId,
-        userId: client.userId,
-      },
-    });
+    let hasAccess = false;
+    if (client.userRole) {
+      hasAccess = true;
+    } else {
+      const membership = await this.prisma.userCompanyMembership.findFirst({
+        where: {
+          userId: client.userId,
+          companyId,
+          isActive: true,
+          allowedDepartments: {
+            some: { globalDepartmentId },
+          },
+        },
+      });
+      hasAccess = !!membership;
+    }
 
-    // Allow SUPER_ADMIN and ADMIN to join any department
-    const user = await this.prisma.user.findUnique({
-      where: { id: client.userId },
-    });
-
-    if (!isMember && user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
-      client.emit('error', { message: 'Not a member of this department' });
+    if (!hasAccess) {
+      client.emit('error', { message: 'Ushbu bo\'limga kirish huquqi yo\'q' });
       return;
     }
 
-    // Join socket room
-    client.join(`department:${departmentId}`);
+    const room = `company:${companyId}:dept:${globalDepartmentId}`;
+    client.join(room);
 
-    // Track connected users
-    if (!this.connectedUsers.has(departmentId)) {
-      this.connectedUsers.set(departmentId, new Set());
-    }
-    this.connectedUsers.get(departmentId)!.add(client.id);
-
-    // Notify others about online status
-    this.server.to(`department:${departmentId}`).emit('user:online', {
+    this.server.to(room).emit('user:online', {
       userId: client.userId,
-      departmentId,
+      companyId,
+      globalDepartmentId,
     });
 
-    client.emit('joined:department', { departmentId });
+    client.emit('joined:department', { companyId, globalDepartmentId });
   }
 
   @SubscribeMessage('leave:department')
   handleLeaveDepartment(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { departmentId: string },
+    @MessageBody() data: { companyId: string; globalDepartmentId: string },
   ) {
-    const { departmentId } = data;
-
-    client.leave(`department:${departmentId}`);
-
-    // Remove from tracking
-    const departmentSockets = this.connectedUsers.get(departmentId);
-    if (departmentSockets) {
-      departmentSockets.delete(client.id);
-    }
-
-    client.emit('left:department', { departmentId });
+    const { companyId, globalDepartmentId } = data;
+    const room = `company:${companyId}:dept:${globalDepartmentId}`;
+    client.leave(room);
+    client.emit('left:department', { companyId, globalDepartmentId });
   }
 
   @SubscribeMessage('typing:start')
   handleTypingStart(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { departmentId: string },
+    @MessageBody() data: { companyId: string; globalDepartmentId: string },
   ) {
-    client.to(`department:${data.departmentId}`).emit('user:typing', {
+    const room = `company:${data.companyId}:dept:${data.globalDepartmentId}`;
+    client.to(room).emit('user:typing', {
       userId: client.userId,
-      departmentId: data.departmentId,
+      companyId: data.companyId,
+      globalDepartmentId: data.globalDepartmentId,
       isTyping: true,
     });
   }
@@ -160,34 +135,19 @@ export class MessagesGateway
   @SubscribeMessage('typing:stop')
   handleTypingStop(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { departmentId: string },
+    @MessageBody() data: { companyId: string; globalDepartmentId: string },
   ) {
-    client.to(`department:${data.departmentId}`).emit('user:typing', {
+    const room = `company:${data.companyId}:dept:${data.globalDepartmentId}`;
+    client.to(room).emit('user:typing', {
       userId: client.userId,
-      departmentId: data.departmentId,
+      companyId: data.companyId,
+      globalDepartmentId: data.globalDepartmentId,
       isTyping: false,
     });
   }
 
-  // Called from service when new message is created
-  emitNewMessage(departmentId: string, message: any) {
-    this.server.to(`department:${departmentId}`).emit('message:new', message);
-  }
-
-  // Called from service when message is edited
-  emitMessageEdited(departmentId: string, message: any) {
-    this.server.to(`department:${departmentId}`).emit('message:edited', message);
-  }
-
-  // Called from service when message is deleted
-  emitMessageDeleted(departmentId: string, messageId: string) {
-    this.server.to(`department:${departmentId}`).emit('message:deleted', {
-      messageId,
-    });
-  }
-
-  // Called from service when document status changes
-  emitDocumentStatus(departmentId: string, document: any) {
-    this.server.to(`department:${departmentId}`).emit('document:status', document);
+  emitToRoom(companyId: string, globalDepartmentId: string, event: string, payload: any) {
+    const room = `company:${companyId}:dept:${globalDepartmentId}`;
+    this.server.to(room).emit(event, payload);
   }
 }

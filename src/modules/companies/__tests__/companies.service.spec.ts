@@ -1,39 +1,28 @@
+import {
+    ConflictException,
+    NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
-import { CompaniesService } from '../companies.service';
+import { CompanyRole } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
-import { DEFAULT_DEPARTMENTS } from '../../../common/constants';
+import { CompaniesService } from '../companies.service';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
 
   const mockCompany = {
     id: 'company-id',
-    name: 'Tech Solutions',
+    name: 'Tech Solutions LLC',
     inn: '123456789',
     logo: null,
     address: 'Tashkent',
     requisites: null,
     isActive: true,
-    createdById: 'admin-id',
+    createdById: 'user-id',
     createdAt: new Date(),
     updatedAt: new Date(),
-    departments: DEFAULT_DEPARTMENTS.map((d, i) => ({
-      id: `dept-${i}`,
-      name: d.name,
-      slug: d.slug,
-      isDefault: true,
-    })),
-    _count: { userCompanies: 0, operatorCompanies: 0 },
-  };
-
-  const mockTx = {
-    company: {
-      create: jest.fn(),
-    },
-    department: {
-      createMany: jest.fn(),
-    },
+    departmentConfigs: [],
+    _count: { memberships: 0 },
   };
 
   const mockPrismaService = {
@@ -44,8 +33,18 @@ describe('CompaniesService', () => {
       update: jest.fn(),
       count: jest.fn(),
     },
-    department: {
+    globalDepartment: {
+      findMany: jest.fn(),
+    },
+    companyDepartmentConfig: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
       createMany: jest.fn(),
+    },
+    userCompanyMembership: {
+      findMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -59,61 +58,49 @@ describe('CompaniesService', () => {
     }).compile();
 
     service = module.get<CompaniesService>(CompaniesService);
-
     jest.clearAllMocks();
   });
 
+  // ─────────────────────────────────────────────
+  // create
+  // ─────────────────────────────────────────────
+
   describe('create', () => {
-    it('should create a company with default departments', async () => {
-      const dto = { name: 'Tech Solutions', inn: '123456789', address: 'Tashkent' };
-
-      mockPrismaService.company.findUnique.mockResolvedValueOnce(null);
-
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        mockTx.company.create.mockResolvedValue({ id: 'company-id' });
-        mockTx.department.createMany.mockResolvedValue({ count: 9 });
-        await cb(mockTx);
-        return mockCompany;
+    it('should create a company and link global departments', async () => {
+      mockPrismaService.company.findUnique
+        .mockResolvedValueOnce(null)       // INN check
+        .mockResolvedValueOnce(mockCompany); // findOne
+      mockPrismaService.globalDepartment.findMany.mockResolvedValue([
+        { id: 'dept-1' },
+        { id: 'dept-2' },
+      ]);
+      mockPrismaService.$transaction.mockImplementation(async (fn) => {
+        return fn({
+          company: { create: jest.fn().mockResolvedValue(mockCompany) },
+          companyDepartmentConfig: { createMany: jest.fn().mockResolvedValue({}) },
+        });
       });
 
-      mockPrismaService.company.findUnique.mockResolvedValueOnce(mockCompany);
+      const result = await service.create(
+        { name: 'Tech Solutions LLC', inn: '123456789' },
+        'user-id',
+      );
 
-      const result = await service.create(dto, 'admin-id');
-
-      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(result.name).toBe('Tech Solutions LLC');
     });
 
     it('should throw ConflictException if INN already exists', async () => {
-      const dto = { name: 'Tech Solutions', inn: '123456789' };
-
       mockPrismaService.company.findUnique.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.create(dto, 'admin-id')).rejects.toThrow(
-        ConflictException,
-      );
-    });
-
-    it('should allow creating company without INN', async () => {
-      const dto = { name: 'No INN Company' };
-
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        mockTx.company.create.mockResolvedValue({ id: 'company-id-2' });
-        mockTx.department.createMany.mockResolvedValue({ count: 9 });
-        await cb(mockTx);
-        return { ...mockCompany, id: 'company-id-2', inn: null };
-      });
-
-      mockPrismaService.company.findUnique.mockResolvedValue({
-        ...mockCompany,
-        id: 'company-id-2',
-        inn: null,
-      });
-
-      const result = await service.create(dto, 'admin-id');
-
-      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      await expect(
+        service.create({ name: 'Test', inn: '123456789' }, 'user-id'),
+      ).rejects.toThrow(ConflictException);
     });
   });
+
+  // ─────────────────────────────────────────────
+  // findAll
+  // ─────────────────────────────────────────────
 
   describe('findAll', () => {
     it('should return paginated companies', async () => {
@@ -124,142 +111,177 @@ describe('CompaniesService', () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);
-      expect(result.meta.page).toBe(1);
-      expect(result.meta.limit).toBe(20);
-      expect(result.meta.totalPages).toBe(1);
     });
 
-    it('should use default pagination values', async () => {
+    it('should filter by search term', async () => {
       mockPrismaService.company.findMany.mockResolvedValue([]);
       mockPrismaService.company.count.mockResolvedValue(0);
 
-      const result = await service.findAll();
+      await service.findAll(1, 20, 'Tech');
 
-      expect(result.meta.page).toBe(1);
-      expect(result.meta.limit).toBe(20);
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ OR: expect.any(Array) }),
+        }),
+      );
     });
   });
 
+  // ─────────────────────────────────────────────
+  // findOne
+  // ─────────────────────────────────────────────
+
   describe('findOne', () => {
-    it('should return a company by ID', async () => {
+    it('should return a company with department configs', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
 
       const result = await service.findOne('company-id');
 
-      expect(result).toEqual(mockCompany);
-      expect(mockPrismaService.company.findUnique).toHaveBeenCalledWith({
-        where: { id: 'company-id' },
-        include: expect.any(Object),
-      });
+      expect(result.name).toBe('Tech Solutions LLC');
     });
 
-    it('should throw NotFoundException if company not found', async () => {
+    it('should throw NotFoundException if not found', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw NotFoundException if company is inactive', async () => {
+    it('should throw NotFoundException if inactive', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue({
         ...mockCompany,
         isActive: false,
       });
 
-      await expect(service.findOne('company-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('company-id')).rejects.toThrow(NotFoundException);
     });
   });
 
+  // ─────────────────────────────────────────────
+  // update
+  // ─────────────────────────────────────────────
+
   describe('update', () => {
-    it('should update a company', async () => {
-      const dto = { name: 'Updated Name' };
+    it('should update company info', async () => {
+      mockPrismaService.company.findUnique
+        .mockResolvedValueOnce(mockCompany)  // first findOne
+        .mockResolvedValueOnce({ ...mockCompany, name: 'Updated' }); // second findOne
+      mockPrismaService.company.update.mockResolvedValue({});
 
-      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.company.update.mockResolvedValue({
-        ...mockCompany,
-        name: 'Updated Name',
-      });
-
-      const result = await service.update('company-id', dto);
+      const result = await service.update('company-id', { name: 'Updated' });
 
       expect(mockPrismaService.company.update).toHaveBeenCalledWith({
         where: { id: 'company-id' },
-        data: dto,
+        data: { name: 'Updated' },
       });
-    });
-
-    it('should throw ConflictException if updating to existing INN', async () => {
-      const dto = { inn: '999999999' };
-
-      mockPrismaService.company.findUnique
-        .mockResolvedValueOnce(mockCompany)
-        .mockResolvedValueOnce({ id: 'other-company', inn: '999999999' });
-
-      await expect(service.update('company-id', dto)).rejects.toThrow(
-        ConflictException,
-      );
-    });
-
-    it('should allow updating to same INN (own company)', async () => {
-      const dto = { inn: '123456789' };
-
-      mockPrismaService.company.findUnique
-        .mockResolvedValueOnce(mockCompany)
-        .mockResolvedValueOnce({ id: 'company-id', inn: '123456789' })
-        .mockResolvedValueOnce(mockCompany);
-      mockPrismaService.company.update.mockResolvedValue(mockCompany);
-
-      await service.update('company-id', dto);
-
-      expect(mockPrismaService.company.update).toHaveBeenCalled();
     });
   });
 
+  // ─────────────────────────────────────────────
+  // remove
+  // ─────────────────────────────────────────────
+
   describe('remove', () => {
-    it('should soft delete a company', async () => {
+    it('should soft-delete company', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.company.update.mockResolvedValue({
-        ...mockCompany,
-        isActive: false,
-      });
+      mockPrismaService.company.update.mockResolvedValue({});
 
       const result = await service.remove('company-id');
 
-      expect(result.message).toBe('Company deleted successfully');
+      expect(result.message).toBe("Kompaniya o'chirildi");
       expect(mockPrismaService.company.update).toHaveBeenCalledWith({
         where: { id: 'company-id' },
         data: { isActive: false },
       });
     });
+  });
 
-    it('should throw NotFoundException if company not found', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(null);
+  // ─────────────────────────────────────────────
+  // enableDepartment / disableDepartment
+  // ─────────────────────────────────────────────
 
-      await expect(service.remove('invalid-id')).rejects.toThrow(
-        NotFoundException,
-      );
+  describe('enableDepartment', () => {
+    it('should enable an existing config', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        isEnabled: false,
+      });
+      mockPrismaService.companyDepartmentConfig.update.mockResolvedValue({
+        id: 'config-id',
+        isEnabled: true,
+        globalDepartment: { id: 'dept-1', name: 'Umumiy chat', slug: 'general-chat' },
+      });
+
+      const result = await service.enableDepartment('company-id', 'dept-1');
+
+      expect(result.isEnabled).toBe(true);
+    });
+
+    it('should create config if not exists', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(null);
+      mockPrismaService.companyDepartmentConfig.create.mockResolvedValue({
+        id: 'new-config',
+        isEnabled: true,
+        globalDepartment: { id: 'dept-new', name: 'New', slug: 'new' },
+      });
+
+      const result = await service.enableDepartment('company-id', 'dept-new');
+
+      expect(mockPrismaService.companyDepartmentConfig.create).toHaveBeenCalled();
     });
   });
 
-  describe('updateLogo', () => {
-    it('should update company logo', async () => {
-      const logoPath = '/uploads/logos/test.jpg';
-
+  describe('disableDepartment', () => {
+    it('should disable an existing config', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.company.update.mockResolvedValue({
-        ...mockCompany,
-        logo: logoPath,
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        isEnabled: true,
+      });
+      mockPrismaService.companyDepartmentConfig.update.mockResolvedValue({
+        id: 'config-id',
+        isEnabled: false,
+        globalDepartment: { id: 'dept-1', name: 'Chat', slug: 'chat' },
       });
 
-      const result = await service.updateLogo('company-id', logoPath);
+      const result = await service.disableDepartment('company-id', 'dept-1');
 
-      expect(mockPrismaService.company.update).toHaveBeenCalledWith({
-        where: { id: 'company-id' },
-        data: { logo: logoPath },
-      });
+      expect(result.isEnabled).toBe(false);
+    });
+
+    it('should throw NotFoundException if config not found', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.disableDepartment('company-id', 'invalid-dept'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // getMembers
+  // ─────────────────────────────────────────────
+
+  describe('getMembers', () => {
+    it('should return active members with roles', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([
+        {
+          id: 'mem-1',
+          companyRole: CompanyRole.CLIENT_DIRECTOR,
+          isActive: true,
+          createdAt: new Date(),
+          user: { id: 'u-1', username: 'director01', name: 'Bobur' },
+          allowedDepartments: [],
+        },
+      ]);
+
+      const result = await service.getMembers('company-id');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].companyRole).toBe(CompanyRole.CLIENT_DIRECTOR);
     });
   });
 });

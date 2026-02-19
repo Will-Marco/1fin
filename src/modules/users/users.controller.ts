@@ -1,149 +1,164 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    Patch,
+    Post,
+    Query,
+    UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiQuery,
+    ApiBearerAuth,
+    ApiOperation,
+    ApiQuery,
+    ApiResponse,
+    ApiTags,
 } from '@nestjs/swagger';
-import { UsersService } from './users.service';
-import {
-  CreateUserDto,
-  UpdateUserDto,
-  AssignCompanyDto,
-  CreateWorkerTypeDto,
-} from './dto';
+import { SystemRole } from '../../../generated/prisma/client';
+import { SystemRoles } from '../../common/decorators';
+import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../../common/guards';
-import { Roles, CurrentUser } from '../../common/decorators';
-import { Role } from '../../../generated/prisma/client';
+import {
+    AssignMembershipDto,
+    CreateClientUserDto,
+    CreateSystemUserDto,
+    UpdateMembershipDto,
+    UpdateUserDto,
+} from './dto';
+import { UsersService } from './users.service';
 
 @ApiTags('Users')
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, SystemRoleGuard)
 @ApiBearerAuth()
 export class UsersController {
   constructor(private usersService: UsersService) {}
 
-  // WorkerType endpoints (must be before :id routes)
+  // ─────────────────────────────────────────────
+  // USER CREATION
+  // ─────────────────────────────────────────────
 
-  @Post('worker-types')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Create a worker type' })
-  @ApiResponse({ status: 201, description: 'Worker type created' })
-  @ApiResponse({ status: 409, description: 'Worker type already exists' })
-  async createWorkerType(@Body() dto: CreateWorkerTypeDto) {
-    return this.usersService.createWorkerType(dto);
+  @Post('system')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Create a 1FIN system user (employee/admin/director)' })
+  @ApiResponse({ status: 201, description: 'System user created' })
+  @ApiResponse({ status: 409, description: 'Username already taken' })
+  async createSystemUser(@Body() dto: CreateSystemUserDto) {
+    return this.usersService.createSystemUser(dto);
   }
 
-  @Get('worker-types')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Get all worker types' })
-  @ApiResponse({ status: 200, description: 'List of worker types' })
-  async findAllWorkerTypes() {
-    return this.usersService.findAllWorkerTypes();
+  @Post('client')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Create a client user (no systemRole, assign to company separately)' })
+  @ApiResponse({ status: 201, description: 'Client user created' })
+  @ApiResponse({ status: 409, description: 'Username already taken' })
+  async createClientUser(@Body() dto: CreateClientUserDto) {
+    return this.usersService.createClientUser(dto);
   }
 
-  @Delete('worker-types/:id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Delete a worker type (soft delete)' })
-  @ApiResponse({ status: 200, description: 'Worker type deleted' })
-  async removeWorkerType(@Param('id') id: string) {
-    return this.usersService.removeWorkerType(id);
-  }
-
-  // User endpoints
-
-  @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  async create(
-    @Body() dto: CreateUserDto,
-    @CurrentUser('role') currentUserRole: Role,
-  ) {
-    return this.usersService.create(dto, currentUserRole);
-  }
+  // ─────────────────────────────────────────────
+  // USER CRUD
+  // ─────────────────────────────────────────────
 
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Get all users' })
-  @ApiResponse({ status: 200, description: 'List of users' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get all users (paginated, filterable)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'role', required: false, enum: Role })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'companyId', required: false, type: String })
+  @ApiQuery({
+    name: 'hasSystemRole',
+    required: false,
+    type: Boolean,
+    description: 'true = 1FIN staff only, false = client users only',
+  })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('role') role?: Role,
+    @Query('search') search?: string,
     @Query('companyId') companyId?: string,
+    @Query('hasSystemRole') hasSystemRole?: string,
   ) {
     return this.usersService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
-      role,
-      companyId,
+      {
+        search,
+        companyId,
+        hasSystemRole:
+          hasSystemRole === 'true'
+            ? true
+            : hasSystemRole === 'false'
+              ? false
+              : undefined,
+      },
     );
   }
 
   @Get(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Get a user by ID' })
-  @ApiResponse({ status: 200, description: 'User details' })
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get a user by ID (includes memberships)' })
+  @ApiResponse({ status: 200, description: 'User with memberships' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Update a user' })
-  @ApiResponse({ status: 200, description: 'User updated successfully' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateUserDto,
-  ) {
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Update user info (name, phone, avatar, rank, isActive)' })
+  @ApiResponse({ status: 200, description: 'User updated' })
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Delete a user (soft delete)' })
-  @ApiResponse({ status: 200, description: 'User deleted successfully' })
-  async remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Deactivate user (soft delete)' })
+  @ApiResponse({ status: 200, description: 'User deactivated' })
+  async deactivate(@Param('id') id: string) {
+    return this.usersService.deactivate(id);
   }
 
-  @Post(':id/assign-company')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Assign user to a company' })
-  @ApiResponse({ status: 200, description: 'User assigned to company' })
-  async assignCompany(
+  // ─────────────────────────────────────────────
+  // MEMBERSHIP MANAGEMENT
+  // ─────────────────────────────────────────────
+
+  @Post(':id/memberships')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Assign user to a company with role & department access' })
+  @ApiResponse({ status: 201, description: 'Membership created' })
+  @ApiResponse({ status: 409, description: 'User already in this company' })
+  async assignMembership(
     @Param('id') id: string,
-    @Body() dto: AssignCompanyDto,
+    @Body() dto: AssignMembershipDto,
   ) {
-    return this.usersService.assignCompany(id, dto);
+    return this.usersService.assignMembership(id, dto);
   }
 
-  @Delete(':id/unassign-company/:companyId')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Unassign user from a company' })
-  @ApiResponse({ status: 200, description: 'User unassigned from company' })
-  async unassignCompany(
+  @Patch(':id/memberships/:membershipId')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Update membership role and/or department access' })
+  @ApiResponse({ status: 200, description: 'Membership updated' })
+  async updateMembership(
     @Param('id') id: string,
-    @Param('companyId') companyId: string,
+    @Param('membershipId') membershipId: string,
+    @Body() dto: UpdateMembershipDto,
   ) {
-    return this.usersService.unassignCompany(id, companyId);
+    return this.usersService.updateMembership(id, membershipId, dto);
+  }
+
+  @Delete(':id/memberships/:membershipId')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Remove user from a company (deletes membership)' })
+  @ApiResponse({ status: 200, description: 'Membership deleted' })
+  async removeMembership(
+    @Param('id') id: string,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.usersService.removeMembership(id, membershipId);
   }
 }

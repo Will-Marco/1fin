@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateCompanyDto {
   @ApiProperty({ example: 'Tech Solutions LLC' })
@@ -16,4 +16,12 @@ export class CreateCompanyDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @ApiPropertyOptional({
+    example: { bank: 'Kapital Bank', account: '20208000...' },
+    description: 'Bank rekvizitlari',
+  })
+  @IsObject()
+  @IsOptional()
+  requisites?: Record<string, any>;
 }
