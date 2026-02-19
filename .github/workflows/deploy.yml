@@ -70,6 +70,13 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
+            # Load NVM and Node.js
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            # Alternative: direct path (uncomment if NVM doesn't work)
+            # export PATH="$HOME/.nvm/versions/node/v24.13.1/bin:$PATH"
+
             cd /var/www/1fin
 
             # Create .env file from secrets
