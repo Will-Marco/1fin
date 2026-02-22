@@ -102,6 +102,7 @@ jobs:
             # Generate Prisma client and run migrations
             npx prisma generate
             npx prisma migrate deploy
+            npx prisma db seed
 
             # Restart application with PM2
             pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js
