@@ -1,5 +1,7 @@
 import {
-  ForbiddenException
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MessageStatus, MessageType, SystemRole } from '../../../../generated/prisma/client';
@@ -36,6 +38,15 @@ describe('MessagesService', () => {
     },
     messageEdit: {
       create: jest.fn(),
+    },
+    messageForward: {
+      create: jest.fn(),
+    },
+    companyDepartmentConfig: {
+      findUnique: jest.fn(),
+    },
+    file: {
+      createMany: jest.fn(),
     },
   };
 
@@ -170,6 +181,168 @@ describe('MessagesService', () => {
           data: expect.objectContaining({ isDeleted: true }),
         }),
       );
+    });
+  });
+
+  describe('forwardMessage', () => {
+    const forwardDto = {
+      toDepartmentId: 'dept-2',
+      companyId: 'company-1',
+      note: 'Muhim xabar',
+    };
+
+    const mockOriginalMessage = {
+      id: 'msg-1',
+      companyId: 'company-1',
+      globalDepartmentId: 'dept-1',
+      senderId: 'user-1',
+      content: 'Original message',
+      type: MessageType.TEXT,
+      status: MessageStatus.SENT,
+      sender: { id: 'user-1', name: 'User A', username: 'usera' },
+      files: [
+        {
+          id: 'file-1',
+          originalName: 'doc.pdf',
+          fileName: 'uuid.pdf',
+          fileSize: 1024,
+          mimeType: 'application/pdf',
+          fileType: 'DOCUMENT',
+          path: '/uploads/uuid.pdf',
+        },
+      ],
+      globalDepartment: { id: 'dept-1', name: 'Department A', slug: 'dept-a' },
+      forwardedAsNew: [],
+    };
+
+    const mockForwardedMessage = {
+      id: 'msg-2',
+      companyId: 'company-1',
+      globalDepartmentId: 'dept-2',
+      senderId: 'user-2',
+      content: 'Original message',
+      type: MessageType.TEXT,
+      status: MessageStatus.SENT,
+      sender: { id: 'user-2', name: 'User B', username: 'userb' },
+      globalDepartment: { id: 'dept-2', name: 'Department B', slug: 'dept-b' },
+    };
+
+    it('should successfully forward message (FIN_EMPLOYEE)', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockOriginalMessage);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
+        isEnabled: true,
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockForwardedMessage);
+      mockPrismaService.messageForward.create.mockResolvedValue({});
+      mockPrismaService.file.createMany.mockResolvedValue({});
+
+      const result = await service.forwardMessage(
+        'msg-1',
+        forwardDto,
+        'user-2',
+        SystemRole.FIN_EMPLOYEE,
+      );
+
+      expect(result.id).toBe('msg-2');
+      expect(result.forwardedFrom.originalSender.name).toBe('User A');
+      expect(mockPrismaService.message.create).toHaveBeenCalled();
+      expect(mockPrismaService.messageForward.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            forwardedMessageId: 'msg-2',
+            originalMessageId: 'msg-1',
+            forwardedBy: 'user-2',
+          }),
+        }),
+      );
+    });
+
+    it('should throw ForbiddenException if user is CLIENT_*', async () => {
+      await expect(
+        service.forwardMessage('msg-1', forwardDto, 'user-1', SystemRole.CLIENT_EMPLOYEE),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should forward chain - show root original sender', async () => {
+      // Mock: msg-1 was already forwarded from msg-0
+      const chainedMessage = {
+        ...mockOriginalMessage,
+        forwardedAsNew: [
+          {
+            originalMessage: {
+              id: 'msg-0',
+              senderId: 'user-0',
+              sender: { id: 'user-0', name: 'Root User', username: 'root' },
+            },
+          },
+        ],
+      };
+
+      mockPrismaService.message.findUnique.mockResolvedValue(chainedMessage);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
+        isEnabled: true,
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockForwardedMessage);
+      mockPrismaService.messageForward.create.mockResolvedValue({});
+      mockPrismaService.file.createMany.mockResolvedValue({});
+
+      const result = await service.forwardMessage(
+        'msg-1',
+        forwardDto,
+        'user-2',
+        SystemRole.FIN_ADMIN,
+      );
+
+      // Root original sender should be shown
+      expect(result.forwardedFrom.originalSender.name).toBe('Root User');
+      expect(mockPrismaService.messageForward.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            originalMessageId: 'msg-0', // Root message, not msg-1
+          }),
+        }),
+      );
+    });
+
+    it('should throw NotFoundException if message not found', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.forwardMessage('invalid-id', forwardDto, 'user-2', SystemRole.FIN_ADMIN),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if different company', async () => {
+      const differentCompanyMessage = {
+        ...mockOriginalMessage,
+        companyId: 'company-999', // Different company
+      };
+
+      mockPrismaService.message.findUnique.mockResolvedValue(differentCompanyMessage);
+
+      await expect(
+        service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_DIRECTOR),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if target department not enabled', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockOriginalMessage);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(null); // Department not enabled
+
+      await expect(
+        service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_EMPLOYEE),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if department exists but disabled', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockOriginalMessage);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
+        isEnabled: false, // Disabled
+      });
+
+      await expect(
+        service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_ADMIN),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

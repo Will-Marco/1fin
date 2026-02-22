@@ -31,7 +31,8 @@ import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
     CreateMessageDto,
-    UpdateMessageDto
+    ForwardMessageDto,
+    UpdateMessageDto,
 } from './dto';
 import { MessagesService } from './messages.service';
 
@@ -147,6 +148,25 @@ export class MessagesController {
     @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
     return this.messagesService.remove(id, userId, systemRole);
+  }
+
+  @Post(':id/forward')
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
+  @ApiOperation({
+    summary: 'Forward message to another department (1FIN staff only)',
+  })
+  @ApiResponse({ status: 201, description: 'Message forwarded successfully' })
+  async forwardMessage(
+    @Param('id') messageId: string,
+    @Body() dto: ForwardMessageDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole,
+  ) {
+    return this.messagesService.forwardMessage(messageId, dto, userId, systemRole);
   }
 
   @Get(':id/history')

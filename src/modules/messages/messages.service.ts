@@ -10,7 +10,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { MessageProducer } from '../../queues/producers';
 import {
     CreateMessageDto,
-    UpdateMessageDto
+    ForwardMessageDto,
+    UpdateMessageDto,
 } from './dto';
 
 @Injectable()
@@ -275,6 +276,156 @@ export class MessagesService {
     }
 
     return { message: 'Xabar o\'chirildi' };
+  }
+
+  /**
+   * Forward message to another department (only for FIN_* users)
+   * Creates a new message in target department with reference to original
+   */
+  async forwardMessage(
+    messageId: string,
+    dto: { toDepartmentId: string; companyId: string; note?: string },
+    userId: string,
+    userSystemRole: SystemRole,
+  ) {
+    // 1. Verify user is FIN_* (only 1FIN staff can forward)
+    const isFINUser = (
+      [
+        SystemRole.FIN_DIRECTOR,
+        SystemRole.FIN_ADMIN,
+        SystemRole.FIN_EMPLOYEE,
+      ] as SystemRole[]
+    ).includes(userSystemRole);
+
+    if (!isFINUser) {
+      throw new ForbiddenException(
+        'Faqat 1FIN xodimlari forward qilish huquqiga ega',
+      );
+    }
+
+    // 2. Find original message with files
+    const originalMessage = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        sender: { select: { id: true, name: true, username: true } },
+        files: true,
+        globalDepartment: { select: { id: true, name: true, slug: true } },
+        forwardedAsNew: {
+          include: {
+            originalMessage: {
+              select: {
+                id: true,
+                senderId: true,
+                sender: { select: { id: true, name: true, username: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!originalMessage) {
+      throw new NotFoundException('Xabar topilmadi');
+    }
+
+    // 3. Check if this message itself was forwarded - find root original sender
+    let rootOriginalMessage = originalMessage;
+    if (originalMessage.forwardedAsNew && originalMessage.forwardedAsNew.length > 0) {
+      // This message was forwarded, get the root original
+      rootOriginalMessage = originalMessage.forwardedAsNew[0].originalMessage as any;
+    }
+
+    // 4. Verify same company
+    if (originalMessage.companyId !== dto.companyId) {
+      throw new BadRequestException(
+        'Forward faqat bir company ichida mumkin',
+      );
+    }
+
+    // 5. Verify target department exists and enabled for company
+    const targetDeptConfig =
+      await this.prisma.companyDepartmentConfig.findUnique({
+        where: {
+          companyId_globalDepartmentId: {
+            companyId: dto.companyId,
+            globalDepartmentId: dto.toDepartmentId,
+          },
+        },
+      });
+
+    if (!targetDeptConfig || !targetDeptConfig.isEnabled) {
+      throw new BadRequestException(
+        'Target department bu kompaniya uchun mavjud emas',
+      );
+    }
+
+    // 6. Create new message in target department
+    const forwardedMessage = await this.prisma.message.create({
+      data: {
+        companyId: dto.companyId,
+        globalDepartmentId: dto.toDepartmentId,
+        senderId: userId,
+        content: originalMessage.content,
+        type: originalMessage.type,
+        status: MessageStatus.SENT,
+      },
+      include: {
+        sender: { select: { id: true, name: true, username: true } },
+        globalDepartment: { select: { id: true, name: true, slug: true } },
+      },
+    });
+
+    // 7. Create MessageForward record
+    await this.prisma.messageForward.create({
+      data: {
+        forwardedMessageId: forwardedMessage.id,
+        originalMessageId: rootOriginalMessage.id,
+        forwardedBy: userId,
+        note: dto.note,
+      },
+    });
+
+    // 8. Link original files to forwarded message (reference, not copy)
+    if (originalMessage.files && originalMessage.files.length > 0) {
+      await this.prisma.file.createMany({
+        data: originalMessage.files.map((file) => ({
+          globalDepartmentId: dto.toDepartmentId,
+          messageId: forwardedMessage.id,
+          uploadedBy: userId,
+          originalName: file.originalName,
+          fileName: file.fileName, // Same file reference
+          fileSize: file.fileSize,
+          mimeType: file.mimeType,
+          fileType: file.fileType,
+          path: file.path, // Same path - no copy
+          isOutgoing: true,
+        })),
+      });
+    }
+
+    // 9. Send notification via RabbitMQ (if available)
+    if (this.messageProducer) {
+      await this.messageProducer.sendNewMessage({
+        messageId: forwardedMessage.id,
+        companyId: dto.companyId,
+        globalDepartmentId: dto.toDepartmentId,
+        senderId: userId,
+        type: originalMessage.type,
+        isForwarded: true,
+        originalSender: rootOriginalMessage.sender,
+      } as any);
+    }
+
+    // 10. Return formatted message with forward info
+    return {
+      ...forwardedMessage,
+      forwardedFrom: {
+        originalSender: rootOriginalMessage.sender,
+        department: originalMessage.globalDepartment,
+      },
+      note: dto.note,
+      files: originalMessage.files,
+    };
   }
 
   private formatMessage(message: any, userSystemRole: SystemRole | null) {

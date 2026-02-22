@@ -2,12 +2,23 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ForwardMessageDto {
-  @ApiProperty({ example: 'department-uuid', description: 'Forward qilinadigan department ID' })
+  @ApiProperty({
+    example: 'dept-uuid',
+    description: 'Forward qilinadigan target department ID',
+  })
   @IsString()
   @IsNotEmpty()
   toDepartmentId: string;
 
-  @ApiPropertyOptional({ example: 'Qo\'shimcha izoh' })
+  @ApiProperty({
+    example: 'company-uuid',
+    description: 'Company ID (bir company ichida forward)',
+  })
+  @IsString()
+  @IsNotEmpty()
+  companyId: string;
+
+  @ApiPropertyOptional({ example: 'Muhim hujjat, ko\'rib chiqing' })
   @IsString()
   @IsOptional()
   note?: string;

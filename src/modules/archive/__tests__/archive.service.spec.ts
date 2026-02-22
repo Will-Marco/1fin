@@ -64,7 +64,17 @@ describe('ArchiveService', () => {
       oldDate.setMonth(oldDate.getMonth() - 4);
 
       mockPrismaService.message.findMany.mockResolvedValue([
-        { id: 'm1', globalDepartmentId: 'd1', companyId: 'c1', senderId: 'u1', createdAt: oldDate, files: [], edits: [], forwards: [] }
+        {
+          id: 'm1',
+          globalDepartmentId: 'd1',
+          companyId: 'c1',
+          senderId: 'u1',
+          createdAt: oldDate,
+          files: [],
+          edits: [],
+          forwardedAsOriginal: [],
+          forwardedAsNew: [],
+        },
       ]);
       mockPrismaService.document.findMany.mockResolvedValue([
         { id: 'doc1', globalDepartmentId: 'd1', companyId: 'c1', documentName: 'Doc', documentNumber: '123', createdById: 'u1', expiresAt: oldDate, createdAt: oldDate, files: [] }

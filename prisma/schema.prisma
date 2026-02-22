@@ -271,15 +271,16 @@ model Message {
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  globalDepartment GlobalDepartment @relation(fields: [globalDepartmentId], references: [id])
-  sender           User             @relation("SentMessages", fields: [senderId], references: [id])
-  replyTo          Message?         @relation("MessageReplies", fields: [replyToId], references: [id])
-  replies          Message[]        @relation("MessageReplies")
-  parent           Message?         @relation("MessageVersions", fields: [parentId], references: [id])
-  versions         Message[]        @relation("MessageVersions")
-  files            File[]
-  forwards         MessageForward[]
-  edits            MessageEdit[]
+  globalDepartment     GlobalDepartment   @relation(fields: [globalDepartmentId], references: [id])
+  sender               User               @relation("SentMessages", fields: [senderId], references: [id])
+  replyTo              Message?           @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies              Message[]          @relation("MessageReplies")
+  parent               Message?           @relation("MessageVersions", fields: [parentId], references: [id])
+  versions             Message[]          @relation("MessageVersions")
+  files                File[]
+  forwardedAsOriginal  MessageForward[]   @relation("OriginalMessage")
+  forwardedAsNew       MessageForward[]   @relation("ForwardedMessage")
+  edits                MessageEdit[]
 
   @@map("messages")
 }
@@ -297,19 +298,19 @@ model MessageEdit {
 }
 
 model MessageForward {
-  id                   String   @id @default(cuid())
-  messageId            String   @map("message_id")
-  documentId           String?  @map("document_id")
-  fromDepartmentId     String   @map("from_department_id")
-  toDepartmentId       String   @map("to_department_id")
-  forwardedBy          String   @map("forwarded_by")
-  documentNumber       String?  @map("document_number")
-  note                 String?
-  createdAt            DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(cuid())
+  forwardedMessageId  String   @unique @map("forwarded_message_id") // Target dept'dagi yangi message
+  originalMessageId   String   @map("original_message_id") // Original message
+  forwardedBy         String   @map("forwarded_by") // Kim forward qildi
+  documentId          String?  @map("document_id") // Document forward uchun
+  documentNumber      String?  @map("document_number") // Document forward uchun
+  note                String?  // Izoh
+  createdAt           DateTime @default(now()) @map("created_at")
 
   // Relations
-  message  Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  document Document? @relation(fields: [documentId], references: [id])
+  forwardedMessage Message   @relation("ForwardedMessage", fields: [forwardedMessageId], references: [id], onDelete: Cascade)
+  originalMessage  Message   @relation("OriginalMessage", fields: [originalMessageId], references: [id], onDelete: Cascade)
+  document         Document? @relation(fields: [documentId], references: [id])
 
   @@map("message_forwards")
 }

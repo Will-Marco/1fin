@@ -52,7 +52,8 @@ export class ArchiveService {
       include: {
         files: true,
         edits: true,
-        forwards: true,
+        forwardedAsOriginal: true,
+        forwardedAsNew: true,
       },
     });
 
@@ -107,13 +108,23 @@ export class ArchiveService {
           }
 
           result.messageEditsDeleted += message.edits.length;
-          result.messageForwardsDeleted += message.forwards.length;
+          result.messageForwardsDeleted +=
+            message.forwardedAsOriginal.length + message.forwardedAsNew.length;
         }
 
         const messageIds = messagesToArchive.map((m) => m.id);
         await tx.file.deleteMany({ where: { messageId: { in: messageIds } } });
-        await tx.messageEdit.deleteMany({ where: { messageId: { in: messageIds } } });
-        await tx.messageForward.deleteMany({ where: { messageId: { in: messageIds } } });
+        await tx.messageEdit.deleteMany({
+          where: { messageId: { in: messageIds } },
+        });
+        await tx.messageForward.deleteMany({
+          where: {
+            OR: [
+              { forwardedMessageId: { in: messageIds } },
+              { originalMessageId: { in: messageIds } },
+            ],
+          },
+        });
         await tx.message.deleteMany({ where: { id: { in: messageIds } } });
       });
     }
