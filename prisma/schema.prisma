@@ -69,7 +69,7 @@ model User {
   name                 String
   phone                String?
   avatar               String?
-  rank                 Int         @default(0) // UI display only, no permission impact
+  rank                 Int         @default(0) @map("user_rank") // UI display only, no permission impact
   systemRole           SystemRole? @map("system_role") // Only for 1FIN employees (nullable)
   notificationsEnabled Boolean     @default(true) @map("notifications_enabled") // CLIENT_FOUNDER can disable
   mustChangePassword   Boolean     @default(false) @map("must_change_password")
