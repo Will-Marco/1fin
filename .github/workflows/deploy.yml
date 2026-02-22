@@ -58,7 +58,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          source: 'dist,package.json,package-lock.json,prisma,ecosystem.config.js,docker-compose.yml'
+          source: 'dist,package.json,package-lock.json,prisma,prisma.config.ts,ecosystem.config.js,docker-compose.yml'
           target: '/var/www/1fin'
           overwrite: true
 
@@ -96,13 +96,16 @@ jobs:
             # Wait for database to be ready
             sleep 10
 
-            # Install production dependencies
-            npm ci --omit=dev
+            # Install all dependencies (dev needed for tsx/seed)
+            npm ci
 
             # Generate Prisma client and run migrations
             npx prisma generate
             npx prisma migrate deploy
             npx prisma db seed
+
+            # Remove dev dependencies
+            npm prune --omit=dev
 
             # Restart application with PM2
             pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js
