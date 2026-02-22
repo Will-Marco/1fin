@@ -60,7 +60,6 @@ async function main() {
         password: hashedPassword,
         name: SUPERADMIN_NAME,
         systemRole: SystemRole.FIN_DIRECTOR,
-        rank: 5,
       },
     });
 
@@ -83,7 +82,6 @@ async function main() {
         password: hashedPassword,
         name: '1FIN Admin',
         systemRole: SystemRole.FIN_ADMIN,
-        rank: 4,
       },
     });
 
@@ -106,7 +104,6 @@ async function main() {
         password: hashedPassword,
         name: '1FIN Employee',
         systemRole: SystemRole.FIN_EMPLOYEE,
-        rank: 3,
       },
     });
 

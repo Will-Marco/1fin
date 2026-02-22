@@ -3,12 +3,10 @@ import {
     ConflictException,
     NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import {
-    CompanyRole,
-    SystemRole,
-} from '../../../../generated/prisma/client';
+import { SystemRole } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { UsersService } from '../users.service';
 
@@ -23,7 +21,6 @@ describe('UsersService', () => {
     name: 'Ali Valiyev',
     phone: '+998901234567',
     avatar: null,
-    rank: 0,
     systemRole: SystemRole.FIN_EMPLOYEE,
     notificationsEnabled: true,
     isActive: true,
@@ -37,7 +34,7 @@ describe('UsersService', () => {
     ...mockUser,
     id: 'client-user-id',
     username: 'client_director01',
-    systemRole: null,
+    systemRole: SystemRole.CLIENT_DIRECTOR,
     memberships: [],
   };
 
@@ -71,11 +68,19 @@ describe('UsersService', () => {
     $transaction: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'DEFAULT_USER_PASSWORD') return '1Fin@2024';
+      return undefined;
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
@@ -130,9 +135,10 @@ describe('UsersService', () => {
     const dto = {
       username: 'client_director01',
       name: 'Bobur Toshmatov',
+      systemRole: SystemRole.CLIENT_DIRECTOR,
     };
 
-    it('should create a client user without systemRole', async () => {
+    it('should create a client user with systemRole', async () => {
       mockPrismaService.user.findUnique
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(mockClientUser);
@@ -141,16 +147,14 @@ describe('UsersService', () => {
 
       const result = await service.createClientUser(dto);
 
-      expect(result.systemRole).toBeNull();
+      expect(result.systemRole).toBe(SystemRole.CLIENT_DIRECTOR);
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           username: 'client_director01',
+          systemRole: SystemRole.CLIENT_DIRECTOR,
           mustChangePassword: true,
         }),
       });
-      // systemRole should NOT be set
-      const createCall = mockPrismaService.user.create.mock.calls[0][0];
-      expect(createCall.data.systemRole).toBeUndefined();
     });
 
     it('should throw ConflictException if username already exists', async () => {
@@ -268,13 +272,13 @@ describe('UsersService', () => {
   describe('assignMembership', () => {
     const dto = {
       companyId: 'company-id',
-      companyRole: CompanyRole.CLIENT_DIRECTOR,
+      rank: 1,
       allowedDepartmentIds: ['dept-id-1'],
     };
 
     const mockMembership = {
       id: 'membership-id',
-      companyRole: CompanyRole.CLIENT_DIRECTOR,
+      rank: 1,
       isActive: true,
       company: { id: 'company-id', name: 'Test Company' },
       allowedDepartments: [],
@@ -295,7 +299,7 @@ describe('UsersService', () => {
 
       const result = await service.assignMembership('user-id', dto);
 
-      expect(result.companyRole).toBe(CompanyRole.CLIENT_DIRECTOR);
+      expect(result.rank).toBe(1);
     });
 
     it('should throw NotFoundException if company not found', async () => {
@@ -350,6 +354,7 @@ describe('UsersService', () => {
         id: 'membership-id',
         userId: 'user-id',
         companyId: 'company-id',
+        user: { systemRole: SystemRole.FIN_EMPLOYEE },
       });
       mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
         { globalDepartmentId: 'dept-id-2' },
@@ -358,7 +363,7 @@ describe('UsersService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.updateMembership('user-id', 'membership-id', {
-        companyRole: CompanyRole.CLIENT_EMPLOYEE,
+        rank: 2,
         allowedDepartmentIds: ['dept-id-2'],
       });
 

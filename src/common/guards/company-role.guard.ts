@@ -6,16 +6,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { CompanyRole } from '../../../generated/prisma/client';
-import { COMPANY_ROLES_KEY } from '../decorators/company-roles.decorator';
+import { SystemRole } from '../../../generated/prisma/client';
+import { SYSTEM_ROLES_KEY } from '../decorators/system-roles.decorator';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
- * Guard for client company users (CLIENT_FOUNDER, CLIENT_DIRECTOR, CLIENT_EMPLOYEE)
- * Checks user's membership role for the specified company
+ * Guard for checking user's SystemRole (FIN_* or CLIENT_*)
+ * For CLIENT_* roles, also checks membership in the specified company
  *
- * Requires companyId in request (params, body, or query)
- * 1FIN system users (with systemRole) bypass this guard
+ * Requires companyId in request (params, body, or query) for CLIENT_* roles
+ * FIN_* roles bypass company membership check
  */
 @Injectable()
 export class CompanyRoleGuard implements CanActivate {
@@ -25,8 +25,8 @@ export class CompanyRoleGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<CompanyRole[]>(
-      COMPANY_ROLES_KEY,
+    const requiredRoles = this.reflector.getAllAndOverride<SystemRole[]>(
+      SYSTEM_ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
 
@@ -42,41 +42,46 @@ export class CompanyRoleGuard implements CanActivate {
       throw new ForbiddenException('Foydalanuvchi topilmadi');
     }
 
-    // 1FIN system users bypass company role check
-    if (user.systemRole) {
-      return true;
-    }
-
-    // Get companyId from request
-    const companyId = this.extractCompanyId(request);
-
-    if (!companyId) {
-      throw new BadRequestException('Kompaniya ID talab qilinadi');
-    }
-
-    // Check user's membership in this company
-    const membership = await this.prisma.userCompanyMembership.findUnique({
-      where: {
-        userId_companyId: {
-          userId: user.id,
-          companyId,
-        },
-      },
-    });
-
-    if (!membership || !membership.isActive) {
-      throw new ForbiddenException('Siz bu kompaniyaga kirish huquqiga ega emassiz');
-    }
-
-    // Check if user's companyRole is in required roles
-    const hasRole = requiredRoles.includes(membership.companyRole);
+    // Check if user's systemRole is in required roles
+    const hasRole = requiredRoles.includes(user.systemRole);
 
     if (!hasRole) {
       throw new ForbiddenException('Sizda ushbu amalni bajarish huquqi yo\'q');
     }
 
-    // Attach membership to request for later use
-    request.membership = membership;
+    // If CLIENT_* role, verify company membership
+    const isClientRole = [
+      SystemRole.CLIENT_FOUNDER,
+      SystemRole.CLIENT_DIRECTOR,
+      SystemRole.CLIENT_EMPLOYEE,
+    ].includes(user.systemRole);
+
+    if (isClientRole) {
+      const companyId = this.extractCompanyId(request);
+
+      if (!companyId) {
+        throw new BadRequestException('Kompaniya ID talab qilinadi');
+      }
+
+      // Check user's membership in this company
+      const membership = await this.prisma.userCompanyMembership.findUnique({
+        where: {
+          userId_companyId: {
+            userId: user.id,
+            companyId,
+          },
+        },
+      });
+
+      if (!membership || !membership.isActive) {
+        throw new ForbiddenException(
+          'Siz bu kompaniyaga kirish huquqiga ega emassiz',
+        );
+      }
+
+      // Attach membership to request for later use
+      request.membership = membership;
+    }
 
     return true;
   }

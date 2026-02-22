@@ -2,10 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
     IsEnum,
     IsNotEmpty,
-    IsNumber,
     IsOptional,
     IsString,
-    Min,
+    Matches,
+    MinLength,
 } from 'class-validator';
 import { SystemRole } from '../../../../generated/prisma/client';
 
@@ -14,6 +14,18 @@ export class CreateSystemUserDto {
   @IsString()
   @IsNotEmpty()
   username: string;
+
+  @ApiPropertyOptional({
+    example: 'SecurePass123',
+    description: 'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
+  })
+  @IsString()
+  @MinLength(6, { message: 'Password must be at least 6 characters long' })
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d)/, {
+    message: 'Password must contain at least one letter and one number',
+  })
+  @IsOptional()
+  password?: string;
 
   @ApiProperty({ example: 'Ali Valiyev' })
   @IsString()
@@ -33,18 +45,9 @@ export class CreateSystemUserDto {
   @ApiProperty({
     enum: SystemRole,
     example: SystemRole.FIN_EMPLOYEE,
-    description: 'Role for 1FIN system user',
+    description: 'Role for 1FIN system user (FIN_DIRECTOR, FIN_ADMIN, FIN_EMPLOYEE)',
   })
   @IsEnum(SystemRole)
   @IsNotEmpty()
   systemRole: SystemRole;
-
-  @ApiPropertyOptional({
-    example: 1,
-    description: 'UI display rank, no permission impact',
-  })
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  rank?: number;
 }

@@ -1,9 +1,6 @@
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-    CompanyRole,
-    SystemRole,
-} from '../../../../generated/prisma/client';
+import { SystemRole } from '../../../../generated/prisma/client';
 import { UsersController } from '../users.controller';
 import { UsersService } from '../users.service';
 
@@ -64,13 +61,17 @@ describe('UsersController', () => {
 
   describe('createClientUser', () => {
     it('should create a client user', async () => {
-      const dto = { username: 'client01', name: 'Bobur' };
-      const clientUser = { ...mockUser, systemRole: null };
+      const dto = {
+        username: 'client01',
+        name: 'Bobur',
+        systemRole: SystemRole.CLIENT_DIRECTOR,
+      };
+      const clientUser = { ...mockUser, systemRole: SystemRole.CLIENT_DIRECTOR };
       mockUsersService.createClientUser.mockResolvedValue(clientUser);
 
       const result = await controller.createClientUser(dto);
 
-      expect(result.systemRole).toBeNull();
+      expect(result.systemRole).toBe(SystemRole.CLIENT_DIRECTOR);
       expect(service.createClientUser).toHaveBeenCalledWith(dto);
     });
   });
@@ -145,22 +146,28 @@ describe('UsersController', () => {
     it('should assign user to company', async () => {
       const dto = {
         companyId: 'company-id',
-        companyRole: CompanyRole.CLIENT_DIRECTOR,
+        rank: 1,
         allowedDepartmentIds: ['dept-id-1'],
       };
-      const membership = { id: 'membership-id', companyRole: CompanyRole.CLIENT_DIRECTOR };
+      const membership = {
+        id: 'membership-id',
+        rank: 1,
+        isActive: true,
+        company: { id: 'company-id', name: 'Test Company' },
+        allowedDepartments: [],
+      };
       mockUsersService.assignMembership.mockResolvedValue(membership);
 
       const result = await controller.assignMembership('user-id', dto);
 
-      expect(result.companyRole).toBe(CompanyRole.CLIENT_DIRECTOR);
+      expect(result.rank).toBe(1);
       expect(service.assignMembership).toHaveBeenCalledWith('user-id', dto);
     });
   });
 
   describe('updateMembership', () => {
     it('should update a membership', async () => {
-      const dto = { companyRole: CompanyRole.CLIENT_EMPLOYEE };
+      const dto = { rank: 2 };
       mockUsersService.updateMembership.mockResolvedValue(mockUser);
 
       await controller.updateMembership('user-id', 'membership-id', dto);

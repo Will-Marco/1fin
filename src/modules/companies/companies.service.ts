@@ -279,7 +279,7 @@ export class CompaniesService {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
-        companyRole: true,
+        rank: true,
         isActive: true,
         createdAt: true,
         user: {
@@ -289,7 +289,7 @@ export class CompaniesService {
             name: true,
             phone: true,
             avatar: true,
-            rank: true,
+            systemRole: true,
             isActive: true,
           },
         },

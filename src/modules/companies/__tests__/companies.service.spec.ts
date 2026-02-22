@@ -3,7 +3,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CompanyRole } from '../../../../generated/prisma/client';
+import { SystemRole } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { CompaniesService } from '../companies.service';
 
@@ -270,10 +270,15 @@ describe('CompaniesService', () => {
       mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([
         {
           id: 'mem-1',
-          companyRole: CompanyRole.CLIENT_DIRECTOR,
+          rank: null,
           isActive: true,
           createdAt: new Date(),
-          user: { id: 'u-1', username: 'director01', name: 'Bobur' },
+          user: {
+            id: 'u-1',
+            username: 'director01',
+            name: 'Bobur',
+            systemRole: SystemRole.CLIENT_DIRECTOR,
+          },
           allowedDepartments: [],
         },
       ]);
@@ -281,7 +286,7 @@ describe('CompaniesService', () => {
       const result = await service.getMembers('company-id');
 
       expect(result).toHaveLength(1);
-      expect(result[0].companyRole).toBe(CompanyRole.CLIENT_DIRECTOR);
+      expect(result[0].user.systemRole).toBe(SystemRole.CLIENT_DIRECTOR);
     });
   });
 });

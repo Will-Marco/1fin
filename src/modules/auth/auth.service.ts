@@ -53,7 +53,6 @@ export class AuthService {
         id: user.id,
         username: user.username,
         name: user.name,
-        rank: user.rank,
         systemRole: user.systemRole,
         mustChangePassword: user.mustChangePassword,
       },
@@ -164,7 +163,6 @@ export class AuthService {
         name: true,
         phone: true,
         avatar: true,
-        rank: true,
         systemRole: true,
       },
     });
@@ -186,7 +184,6 @@ export class AuthService {
         name: true,
         phone: true,
         avatar: true,
-        rank: true,
         systemRole: true,
       },
     });

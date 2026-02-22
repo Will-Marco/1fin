@@ -4,9 +4,10 @@ import {
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { DEFAULT_PASSWORD } from '../../common/constants';
 import { PrismaService } from '../../database/prisma.service';
+import { SystemRole } from '../../../generated/prisma/client';
 import {
     AssignMembershipDto,
     CreateClientUserDto,
@@ -17,7 +18,10 @@ import {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+  ) {}
 
   // ─────────────────────────────────────────────
   // USER CRUD
@@ -30,7 +34,10 @@ export class UsersService {
   async createSystemUser(dto: CreateSystemUserDto) {
     await this.ensureUsernameAvailable(dto.username);
 
-    const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+    const defaultPassword =
+      this.configService.get<string>('DEFAULT_USER_PASSWORD') || '1Fin@2024';
+    const passwordToUse = dto.password || defaultPassword;
+    const hashedPassword = await bcrypt.hash(passwordToUse, 10);
 
     const user = await this.prisma.user.create({
       data: {
@@ -39,9 +46,8 @@ export class UsersService {
         name: dto.name,
         phone: dto.phone,
         avatar: dto.avatar,
-        rank: dto.rank ?? 0,
         systemRole: dto.systemRole,
-        mustChangePassword: true,
+        mustChangePassword: !dto.password, // if default password, must change
       },
     });
 
@@ -50,12 +56,15 @@ export class UsersService {
 
   /**
    * Create a client user (CLIENT_FOUNDER / CLIENT_DIRECTOR / CLIENT_EMPLOYEE).
-   * No systemRole — company assignment is done separately via membership.
+   * systemRole is now required and set at user creation.
    */
   async createClientUser(dto: CreateClientUserDto) {
     await this.ensureUsernameAvailable(dto.username);
 
-    const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+    const defaultPassword =
+      this.configService.get<string>('DEFAULT_USER_PASSWORD') || '1Fin@2024';
+    const passwordToUse = dto.password || defaultPassword;
+    const hashedPassword = await bcrypt.hash(passwordToUse, 10);
 
     const user = await this.prisma.user.create({
       data: {
@@ -64,8 +73,8 @@ export class UsersService {
         name: dto.name,
         phone: dto.phone,
         avatar: dto.avatar,
-        rank: dto.rank ?? 0,
-        mustChangePassword: true,
+        systemRole: dto.systemRole,
+        mustChangePassword: !dto.password, // if default password, must change
       },
     });
 
@@ -115,7 +124,6 @@ export class UsersService {
           name: true,
           phone: true,
           avatar: true,
-          rank: true,
           systemRole: true,
           notificationsEnabled: true,
           isActive: true,
@@ -146,7 +154,6 @@ export class UsersService {
         name: true,
         phone: true,
         avatar: true,
-        rank: true,
         systemRole: true,
         notificationsEnabled: true,
         isActive: true,
@@ -157,7 +164,7 @@ export class UsersService {
           where: { isActive: true },
           select: {
             id: true,
-            companyRole: true,
+            rank: true,
             isActive: true,
             createdAt: true,
             company: {
@@ -219,17 +226,30 @@ export class UsersService {
   // ─────────────────────────────────────────────
 
   /**
-   * Assign a user to a company with a role and department access.
+   * Assign a user to a company with optional rank and department access.
+   * Rank (1-3) only for CLIENT_EMPLOYEE and FIN_EMPLOYEE.
    * One user can only have ONE membership per company.
    */
   async assignMembership(userId: string, dto: AssignMembershipDto) {
-    await this.findOne(userId);
+    const user = await this.findOne(userId);
 
     const company = await this.prisma.company.findUnique({
       where: { id: dto.companyId },
     });
     if (!company || !company.isActive) {
       throw new NotFoundException('Kompaniya topilmadi');
+    }
+
+    // Validate rank: only for EMPLOYEE roles
+    if (dto.rank !== undefined) {
+      if (
+        user.systemRole !== SystemRole.CLIENT_EMPLOYEE &&
+        user.systemRole !== SystemRole.FIN_EMPLOYEE
+      ) {
+        throw new BadRequestException(
+          'Rank faqat CLIENT_EMPLOYEE va FIN_EMPLOYEE uchun berilishi mumkin',
+        );
+      }
     }
 
     // Check if any of the department IDs are valid
@@ -250,7 +270,7 @@ export class UsersService {
       data: {
         userId,
         companyId: dto.companyId,
-        companyRole: dto.companyRole,
+        rank: dto.rank,
         allowedDepartments: {
           create: dto.allowedDepartmentIds.map((deptId) => ({
             globalDepartmentId: deptId,
@@ -259,7 +279,7 @@ export class UsersService {
       },
       select: {
         id: true,
-        companyRole: true,
+        rank: true,
         isActive: true,
         company: { select: { id: true, name: true } },
         allowedDepartments: {
@@ -274,7 +294,7 @@ export class UsersService {
   }
 
   /**
-   * Update an existing membership's role and/or department access.
+   * Update an existing membership's rank and/or department access.
    * allowedDepartmentIds fully replaces existing department access.
    */
   async updateMembership(
@@ -284,10 +304,23 @@ export class UsersService {
   ) {
     const membership = await this.prisma.userCompanyMembership.findFirst({
       where: { id: membershipId, userId },
+      include: { user: { select: { systemRole: true } } },
     });
 
     if (!membership) {
       throw new NotFoundException('Membership topilmadi');
+    }
+
+    // Validate rank: only for EMPLOYEE roles
+    if (dto.rank !== undefined) {
+      if (
+        membership.user.systemRole !== SystemRole.CLIENT_EMPLOYEE &&
+        membership.user.systemRole !== SystemRole.FIN_EMPLOYEE
+      ) {
+        throw new BadRequestException(
+          'Rank faqat CLIENT_EMPLOYEE va FIN_EMPLOYEE uchun berilishi mumkin',
+        );
+      }
     }
 
     if (
@@ -301,10 +334,10 @@ export class UsersService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      if (dto.companyRole) {
+      if (dto.rank !== undefined) {
         await tx.userCompanyMembership.update({
           where: { id: membershipId },
-          data: { companyRole: dto.companyRole },
+          data: { rank: dto.rank },
         });
       }
 

@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CompanyRole, DocumentStatus } from '../../../generated/prisma/client';
+import { SystemRole, DocumentStatus } from '../../../generated/prisma/client';
 import { BANK_PAYMENT_DEPARTMENT_SLUG } from '../constants';
 
 /**
@@ -19,7 +19,7 @@ import { BANK_PAYMENT_DEPARTMENT_SLUG } from '../constants';
  * - Bank Oplata department has no accept/reject
  * - Document must be in PENDING status
  *
- * 1FIN system users can accept/reject
+ * FIN_* users can accept/reject
  */
 @Injectable()
 export class DocumentPermissionGuard implements CanActivate {
@@ -64,13 +64,19 @@ export class DocumentPermissionGuard implements CanActivate {
       );
     }
 
-    // 1FIN system users can accept/reject
-    if (user.systemRole) {
+    // FIN_* users can accept/reject
+    const isFINUser = [
+      SystemRole.FIN_DIRECTOR,
+      SystemRole.FIN_ADMIN,
+      SystemRole.FIN_EMPLOYEE,
+    ].includes(user.systemRole);
+
+    if (isFINUser) {
       request.document = document;
       return true;
     }
 
-    // Get user's membership for document's company
+    // For CLIENT_* users, check membership
     const membership = await this.prisma.userCompanyMembership.findUnique({
       where: {
         userId_companyId: {
@@ -85,7 +91,7 @@ export class DocumentPermissionGuard implements CanActivate {
     }
 
     // CLIENT_FOUNDER cannot accept/reject (monitoring only)
-    if (membership.companyRole === CompanyRole.CLIENT_FOUNDER) {
+    if (user.systemRole === SystemRole.CLIENT_FOUNDER) {
       throw new ForbiddenException(
         'Asoschilarda hujjatlarni tasdiqlash/rad etish huquqi yo\'q',
       );
@@ -93,8 +99,8 @@ export class DocumentPermissionGuard implements CanActivate {
 
     // CLIENT_DIRECTOR and CLIENT_EMPLOYEE can accept/reject
     if (
-      membership.companyRole !== CompanyRole.CLIENT_DIRECTOR &&
-      membership.companyRole !== CompanyRole.CLIENT_EMPLOYEE
+      user.systemRole !== SystemRole.CLIENT_DIRECTOR &&
+      user.systemRole !== SystemRole.CLIENT_EMPLOYEE
     ) {
       throw new ForbiddenException('Sizda ushbu amalni bajarish huquqi yo\'q');
     }

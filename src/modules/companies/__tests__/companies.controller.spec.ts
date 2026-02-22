@@ -1,6 +1,6 @@
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CompanyRole } from '../../../../generated/prisma/client';
+import { SystemRole } from '../../../../generated/prisma/client';
 import { CompaniesController } from '../companies.controller';
 import { CompaniesService } from '../companies.service';
 
@@ -149,8 +149,11 @@ describe('CompaniesController', () => {
       const members = [
         {
           id: 'mem-1',
-          companyRole: CompanyRole.CLIENT_DIRECTOR,
-          user: { name: 'Bobur' },
+          rank: null,
+          user: {
+            name: 'Bobur',
+            systemRole: SystemRole.CLIENT_DIRECTOR,
+          },
           allowedDepartments: [],
         },
       ];

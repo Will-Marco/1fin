@@ -1,16 +1,16 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsOptional, IsString } from 'class-validator';
-import { CompanyRole } from '../../../../generated/prisma/client';
+import { IsArray, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class UpdateMembershipDto {
   @ApiPropertyOptional({
-    enum: CompanyRole,
-    example: CompanyRole.CLIENT_EMPLOYEE,
-    description: 'New role within the company',
+    example: 2,
+    description: 'Rank (1-3) for CLIENT_EMPLOYEE and FIN_EMPLOYEE only',
   })
-  @IsEnum(CompanyRole)
+  @IsInt()
+  @Min(1)
+  @Max(3)
   @IsOptional()
-  companyRole?: CompanyRole;
+  rank?: number;
 
   @ApiPropertyOptional({
     type: [String],

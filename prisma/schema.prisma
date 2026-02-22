@@ -11,18 +11,14 @@ datasource db {
 // ENUMS
 // ============================================
 
-// System roles (1FIN employees only)
+// System roles (all users have a role)
 enum SystemRole {
-  FIN_DIRECTOR  // SuperAdmin - full system control
-  FIN_ADMIN     // System manager
-  FIN_EMPLOYEE  // Operational employee
-}
-
-// Company roles (assigned per company membership)
-enum CompanyRole {
-  CLIENT_FOUNDER   // Investor, monitoring role
-  CLIENT_DIRECTOR  // Company director
-  CLIENT_EMPLOYEE  // Company employee
+  FIN_DIRECTOR     // SuperAdmin - full system control
+  FIN_ADMIN        // System manager
+  FIN_EMPLOYEE     // Operational employee
+  CLIENT_FOUNDER   // Client investor, monitoring role
+  CLIENT_DIRECTOR  // Client company director
+  CLIENT_EMPLOYEE  // Client company employee
 }
 
 enum MessageStatus {
@@ -63,19 +59,18 @@ enum DocumentStatus {
 // ============================================
 
 model User {
-  id                   String      @id @default(cuid())
-  username             String      @unique
+  id                   String     @id @default(cuid())
+  username             String     @unique
   password             String
   name                 String
   phone                String?
   avatar               String?
-  rank                 Int         @default(0) @map("user_rank") // UI display only, no permission impact
-  systemRole           SystemRole? @map("system_role") // Only for 1FIN employees (nullable)
-  notificationsEnabled Boolean     @default(true) @map("notifications_enabled") // CLIENT_FOUNDER can disable
-  mustChangePassword   Boolean     @default(false) @map("must_change_password")
-  isActive             Boolean     @default(true) @map("is_active")
-  createdAt            DateTime    @default(now()) @map("created_at")
-  updatedAt            DateTime    @updatedAt @map("updated_at")
+  systemRole           SystemRole @map("system_role") // Required for all users
+  notificationsEnabled Boolean    @default(true) @map("notifications_enabled") // CLIENT_FOUNDER can disable
+  mustChangePassword   Boolean    @default(false) @map("must_change_password")
+  isActive             Boolean    @default(true) @map("is_active")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
 
   // Relations
   memberships       UserCompanyMembership[]
@@ -130,15 +125,15 @@ model Company {
   @@map("companies")
 }
 
-// Multi-company membership with role and department access
+// Multi-company membership with rank and department access
 model UserCompanyMembership {
-  id          String      @id @default(cuid())
-  userId      String      @map("user_id")
-  companyId   String      @map("company_id")
-  companyRole CompanyRole @map("company_role")
-  isActive    Boolean     @default(true) @map("is_active")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  companyId String   @map("company_id")
+  rank      Int?     // 1-3, only for CLIENT_EMPLOYEE and FIN_EMPLOYEE
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   user               User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
