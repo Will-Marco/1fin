@@ -60,7 +60,7 @@ jobs:
           port: 22
           source: 'dist,package.json,package-lock.json,prisma,ecosystem.config.js,docker-compose.yml'
           target: '/var/www/1fin'
-          rm: true
+          overwrite: true
 
       - name: Setup env and restart app
         uses: appleboy/ssh-action@v1.0.3
