@@ -34,7 +34,9 @@ export class CompaniesService {
       const created = await tx.company.create({
         data: {
           name: dto.name,
+          description: dto.description,
           inn: dto.inn,
+          logo: dto.logo,
           address: dto.address,
           requisites: dto.requisites,
           createdById,
