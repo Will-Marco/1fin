@@ -80,6 +80,7 @@ model User {
   notifications     Notification[]
   createdDocuments  Document[]             @relation("DocumentCreator")
   approvedDocuments Document[]             @relation("DocumentApprover")
+  departmentReads   UserDepartmentRead[]
 
   @@map("users")
 }
@@ -123,6 +124,7 @@ model Company {
   memberships       UserCompanyMembership[]
   departmentConfigs CompanyDepartmentConfig[]
   documents         Document[]
+  departmentReads   UserDepartmentRead[]
 
   @@map("companies")
 }
@@ -165,6 +167,7 @@ model GlobalDepartment {
   messages         Message[]
   files            File[]
   documents        Document[]
+  userReads        UserDepartmentRead[]
 
   @@map("global_departments")
 }
@@ -366,6 +369,28 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+// ============================================
+// USER DEPARTMENT READ STATUS
+// ============================================
+
+model UserDepartmentRead {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  companyId          String   @map("company_id")
+  globalDepartmentId String   @map("global_department_id")
+  lastReadAt         DateTime @default(now()) @map("last_read_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  globalDepartment GlobalDepartment @relation(fields: [globalDepartmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId, globalDepartmentId])
+  @@map("user_department_reads")
 }
 
 // ============================================

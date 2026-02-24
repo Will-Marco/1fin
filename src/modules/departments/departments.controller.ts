@@ -17,7 +17,7 @@ import {
     ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { SystemRoles } from '../../common/decorators';
+import { CurrentUser, SystemRoles } from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { DepartmentsService } from './departments.service';
@@ -78,5 +78,69 @@ export class DepartmentsController {
   @ApiResponse({ status: 200, description: 'Department deactivated' })
   async deactivate(@Param('id') id: string) {
     return this.departmentsService.deactivate(id);
+  }
+
+  // ─────────────────────────────────────────────
+  // UNREAD MESSAGES ENDPOINTS
+  // ─────────────────────────────────────────────
+
+  @Get('unread-summary/:companyId')
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+    SystemRole.CLIENT_FOUNDER,
+    SystemRole.CLIENT_DIRECTOR,
+    SystemRole.CLIENT_EMPLOYEE,
+  )
+  @ApiOperation({ summary: 'Get unread message counts for all departments' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns unread count per department and total',
+  })
+  async getUnreadSummary(
+    @Param('companyId') companyId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole,
+  ) {
+    return this.departmentsService.getUnreadSummary(userId, companyId, systemRole);
+  }
+
+  @Post(':id/mark-read/:companyId')
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+    SystemRole.CLIENT_FOUNDER,
+    SystemRole.CLIENT_DIRECTOR,
+    SystemRole.CLIENT_EMPLOYEE,
+  )
+  @ApiOperation({ summary: 'Mark a department as read' })
+  @ApiResponse({ status: 200, description: 'Department marked as read' })
+  async markDepartmentAsRead(
+    @Param('id') departmentId: string,
+    @Param('companyId') companyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.departmentsService.markDepartmentAsRead(userId, companyId, departmentId);
+  }
+
+  @Post('mark-all-read/:companyId')
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+    SystemRole.CLIENT_FOUNDER,
+    SystemRole.CLIENT_DIRECTOR,
+    SystemRole.CLIENT_EMPLOYEE,
+  )
+  @ApiOperation({ summary: 'Mark all departments as read' })
+  @ApiResponse({ status: 200, description: 'All departments marked as read' })
+  async markAllAsRead(
+    @Param('companyId') companyId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole,
+  ) {
+    return this.departmentsService.markAllAsRead(userId, companyId, systemRole);
   }
 }

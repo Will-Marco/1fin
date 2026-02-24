@@ -2,8 +2,10 @@ import {
     ConflictException,
     Injectable,
     NotFoundException,
+    BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { SystemRole } from '../../../generated/prisma/client';
 import { CreateGlobalDepartmentDto, UpdateGlobalDepartmentDto } from './dto';
 
 @Injectable()
@@ -139,5 +141,205 @@ export class DepartmentsService {
     });
 
     return { message: 'Global department o\'chirildi' };
+  }
+
+  // ─────────────────────────────────────────────
+  // UNREAD MESSAGES TRACKING
+  // ─────────────────────────────────────────────
+
+  /**
+   * Get unread message summary for all departments in a company.
+   * FIN_* users see all departments, CLIENT_* users see only their allowed departments.
+   */
+  async getUnreadSummary(userId: string, companyId: string, userSystemRole: SystemRole) {
+    if (!companyId) {
+      throw new BadRequestException('companyId majburiy');
+    }
+
+    const isFINUser = (
+      [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
+    ).includes(userSystemRole);
+
+    // Get departments based on user role
+    let departments: { id: string; name: string; slug: string }[];
+
+    if (isFINUser) {
+      // FIN users see all enabled departments for this company
+      const configs = await this.prisma.companyDepartmentConfig.findMany({
+        where: { companyId, isEnabled: true },
+        select: {
+          globalDepartment: {
+            select: { id: true, name: true, slug: true },
+          },
+        },
+      });
+      departments = configs.map((c) => c.globalDepartment);
+    } else {
+      // CLIENT users see only their allowed departments
+      const membership = await this.prisma.userCompanyMembership.findUnique({
+        where: { userId_companyId: { userId, companyId } },
+        select: {
+          allowedDepartments: {
+            select: {
+              globalDepartment: {
+                select: { id: true, name: true, slug: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!membership) {
+        return { departments: [], totalUnread: 0 };
+      }
+
+      departments = membership.allowedDepartments.map((ad) => ad.globalDepartment);
+    }
+
+    // Get user's last read times for each department
+    const userReads = await this.prisma.userDepartmentRead.findMany({
+      where: { userId, companyId },
+      select: { globalDepartmentId: true, lastReadAt: true },
+    });
+
+    const readMap = new Map(userReads.map((r) => [r.globalDepartmentId, r.lastReadAt]));
+
+    // Count unread messages for each department
+    const departmentResults = await Promise.all(
+      departments.map(async (dept) => {
+        const lastReadAt = readMap.get(dept.id);
+
+        const unreadCount = await this.prisma.message.count({
+          where: {
+            globalDepartmentId: dept.id,
+            companyId,
+            isDeleted: false,
+            ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+          },
+        });
+
+        return {
+          departmentId: dept.id,
+          departmentName: dept.name,
+          departmentSlug: dept.slug,
+          unreadCount,
+        };
+      }),
+    );
+
+    const totalUnread = departmentResults.reduce((sum, d) => sum + d.unreadCount, 0);
+
+    return {
+      departments: departmentResults,
+      totalUnread,
+    };
+  }
+
+  /**
+   * Mark a specific department as read for the current user.
+   */
+  async markDepartmentAsRead(userId: string, companyId: string, departmentId: string) {
+    if (!companyId || !departmentId) {
+      throw new BadRequestException('companyId va departmentId majburiy');
+    }
+
+    // Verify department exists
+    const dept = await this.prisma.globalDepartment.findUnique({
+      where: { id: departmentId },
+    });
+
+    if (!dept) {
+      throw new NotFoundException('Bo\'lim topilmadi');
+    }
+
+    // Upsert the read record
+    await this.prisma.userDepartmentRead.upsert({
+      where: {
+        userId_companyId_globalDepartmentId: {
+          userId,
+          companyId,
+          globalDepartmentId: departmentId,
+        },
+      },
+      update: {
+        lastReadAt: new Date(),
+      },
+      create: {
+        userId,
+        companyId,
+        globalDepartmentId: departmentId,
+        lastReadAt: new Date(),
+      },
+    });
+
+    return { message: 'Bo\'lim o\'qilgan deb belgilandi' };
+  }
+
+  /**
+   * Mark all departments as read for the current user in a company.
+   */
+  async markAllAsRead(userId: string, companyId: string, userSystemRole: SystemRole) {
+    if (!companyId) {
+      throw new BadRequestException('companyId majburiy');
+    }
+
+    const isFINUser = (
+      [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
+    ).includes(userSystemRole);
+
+    // Get departments based on user role
+    let departmentIds: string[];
+
+    if (isFINUser) {
+      const configs = await this.prisma.companyDepartmentConfig.findMany({
+        where: { companyId, isEnabled: true },
+        select: { globalDepartmentId: true },
+      });
+      departmentIds = configs.map((c) => c.globalDepartmentId);
+    } else {
+      const membership = await this.prisma.userCompanyMembership.findUnique({
+        where: { userId_companyId: { userId, companyId } },
+        select: {
+          allowedDepartments: {
+            select: { globalDepartmentId: true },
+          },
+        },
+      });
+
+      if (!membership) {
+        return { message: 'Barcha bo\'limlar o\'qilgan deb belgilandi', count: 0 };
+      }
+
+      departmentIds = membership.allowedDepartments.map((ad) => ad.globalDepartmentId);
+    }
+
+    const now = new Date();
+
+    // Upsert all department read records
+    await Promise.all(
+      departmentIds.map((deptId) =>
+        this.prisma.userDepartmentRead.upsert({
+          where: {
+            userId_companyId_globalDepartmentId: {
+              userId,
+              companyId,
+              globalDepartmentId: deptId,
+            },
+          },
+          update: { lastReadAt: now },
+          create: {
+            userId,
+            companyId,
+            globalDepartmentId: deptId,
+            lastReadAt: now,
+          },
+        }),
+      ),
+    );
+
+    return {
+      message: 'Barcha bo\'limlar o\'qilgan deb belgilandi',
+      count: departmentIds.length,
+    };
   }
 }
