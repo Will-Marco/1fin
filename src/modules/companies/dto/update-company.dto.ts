@@ -33,4 +33,11 @@ export class UpdateCompanyDto {
   @IsObject()
   @IsOptional()
   requisites?: Record<string, any>;
+
+  @ApiPropertyOptional({
+    example: { additionalBank: 'Second Bank', additionalAccount: '20208000000000000002' },
+  })
+  @IsObject()
+  @IsOptional()
+  requisites2?: Record<string, any>;
 }

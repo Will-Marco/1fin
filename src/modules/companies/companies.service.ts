@@ -39,6 +39,7 @@ export class CompaniesService {
           logo: dto.logo,
           address: dto.address,
           requisites: dto.requisites,
+          requisites2: dto.requisites2,
           createdById,
         },
       });
@@ -118,6 +119,7 @@ export class CompaniesService {
         logo: true,
         address: true,
         requisites: true,
+        requisites2: true,
         isActive: true,
         createdById: true,
         createdAt: true,

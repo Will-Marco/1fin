@@ -44,4 +44,15 @@ export class CreateCompanyDto {
   @IsObject()
   @IsOptional()
   requisites?: Record<string, any>;
+
+  @ApiPropertyOptional({
+    example: {
+      additionalBank: 'Second Bank',
+      additionalAccount: '20208000000000000002',
+    },
+    description: 'Kompaniya qo\'shimcha rekvizitlari (JSON)',
+  })
+  @IsObject()
+  @IsOptional()
+  requisites2?: Record<string, any>;
 }

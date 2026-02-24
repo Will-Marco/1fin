@@ -113,6 +113,7 @@ model Company {
   logo        String?
   address     String?
   requisites  Json?
+  requisites2 Json?    @map("requisites_2")
   isActive    Boolean  @default(true) @map("is_active")
   createdById String   @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
