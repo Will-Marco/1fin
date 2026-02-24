@@ -39,7 +39,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.createSession(
+    const { sessionId, ...tokens } = await this.createSession(
       user.id,
       user.systemRole,
       dto.deviceName,
@@ -53,8 +53,13 @@ export class AuthService {
         id: user.id,
         username: user.username,
         name: user.name,
+        phone: user.phone,
+        avatar: user.avatar,
         systemRole: user.systemRole,
+        notificationsEnabled: user.notificationsEnabled,
+        isActive: user.isActive,
         mustChangePassword: user.mustChangePassword,
+        sessionId,
       },
       ...tokens,
     };
@@ -250,7 +255,10 @@ export class AuthService {
       data: { refreshToken: hashedRefreshToken },
     });
 
-    return tokens;
+    return {
+      sessionId: session.id,
+      ...tokens,
+    };
   }
 
   private async generateTokens(
