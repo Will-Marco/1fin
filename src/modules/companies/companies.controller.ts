@@ -46,7 +46,24 @@ export class CompaniesController {
   @Post()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Create a new company (auto-links all global departments)' })
-  @ApiResponse({ status: 201, description: 'Company created' })
+  @ApiResponse({
+    status: 201,
+    description: 'Company created',
+    schema: {
+      example: {
+        id: 'cuid-company-id',
+        name: 'Example LLC',
+        description: 'IT xizmatlari',
+        inn: '123456789',
+        logo: null,
+        address: 'Toshkent, Chilonzor',
+        requisites: { bank: 'NBU', mfo: '00123' },
+        requisites2: null,
+        isActive: true,
+        createdAt: '2024-02-24T10:00:00.000Z',
+      },
+    },
+  })
   @ApiResponse({ status: 409, description: 'INN already exists' })
   async create(
     @Body() dto: CreateCompanyDto,
@@ -61,6 +78,27 @@ export class CompaniesController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of companies',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 'cuid-company-id',
+            name: 'Example LLC',
+            inn: '123456789',
+            logo: null,
+            address: 'Toshkent',
+            isActive: true,
+            createdAt: '2024-02-24T10:00:00.000Z',
+            _count: { memberships: 5, departmentConfigs: 3 },
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    },
+  })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -76,7 +114,26 @@ export class CompaniesController {
   @Get(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
   @ApiOperation({ summary: 'Get company by ID (with department configs)' })
-  @ApiResponse({ status: 200, description: 'Company details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company details',
+    schema: {
+      example: {
+        id: 'cuid-company-id',
+        name: 'Example LLC',
+        inn: '123456789',
+        logo: null,
+        address: 'Toshkent',
+        requisites: { bank: 'NBU', mfo: '00123' },
+        requisites2: null,
+        isActive: true,
+        departmentConfigs: [
+          { id: 'cuid', isEnabled: true, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+        ],
+        _count: { memberships: 5 },
+      },
+    },
+  })
   @ApiResponse({ status: 404, description: 'Company not found' })
   async findOne(@Param('id') id: string) {
     return this.companiesService.findOne(id);
@@ -85,7 +142,18 @@ export class CompaniesController {
   @Patch(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Update company info' })
-  @ApiResponse({ status: 200, description: 'Company updated' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company updated',
+    schema: {
+      example: {
+        id: 'cuid-company-id',
+        name: 'Example LLC (yangilangan)',
+        inn: '123456789',
+        isActive: true,
+      },
+    },
+  })
   async update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
     return this.companiesService.update(id, dto);
   }
@@ -93,7 +161,11 @@ export class CompaniesController {
   @Delete(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Deactivate company (soft delete)' })
-  @ApiResponse({ status: 200, description: 'Company deactivated' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company deactivated',
+    schema: { example: { message: "Kompaniya o'chirildi" } },
+  })
   async remove(@Param('id') id: string) {
     return this.companiesService.remove(id);
   }
@@ -102,7 +174,17 @@ export class CompaniesController {
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Upload company logo' })
   @ApiConsumes('multipart/form-data')
-  @ApiResponse({ status: 200, description: 'Logo uploaded' })
+  @ApiResponse({
+    status: 200,
+    description: 'Logo uploaded',
+    schema: {
+      example: {
+        id: 'cuid-company-id',
+        name: 'Example LLC',
+        logo: '/uploads/logos/1234567890-123456789.png',
+      },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('logo', {
       storage: diskStorage({
@@ -136,6 +218,16 @@ export class CompaniesController {
   @Get(':id/departments')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
   @ApiOperation({ summary: 'Get all department configs for a company' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of department configs',
+    schema: {
+      example: [
+        { id: 'cuid', isEnabled: true, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+        { id: 'cuid', isEnabled: false, globalDepartment: { id: 'cuid', name: 'Yuridik', slug: 'yuridik' } },
+      ],
+    },
+  })
   async getDepartmentConfigs(@Param('id') id: string) {
     return this.companiesService.getDepartmentConfigs(id);
   }
@@ -143,6 +235,13 @@ export class CompaniesController {
   @Post(':id/departments/:deptId/enable')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Enable a global department for this company' })
+  @ApiResponse({
+    status: 200,
+    description: 'Department enabled',
+    schema: {
+      example: { id: 'cuid', isEnabled: true, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+    },
+  })
   async enableDepartment(
     @Param('id') companyId: string,
     @Param('deptId') deptId: string,
@@ -153,6 +252,13 @@ export class CompaniesController {
   @Post(':id/departments/:deptId/disable')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Disable a global department for this company' })
+  @ApiResponse({
+    status: 200,
+    description: 'Department disabled',
+    schema: {
+      example: { id: 'cuid', isEnabled: false, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+    },
+  })
   async disableDepartment(
     @Param('id') companyId: string,
     @Param('deptId') deptId: string,
@@ -167,6 +273,31 @@ export class CompaniesController {
   @Get(':id/members')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
   @ApiOperation({ summary: 'Get all active members of a company with roles' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of company members',
+    schema: {
+      example: [
+        {
+          id: 'cuid-membership-id',
+          rank: 1,
+          isActive: true,
+          user: {
+            id: 'cuid-user-id',
+            username: 'user01',
+            name: 'Ali Valiyev',
+            phone: '+998901234567',
+            avatar: null,
+            systemRole: 'CLIENT_DIRECTOR',
+            isActive: true,
+          },
+          allowedDepartments: [
+            { globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          ],
+        },
+      ],
+    },
+  })
   async getMembers(@Param('id') id: string) {
     return this.companiesService.getMembers(id);
   }

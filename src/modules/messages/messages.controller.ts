@@ -45,7 +45,21 @@ export class MessagesController {
 
   @Post()
   @ApiOperation({ summary: 'Send a new message' })
-  @ApiResponse({ status: 201, description: 'Message sent' })
+  @ApiResponse({
+    status: 201,
+    description: 'Message sent',
+    schema: {
+      example: {
+        id: 'cuid-message-id',
+        content: 'Salom, hammaga!',
+        type: 'TEXT',
+        status: 'SENT',
+        isOutgoing: true,
+        createdAt: '2024-02-24T10:00:00.000Z',
+        sender: { id: 'cuid', name: 'Ali Valiyev' },
+      },
+    },
+  })
   async create(
     @Body() dto: CreateMessageDto,
     @CurrentUser('id') userId: string,
@@ -68,7 +82,22 @@ export class MessagesController {
   )
   @ApiOperation({ summary: 'Send a voice message' })
   @ApiConsumes('multipart/form-data')
-  @ApiResponse({ status: 201, description: 'Voice message sent' })
+  @ApiResponse({
+    status: 201,
+    description: 'Voice message sent',
+    schema: {
+      example: {
+        id: 'cuid-message-id',
+        content: './uploads/voice/voice-123456789.ogg',
+        type: 'VOICE',
+        voiceDuration: 30,
+        status: 'SENT',
+        isOutgoing: true,
+        createdAt: '2024-02-24T10:00:00.000Z',
+        sender: { id: 'cuid', name: 'Ali Valiyev' },
+      },
+    },
+  })
   async createVoiceMessage(
     @UploadedFile(
       new ParseFilePipe({
@@ -101,6 +130,27 @@ export class MessagesController {
   @ApiQuery({ name: 'globalDepartmentId', required: true })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of messages',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 'cuid-message-id',
+            content: 'Salom!',
+            type: 'TEXT',
+            status: 'READ',
+            isOutgoing: false,
+            createdAt: '2024-02-24T10:00:00.000Z',
+            sender: { id: 'cuid', name: 'Ali Valiyev' },
+            files: [],
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 50, totalPages: 1 },
+      },
+    },
+  })
   async findAll(
     @Query('companyId') companyId: string,
     @Query('globalDepartmentId') globalDepartmentId: string,
@@ -121,6 +171,23 @@ export class MessagesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a message by ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message details',
+    schema: {
+      example: {
+        id: 'cuid-message-id',
+        content: 'Salom!',
+        type: 'TEXT',
+        status: 'READ',
+        isOutgoing: false,
+        createdAt: '2024-02-24T10:00:00.000Z',
+        sender: { id: 'cuid', name: 'Ali Valiyev' },
+        files: [],
+        replyTo: null,
+      },
+    },
+  })
   async findOne(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -131,6 +198,18 @@ export class MessagesController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Edit a message' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message edited',
+    schema: {
+      example: {
+        id: 'cuid-message-id',
+        content: 'Yangilangan matn',
+        isEdited: true,
+        updatedAt: '2024-02-24T12:00:00.000Z',
+      },
+    },
+  })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateMessageDto,
@@ -142,6 +221,11 @@ export class MessagesController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a message' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message deleted',
+    schema: { example: { message: "Xabar o'chirildi" } },
+  })
   async remove(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -159,7 +243,26 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Forward message to another department (1FIN staff only)',
   })
-  @ApiResponse({ status: 201, description: 'Message forwarded successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Message forwarded successfully',
+    schema: {
+      example: {
+        id: 'cuid-new-message-id',
+        content: 'Original message content',
+        type: 'TEXT',
+        isOutgoing: true,
+        createdAt: '2024-02-24T12:00:00.000Z',
+        sender: { id: 'cuid', name: 'Ali Valiyev' },
+        forward: {
+          originalSender: { id: 'cuid', name: 'Bobur Karimov' },
+          forwardedBy: { id: 'cuid', name: 'Ali Valiyev' },
+          note: 'Muhim hujjat',
+          forwardedAt: '2024-02-24T12:00:00.000Z',
+        },
+      },
+    },
+  })
   async forwardMessage(
     @Param('id') messageId: string,
     @Body() dto: ForwardMessageDto,
@@ -172,6 +275,19 @@ export class MessagesController {
   @Get(':id/history')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Get message edit history (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message edit history',
+    schema: {
+      example: {
+        id: 'cuid-message-id',
+        content: 'Current content',
+        edits: [
+          { id: 'cuid', content: 'Previous content', editedAt: '2024-02-24T11:00:00.000Z' },
+        ],
+      },
+    },
+  })
   async getEditHistory(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,

@@ -37,7 +37,28 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation({ summary: 'Login user' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    schema: {
+      example: {
+        user: {
+          id: 'cuid-user-id',
+          username: 'admin01',
+          name: 'Ali Valiyev',
+          phone: '+998901234567',
+          avatar: null,
+          systemRole: 'FIN_DIRECTOR',
+          notificationsEnabled: true,
+          isActive: true,
+          mustChangePassword: false,
+          sessionId: 'cuid-session-id',
+        },
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ipAddress = req.ip;
@@ -49,7 +70,16 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(JwtRefreshGuard)
   @ApiOperation({ summary: 'Refresh access token' })
-  @ApiResponse({ status: 200, description: 'Tokens refreshed successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tokens refreshed successfully',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(
     @Body() dto: RefreshTokenDto,
@@ -66,7 +96,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout from current device' })
-  @ApiResponse({ status: 200, description: 'Logged out successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out successfully',
+    schema: { example: { message: 'Logged out successfully' } },
+  })
   async logout(@CurrentUser('sessionId') sessionId: string) {
     return this.authService.logout(sessionId);
   }
@@ -75,7 +109,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout from all devices' })
-  @ApiResponse({ status: 200, description: 'Logged out from all devices' })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out from all devices',
+    schema: { example: { message: 'Logged out from all devices' } },
+  })
   async logoutAll(@CurrentUser('id') userId: string) {
     return this.authService.logoutAll(userId);
   }
@@ -84,7 +122,22 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all active sessions' })
-  @ApiResponse({ status: 200, description: 'List of active sessions' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of active sessions',
+    schema: {
+      example: [
+        {
+          id: 'cuid-session-id',
+          deviceName: 'iPhone 15 Pro',
+          deviceType: 'mobile',
+          ipAddress: '192.168.1.1',
+          lastActiveAt: '2024-02-24T10:00:00.000Z',
+          createdAt: '2024-02-20T08:00:00.000Z',
+        },
+      ],
+    },
+  })
   async getSessions(@CurrentUser('id') userId: string) {
     return this.authService.getSessions(userId);
   }
@@ -93,7 +146,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Terminate a specific session' })
-  @ApiResponse({ status: 200, description: 'Session terminated' })
+  @ApiResponse({
+    status: 200,
+    description: 'Session terminated',
+    schema: { example: { message: 'Logged out successfully' } },
+  })
   async terminateSession(@Param('sessionId') sessionId: string) {
     return this.authService.logout(sessionId);
   }
@@ -102,7 +159,23 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200, description: 'Current user profile' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current user profile',
+    schema: {
+      example: {
+        id: 'cuid-user-id',
+        username: 'admin01',
+        name: 'Ali Valiyev',
+        phone: '+998901234567',
+        avatar: null,
+        systemRole: 'FIN_DIRECTOR',
+        notificationsEnabled: true,
+        isActive: true,
+        sessionId: 'cuid-session-id',
+      },
+    },
+  })
   async getProfile(@CurrentUser() user: any) {
     return user;
   }
@@ -111,7 +184,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password' })
-  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    schema: { example: { message: 'Password changed successfully' } },
+  })
   @ApiResponse({ status: 400, description: 'Current password is incorrect' })
   async changePassword(
     @CurrentUser('id') userId: string,
@@ -124,7 +201,20 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update own profile (name, phone)' })
-  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    schema: {
+      example: {
+        id: 'cuid-user-id',
+        username: 'admin01',
+        name: 'Ali Valiyev',
+        phone: '+998901234567',
+        avatar: null,
+        systemRole: 'FIN_DIRECTOR',
+      },
+    },
+  })
   async updateProfile(
     @CurrentUser('id') userId: string,
     @Body() dto: UpdateProfileDto,
@@ -137,7 +227,20 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Upload avatar' })
   @ApiConsumes('multipart/form-data')
-  @ApiResponse({ status: 200, description: 'Avatar uploaded successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Avatar uploaded successfully',
+    schema: {
+      example: {
+        id: 'cuid-user-id',
+        username: 'admin01',
+        name: 'Ali Valiyev',
+        phone: '+998901234567',
+        avatar: '/uploads/avatars/1234567890-123456789.jpg',
+        systemRole: 'FIN_DIRECTOR',
+      },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('avatar', {
       storage: diskStorage({
