@@ -69,18 +69,11 @@ export class UsersController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'companyId', required: false, type: String })
-  @ApiQuery({
-    name: 'hasSystemRole',
-    required: false,
-    type: Boolean,
-    description: 'true = 1FIN staff only, false = client users only',
-  })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('companyId') companyId?: string,
-    @Query('hasSystemRole') hasSystemRole?: string,
   ) {
     return this.usersService.findAll(
       page ? parseInt(page, 10) : 1,
@@ -88,12 +81,6 @@ export class UsersController {
       {
         search,
         companyId,
-        hasSystemRole:
-          hasSystemRole === 'true'
-            ? true
-            : hasSystemRole === 'false'
-              ? false
-              : undefined,
       },
     );
   }

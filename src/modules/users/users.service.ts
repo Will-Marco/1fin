@@ -87,7 +87,6 @@ export class UsersService {
     filters?: {
       search?: string;
       companyId?: string;
-      hasSystemRole?: boolean;
     },
   ) {
     const skip = (page - 1) * limit;
@@ -98,12 +97,6 @@ export class UsersService {
         { username: { contains: filters.search, mode: 'insensitive' } },
         { name: { contains: filters.search, mode: 'insensitive' } },
       ];
-    }
-
-    if (filters?.hasSystemRole === true) {
-      where.systemRole = { not: null };
-    } else if (filters?.hasSystemRole === false) {
-      where.systemRole = null;
     }
 
     if (filters?.companyId) {

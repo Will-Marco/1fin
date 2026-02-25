@@ -180,32 +180,6 @@ describe('UsersService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.meta).toMatchObject({ total: 1, page: 1, limit: 20, totalPages: 1 });
     });
-
-    it('should filter by hasSystemRole=true (1FIN staff)', async () => {
-      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
-      mockPrismaService.user.count.mockResolvedValue(1);
-
-      await service.findAll(1, 20, { hasSystemRole: true });
-
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ systemRole: { not: null } }),
-        }),
-      );
-    });
-
-    it('should filter by hasSystemRole=false (client users)', async () => {
-      mockPrismaService.user.findMany.mockResolvedValue([mockClientUser]);
-      mockPrismaService.user.count.mockResolvedValue(1);
-
-      await service.findAll(1, 20, { hasSystemRole: false });
-
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ systemRole: null }),
-        }),
-      );
-    });
   });
 
   // ─────────────────────────────────────────────

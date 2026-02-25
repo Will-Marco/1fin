@@ -84,25 +84,12 @@ describe('UsersController', () => {
       };
       mockUsersService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll('1', '20', undefined, undefined, undefined);
+      const result = await controller.findAll('1', '20', undefined, undefined);
 
       expect(result).toEqual(paginated);
       expect(service.findAll).toHaveBeenCalledWith(1, 20, {
         search: undefined,
         companyId: undefined,
-        hasSystemRole: undefined,
-      });
-    });
-
-    it('should pass hasSystemRole=true filter', async () => {
-      mockUsersService.findAll.mockResolvedValue({ data: [], meta: {} });
-
-      await controller.findAll(undefined, undefined, undefined, undefined, 'true');
-
-      expect(service.findAll).toHaveBeenCalledWith(1, 20, {
-        search: undefined,
-        companyId: undefined,
-        hasSystemRole: true,
       });
     });
   });
