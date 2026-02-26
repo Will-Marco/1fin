@@ -17,6 +17,7 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
     ApiBearerAuth,
+    ApiBody,
     ApiConsumes,
     ApiOperation,
     ApiQuery,
@@ -41,6 +42,34 @@ export class FilesController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Upload a single file' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Yuklanadigan fayl (max 10MB)',
+        },
+        globalDepartmentId: {
+          type: 'string',
+          example: 'dept-uuid',
+          description: 'Global department ID',
+        },
+        messageId: {
+          type: 'string',
+          example: 'message-uuid',
+          description: 'Message ID',
+        },
+        documentId: {
+          type: 'string',
+          example: 'document-uuid',
+          description: 'Document ID',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'File uploaded',
@@ -76,6 +105,37 @@ export class FilesController {
   @UseInterceptors(FilesInterceptor('files', 10))
   @ApiOperation({ summary: 'Upload multiple files (max 10)' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['files'],
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Yuklanadigan fayllar (max 10 ta, har biri max 10MB)',
+        },
+        globalDepartmentId: {
+          type: 'string',
+          example: 'dept-uuid',
+          description: 'Global department ID',
+        },
+        messageId: {
+          type: 'string',
+          example: 'message-uuid',
+          description: 'Message ID',
+        },
+        documentId: {
+          type: 'string',
+          example: 'document-uuid',
+          description: 'Document ID',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Files uploaded',

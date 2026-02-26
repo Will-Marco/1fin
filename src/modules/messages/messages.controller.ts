@@ -17,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
     ApiBearerAuth,
+    ApiBody,
     ApiConsumes,
     ApiOperation,
     ApiQuery,
@@ -82,6 +83,34 @@ export class MessagesController {
   )
   @ApiOperation({ summary: 'Send a voice message' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'companyId', 'globalDepartmentId', 'voiceDuration'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Ovozli xabar fayli (audio/mpeg, audio/ogg, audio/webm, audio/wav)',
+        },
+        companyId: {
+          type: 'string',
+          example: 'company-uuid',
+          description: 'Kompaniya ID',
+        },
+        globalDepartmentId: {
+          type: 'string',
+          example: 'dept-uuid',
+          description: 'Global department ID',
+        },
+        voiceDuration: {
+          type: 'number',
+          example: 30,
+          description: 'Ovozli xabar davomiyligi (sekundlarda)',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Voice message sent',
