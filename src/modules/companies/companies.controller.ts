@@ -40,6 +40,84 @@ export class CompaniesController {
   constructor(private companiesService: CompaniesService) {}
 
   // ─────────────────────────────────────────────
+  // DELETED COMPANIES MANAGEMENT (Admin only)
+  // ─────────────────────────────────────────────
+
+  @Get('admin/deleted')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Get all soft-deleted companies (Admin only)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'List of deleted companies',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 'cuid-company-id',
+            name: 'O\'chirilgan kompaniya',
+            inn: '123456789',
+            logo: null,
+            address: 'Toshkent',
+            isActive: false,
+            createdAt: '2024-02-24T10:00:00.000Z',
+            updatedAt: '2024-02-25T10:00:00.000Z',
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    },
+  })
+  async findAllDeleted(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.companiesService.findAllDeleted(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      search,
+    );
+  }
+
+  @Patch('admin/:id/restore')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Restore a soft-deleted company (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company restored',
+    schema: {
+      example: {
+        id: 'cuid-company-id',
+        name: 'Tiklangan kompaniya',
+        inn: '123456789',
+        isActive: true,
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  @ApiResponse({ status: 409, description: 'Company is already active' })
+  async restore(@Param('id') id: string) {
+    return this.companiesService.restore(id);
+  }
+
+  @Delete('admin/:id/permanent')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Permanently delete a company (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Company permanently deleted',
+    schema: { example: { message: "Kompaniya butunlay o'chirildi" } },
+  })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  @ApiResponse({ status: 409, description: 'Only deleted companies can be permanently removed' })
+  async permanentDelete(@Param('id') id: string) {
+    return this.companiesService.permanentDelete(id);
+  }
+
+  // ─────────────────────────────────────────────
   // COMPANY CRUD
   // ─────────────────────────────────────────────
 

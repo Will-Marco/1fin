@@ -28,6 +28,9 @@ describe('CompaniesController', () => {
     enableDepartment: jest.fn(),
     disableDepartment: jest.fn(),
     getMembers: jest.fn(),
+    findAllDeleted: jest.fn(),
+    restore: jest.fn(),
+    permanentDelete: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -163,6 +166,61 @@ describe('CompaniesController', () => {
 
       expect(result).toHaveLength(1);
       expect(service.getMembers).toHaveBeenCalledWith('company-id');
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // DELETED COMPANIES MANAGEMENT
+  // ─────────────────────────────────────────────
+
+  describe('findAllDeleted', () => {
+    it('should return paginated deleted companies', async () => {
+      const deletedCompany = { ...mockCompany, isActive: false };
+      const paginated = {
+        data: [deletedCompany],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      };
+      mockCompaniesService.findAllDeleted.mockResolvedValue(paginated);
+
+      const result = await controller.findAllDeleted('1', '20', undefined);
+
+      expect(result).toEqual(paginated);
+      expect(result.data[0].isActive).toBe(false);
+      expect(service.findAllDeleted).toHaveBeenCalledWith(1, 20, undefined);
+    });
+
+    it('should handle search parameter', async () => {
+      const paginated = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+      mockCompaniesService.findAllDeleted.mockResolvedValue(paginated);
+
+      await controller.findAllDeleted('1', '20', 'Tech');
+
+      expect(service.findAllDeleted).toHaveBeenCalledWith(1, 20, 'Tech');
+    });
+  });
+
+  describe('restore', () => {
+    it('should restore a soft-deleted company', async () => {
+      const restoredCompany = { ...mockCompany, isActive: true };
+      mockCompaniesService.restore.mockResolvedValue(restoredCompany);
+
+      const result = await controller.restore('company-id');
+
+      expect(result.isActive).toBe(true);
+      expect(service.restore).toHaveBeenCalledWith('company-id');
+    });
+  });
+
+  describe('permanentDelete', () => {
+    it('should permanently delete a company', async () => {
+      mockCompaniesService.permanentDelete.mockResolvedValue({
+        message: "Kompaniya butunlay o'chirildi",
+      });
+
+      const result = await controller.permanentDelete('company-id');
+
+      expect(result.message).toBe("Kompaniya butunlay o'chirildi");
+      expect(service.permanentDelete).toHaveBeenCalledWith('company-id');
     });
   });
 });

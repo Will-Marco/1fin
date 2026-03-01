@@ -28,9 +28,11 @@ describe('CompaniesService', () => {
   const mockPrismaService = {
     company: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
     },
     globalDepartment: {
@@ -287,6 +289,122 @@ describe('CompaniesService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].user.systemRole).toBe(SystemRole.CLIENT_DIRECTOR);
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // findAllDeleted
+  // ─────────────────────────────────────────────
+
+  describe('findAllDeleted', () => {
+    const mockDeletedCompany = {
+      ...mockCompany,
+      isActive: false,
+    };
+
+    it('should return paginated deleted companies', async () => {
+      mockPrismaService.company.findMany.mockResolvedValue([mockDeletedCompany]);
+      mockPrismaService.company.count.mockResolvedValue(1);
+
+      const result = await service.findAllDeleted(1, 20);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].isActive).toBe(false);
+      expect(result.meta.total).toBe(1);
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { isActive: false },
+        }),
+      );
+    });
+
+    it('should filter by search term', async () => {
+      mockPrismaService.company.findMany.mockResolvedValue([]);
+      mockPrismaService.company.count.mockResolvedValue(0);
+
+      await service.findAllDeleted(1, 20, 'Tech');
+
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: false,
+            OR: expect.any(Array),
+          }),
+        }),
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // restore
+  // ─────────────────────────────────────────────
+
+  describe('restore', () => {
+    const mockDeletedCompany = {
+      ...mockCompany,
+      isActive: false,
+    };
+
+    it('should restore a soft-deleted company', async () => {
+      mockPrismaService.company.findUnique
+        .mockResolvedValueOnce(mockDeletedCompany)  // first check
+        .mockResolvedValueOnce({ ...mockCompany, isActive: true }); // findOne after restore
+      mockPrismaService.company.update.mockResolvedValue({});
+
+      const result = await service.restore('company-id');
+
+      expect(mockPrismaService.company.update).toHaveBeenCalledWith({
+        where: { id: 'company-id' },
+        data: { isActive: true },
+      });
+      expect(result.isActive).toBe(true);
+    });
+
+    it('should throw NotFoundException if company not found', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(null);
+
+      await expect(service.restore('invalid-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException if company is already active', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany); // isActive: true
+
+      await expect(service.restore('company-id')).rejects.toThrow(ConflictException);
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // permanentDelete
+  // ─────────────────────────────────────────────
+
+  describe('permanentDelete', () => {
+    const mockDeletedCompany = {
+      ...mockCompany,
+      isActive: false,
+    };
+
+    it('should permanently delete a soft-deleted company', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockDeletedCompany);
+      mockPrismaService.company.delete.mockResolvedValue({});
+
+      const result = await service.permanentDelete('company-id');
+
+      expect(mockPrismaService.company.delete).toHaveBeenCalledWith({
+        where: { id: 'company-id' },
+      });
+      expect(result.message).toBe("Kompaniya butunlay o'chirildi");
+    });
+
+    it('should throw NotFoundException if company not found', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(null);
+
+      await expect(service.permanentDelete('invalid-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException if company is still active', async () => {
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany); // isActive: true
+
+      await expect(service.permanentDelete('company-id')).rejects.toThrow(ConflictException);
     });
   });
 });

@@ -305,4 +305,102 @@ export class CompaniesService {
       },
     });
   }
+
+  // ─────────────────────────────────────────────
+  // DELETED COMPANIES MANAGEMENT (Admin only)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Get all soft-deleted companies (Admin only)
+   */
+  async findAllDeleted(page = 1, limit = 20, search?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = { isActive: false };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { inn: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [companies, total] = await Promise.all([
+      this.prisma.company.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          inn: true,
+          logo: true,
+          address: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.company.count({ where }),
+    ]);
+
+    return {
+      data: companies,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Restore a soft-deleted company (Admin only)
+   */
+  async restore(id: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Kompaniya topilmadi');
+    }
+
+    if (company.isActive) {
+      throw new ConflictException('Bu kompaniya allaqachon faol');
+    }
+
+    await this.prisma.company.update({
+      where: { id },
+      data: { isActive: true },
+    });
+
+    return this.findOne(id);
+  }
+
+  /**
+   * Permanently delete a company (Admin only)
+   */
+  async permanentDelete(id: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Kompaniya topilmadi');
+    }
+
+    if (company.isActive) {
+      throw new ConflictException(
+        'Faqat o\'chirilgan kompaniyalarni butunlay o\'chirish mumkin',
+      );
+    }
+
+    await this.prisma.company.delete({
+      where: { id },
+    });
+
+    return { message: 'Kompaniya butunlay o\'chirildi' };
+  }
 }
