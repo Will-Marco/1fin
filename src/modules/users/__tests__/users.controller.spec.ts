@@ -77,20 +77,61 @@ describe('UsersController', () => {
   });
 
   describe('findAll', () => {
-    it('should return paginated users', async () => {
+    it('should return paginated users with role visibility', async () => {
       const paginated = {
         data: [mockUser],
         meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
       };
       mockUsersService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll('1', '20', undefined, undefined);
+      const result = await controller.findAll(
+        '1',
+        '20',
+        undefined,
+        undefined,
+        undefined,
+        SystemRole.FIN_DIRECTOR,
+      );
 
       expect(result).toEqual(paginated);
-      expect(service.findAll).toHaveBeenCalledWith(1, 20, {
-        search: undefined,
-        companyId: undefined,
-      });
+      expect(service.findAll).toHaveBeenCalledWith(
+        1,
+        20,
+        {
+          search: undefined,
+          companyId: undefined,
+          systemRole: undefined,
+        },
+        SystemRole.FIN_DIRECTOR,
+      );
+    });
+
+    it('should parse systemRole filter from comma-separated string', async () => {
+      const paginated = {
+        data: [mockUser],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      };
+      mockUsersService.findAll.mockResolvedValue(paginated);
+
+      await controller.findAll(
+        '1',
+        '20',
+        undefined,
+        undefined,
+        'FIN_EMPLOYEE,CLIENT_DIRECTOR',
+        SystemRole.FIN_ADMIN,
+      );
+
+      expect(service.findAll).toHaveBeenCalledWith(
+        1,
+        20,
+        {
+          search: undefined,
+          companyId: undefined,
+          systemRole: ['FIN_EMPLOYEE', 'CLIENT_DIRECTOR'],
+        },
+        SystemRole.FIN_ADMIN,
+      );
     });
   });
 

@@ -175,10 +175,121 @@ describe('UsersService', () => {
       mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
       mockPrismaService.user.count.mockResolvedValue(1);
 
-      const result = await service.findAll(1, 20);
+      const result = await service.findAll(1, 20, {}, SystemRole.FIN_DIRECTOR);
 
       expect(result.data).toHaveLength(1);
       expect(result.meta).toMatchObject({ total: 1, page: 1, limit: 20, totalPages: 1 });
+    });
+
+    it('should filter by role visibility - FIN_DIRECTOR sees all', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(1, 20, {}, SystemRole.FIN_DIRECTOR);
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            systemRole: { in: Object.values(SystemRole) },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by role visibility - FIN_ADMIN cannot see FIN_DIRECTOR', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(1, 20, {}, SystemRole.FIN_ADMIN);
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            systemRole: {
+              in: [
+                SystemRole.FIN_ADMIN,
+                SystemRole.FIN_EMPLOYEE,
+                SystemRole.CLIENT_FOUNDER,
+                SystemRole.CLIENT_DIRECTOR,
+                SystemRole.CLIENT_EMPLOYEE,
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by role visibility - FIN_EMPLOYEE cannot see FIN_DIRECTOR and FIN_ADMIN', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(1, 20, {}, SystemRole.FIN_EMPLOYEE);
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            systemRole: {
+              in: [
+                SystemRole.FIN_EMPLOYEE,
+                SystemRole.CLIENT_FOUNDER,
+                SystemRole.CLIENT_DIRECTOR,
+                SystemRole.CLIENT_EMPLOYEE,
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should apply systemRole filter intersected with visibility', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(
+        1,
+        20,
+        { systemRole: [SystemRole.FIN_EMPLOYEE, SystemRole.CLIENT_DIRECTOR] },
+        SystemRole.FIN_ADMIN,
+      );
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            systemRole: {
+              in: [SystemRole.FIN_EMPLOYEE, SystemRole.CLIENT_DIRECTOR],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should ignore systemRole filter if requesting role cannot see those roles', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+      mockPrismaService.user.count.mockResolvedValue(0);
+
+      // FIN_EMPLOYEE trying to filter by FIN_DIRECTOR - should be ignored
+      await service.findAll(
+        1,
+        20,
+        { systemRole: [SystemRole.FIN_DIRECTOR] },
+        SystemRole.FIN_EMPLOYEE,
+      );
+
+      // FIN_DIRECTOR is not in FIN_EMPLOYEE's visible roles, so it falls back to visible roles
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            systemRole: {
+              in: [
+                SystemRole.FIN_EMPLOYEE,
+                SystemRole.CLIENT_FOUNDER,
+                SystemRole.CLIENT_DIRECTOR,
+                SystemRole.CLIENT_EMPLOYEE,
+              ],
+            },
+          }),
+        }),
+      );
     });
   });
 

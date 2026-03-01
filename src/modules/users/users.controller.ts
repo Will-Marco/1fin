@@ -17,7 +17,7 @@ import {
     ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { SystemRoles } from '../../common/decorators';
+import { CurrentUser, SystemRoles } from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
@@ -94,14 +94,21 @@ export class UsersController {
 
   @Get()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
-  @ApiOperation({ summary: 'Get all users (paginated, filterable)' })
+  @ApiOperation({ summary: 'Get all users (paginated, filterable by role visibility)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'companyId', required: false, type: String })
+  @ApiQuery({
+    name: 'systemRole',
+    required: false,
+    type: String,
+    description: 'Filter by system roles (comma-separated)',
+    example: 'FIN_EMPLOYEE,CLIENT_DIRECTOR',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Paginated list of users',
+    description: 'Paginated list of users (filtered by requesting user role visibility)',
     schema: {
       example: {
         data: [
@@ -111,7 +118,7 @@ export class UsersController {
             name: 'Ali Valiyev',
             phone: '+998901234567',
             avatar: null,
-            systemRole: 'FIN_DIRECTOR',
+            systemRole: 'FIN_EMPLOYEE',
             isActive: true,
             createdAt: '2024-02-24T10:00:00.000Z',
           },
@@ -125,14 +132,22 @@ export class UsersController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('companyId') companyId?: string,
+    @Query('systemRole') systemRoleFilter?: string,
+    @CurrentUser('systemRole') requestingUserRole?: SystemRole,
   ) {
+    const systemRoles = systemRoleFilter
+      ? (systemRoleFilter.split(',') as SystemRole[])
+      : undefined;
+
     return this.usersService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       {
         search,
         companyId,
+        systemRole: systemRoles,
       },
+      requestingUserRole,
     );
   }
 

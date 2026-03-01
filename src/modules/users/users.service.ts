@@ -87,10 +87,26 @@ export class UsersService {
     filters?: {
       search?: string;
       companyId?: string;
+      systemRole?: SystemRole[];
     },
+    requestingUserRole?: SystemRole,
   ) {
     const skip = (page - 1) * limit;
     const where: any = { isActive: true };
+
+    // Role visibility logic
+    const visibleRoles = this.getVisibleRoles(requestingUserRole);
+    where.systemRole = { in: visibleRoles };
+
+    // If systemRole filter provided, intersect with visible roles
+    if (filters?.systemRole && filters.systemRole.length > 0) {
+      const requestedRoles = filters.systemRole.filter((role) =>
+        visibleRoles.includes(role),
+      );
+      if (requestedRoles.length > 0) {
+        where.systemRole = { in: requestedRoles };
+      }
+    }
 
     if (filters?.search) {
       where.OR = [
@@ -136,6 +152,35 @@ export class UsersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Get visible roles based on requesting user's role
+   */
+  private getVisibleRoles(requestingUserRole?: SystemRole): SystemRole[] {
+    const clientRoles = [
+      SystemRole.CLIENT_FOUNDER,
+      SystemRole.CLIENT_DIRECTOR,
+      SystemRole.CLIENT_EMPLOYEE,
+    ];
+
+    switch (requestingUserRole) {
+      case SystemRole.FIN_DIRECTOR:
+        // FIN_DIRECTOR sees everyone
+        return Object.values(SystemRole);
+
+      case SystemRole.FIN_ADMIN:
+        // FIN_ADMIN sees FIN_ADMIN, FIN_EMPLOYEE, and all CLIENT_*
+        return [SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE, ...clientRoles];
+
+      case SystemRole.FIN_EMPLOYEE:
+        // FIN_EMPLOYEE sees FIN_EMPLOYEE and all CLIENT_*
+        return [SystemRole.FIN_EMPLOYEE, ...clientRoles];
+
+      default:
+        // CLIENT_* or unknown - see only CLIENT_*
+        return clientRoles;
+    }
   }
 
   async findOne(id: string) {
