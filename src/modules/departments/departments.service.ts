@@ -148,7 +148,78 @@ export class DepartmentsService {
   // ─────────────────────────────────────────────
 
   /**
-   * Get unread message summary for all departments in a company.
+   * Internal helper: returns departments visible to a user inside one company.
+   * FIN_* → all enabled company departments.
+   * CLIENT_* → only their allowed departments.
+   */
+  private async getDepartmentsForUser(
+    userId: string,
+    companyId: string,
+    isFINUser: boolean,
+  ): Promise<{ id: string; name: string; slug: string }[]> {
+    if (isFINUser) {
+      const configs = await this.prisma.companyDepartmentConfig.findMany({
+        where: { companyId, isEnabled: true },
+        select: {
+          globalDepartment: { select: { id: true, name: true, slug: true } },
+        },
+      });
+      return configs.map((c) => c.globalDepartment);
+    }
+
+    const membership = await this.prisma.userCompanyMembership.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: {
+        allowedDepartments: {
+          select: {
+            globalDepartment: { select: { id: true, name: true, slug: true } },
+          },
+        },
+      },
+    });
+
+    return membership?.allowedDepartments.map((ad) => ad.globalDepartment) ?? [];
+  }
+
+  /**
+   * Internal helper: unread counts for a list of departments in one company.
+   */
+  private async countUnreadForDepartments(
+    userId: string,
+    companyId: string,
+    departments: { id: string; name: string; slug: string }[],
+  ) {
+    if (departments.length === 0) return [];
+
+    const userReads = await this.prisma.userDepartmentRead.findMany({
+      where: { userId, companyId },
+      select: { globalDepartmentId: true, lastReadAt: true },
+    });
+    const readMap = new Map(userReads.map((r) => [r.globalDepartmentId, r.lastReadAt]));
+
+    return Promise.all(
+      departments.map(async (dept) => {
+        const lastReadAt = readMap.get(dept.id);
+        const unreadCount = await this.prisma.message.count({
+          where: {
+            globalDepartmentId: dept.id,
+            companyId,
+            isDeleted: false,
+            ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+          },
+        });
+        return {
+          departmentId: dept.id,
+          departmentName: dept.name,
+          departmentSlug: dept.slug,
+          unreadCount,
+        };
+      }),
+    );
+  }
+
+  /**
+   * Get unread message summary for all departments in a single company.
    * FIN_* users see all departments, CLIENT_* users see only their allowed departments.
    */
   async getUnreadSummary(userId: string, companyId: string, userSystemRole: SystemRole) {
@@ -160,79 +231,54 @@ export class DepartmentsService {
       [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
     ).includes(userSystemRole);
 
-    // Get departments based on user role
-    let departments: { id: string; name: string; slug: string }[];
-
-    if (isFINUser) {
-      // FIN users see all enabled departments for this company
-      const configs = await this.prisma.companyDepartmentConfig.findMany({
-        where: { companyId, isEnabled: true },
-        select: {
-          globalDepartment: {
-            select: { id: true, name: true, slug: true },
-          },
-        },
-      });
-      departments = configs.map((c) => c.globalDepartment);
-    } else {
-      // CLIENT users see only their allowed departments
-      const membership = await this.prisma.userCompanyMembership.findUnique({
-        where: { userId_companyId: { userId, companyId } },
-        select: {
-          allowedDepartments: {
-            select: {
-              globalDepartment: {
-                select: { id: true, name: true, slug: true },
-              },
-            },
-          },
-        },
-      });
-
-      if (!membership) {
-        return { departments: [], totalUnread: 0 };
-      }
-
-      departments = membership.allowedDepartments.map((ad) => ad.globalDepartment);
+    const departments = await this.getDepartmentsForUser(userId, companyId, isFINUser);
+    if (!isFINUser && departments.length === 0) {
+      return { departments: [], totalUnread: 0 };
     }
 
-    // Get user's last read times for each department
-    const userReads = await this.prisma.userDepartmentRead.findMany({
-      where: { userId, companyId },
-      select: { globalDepartmentId: true, lastReadAt: true },
+    const departmentResults = await this.countUnreadForDepartments(userId, companyId, departments);
+    const totalUnread = departmentResults.reduce((sum, d) => sum + d.unreadCount, 0);
+
+    return { departments: departmentResults, totalUnread };
+  }
+
+  /**
+   * Get unread message summary across ALL companies the user belongs to.
+   * Returns per-company breakdown with per-department counts and grand total.
+   * Designed to be called once to power a global unread badge on the frontend.
+   */
+  async getAllCompaniesUnreadSummary(userId: string, userSystemRole: SystemRole) {
+    const isFINUser = (
+      [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
+    ).includes(userSystemRole);
+
+    // 1. Fetch all active company memberships for this user
+    const memberships = await this.prisma.userCompanyMembership.findMany({
+      where: { userId, isActive: true },
+      select: {
+        company: { select: { id: true, name: true } },
+      },
     });
 
-    const readMap = new Map(userReads.map((r) => [r.globalDepartmentId, r.lastReadAt]));
-
-    // Count unread messages for each department
-    const departmentResults = await Promise.all(
-      departments.map(async (dept) => {
-        const lastReadAt = readMap.get(dept.id);
-
-        const unreadCount = await this.prisma.message.count({
-          where: {
-            globalDepartmentId: dept.id,
-            companyId,
-            isDeleted: false,
-            ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
-          },
-        });
+    // 2. For each company — resolve departments + count unreads in parallel
+    const companyResults = await Promise.all(
+      memberships.map(async ({ company }) => {
+        const departments = await this.getDepartmentsForUser(userId, company.id, isFINUser);
+        const departmentResults = await this.countUnreadForDepartments(userId, company.id, departments);
+        const totalUnread = departmentResults.reduce((sum, d) => sum + d.unreadCount, 0);
 
         return {
-          departmentId: dept.id,
-          departmentName: dept.name,
-          departmentSlug: dept.slug,
-          unreadCount,
+          companyId: company.id,
+          companyName: company.name,
+          totalUnread,
+          departments: departmentResults,
         };
       }),
     );
 
-    const totalUnread = departmentResults.reduce((sum, d) => sum + d.unreadCount, 0);
+    const grandTotalUnread = companyResults.reduce((sum, c) => sum + c.totalUnread, 0);
 
-    return {
-      departments: departmentResults,
-      totalUnread,
-    };
+    return { companies: companyResults, grandTotalUnread };
   }
 
   /**
@@ -287,30 +333,11 @@ export class DepartmentsService {
       [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
     ).includes(userSystemRole);
 
-    // Get departments based on user role
-    let departmentIds: string[];
+    const departments = await this.getDepartmentsForUser(userId, companyId, isFINUser);
+    const departmentIds = departments.map((d) => d.id);
 
-    if (isFINUser) {
-      const configs = await this.prisma.companyDepartmentConfig.findMany({
-        where: { companyId, isEnabled: true },
-        select: { globalDepartmentId: true },
-      });
-      departmentIds = configs.map((c) => c.globalDepartmentId);
-    } else {
-      const membership = await this.prisma.userCompanyMembership.findUnique({
-        where: { userId_companyId: { userId, companyId } },
-        select: {
-          allowedDepartments: {
-            select: { globalDepartmentId: true },
-          },
-        },
-      });
-
-      if (!membership) {
-        return { message: 'Barcha bo\'limlar o\'qilgan deb belgilandi', count: 0 };
-      }
-
-      departmentIds = membership.allowedDepartments.map((ad) => ad.globalDepartmentId);
+    if (departmentIds.length === 0) {
+      return { message: 'Barcha bo\'limlar o\'qilgan deb belgilandi', count: 0 };
     }
 
     const now = new Date();

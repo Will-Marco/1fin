@@ -136,6 +136,56 @@ export class DepartmentsController {
   // UNREAD MESSAGES ENDPOINTS
   // ─────────────────────────────────────────────
 
+  @Get('unread-summary')
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+    SystemRole.CLIENT_FOUNDER,
+    SystemRole.CLIENT_DIRECTOR,
+    SystemRole.CLIENT_EMPLOYEE,
+  )
+  @ApiOperation({
+    summary: 'Get unread message counts across ALL companies the current user belongs to',
+    description:
+      'Returns per-company and per-department unread counts in a single request. ' +
+      'Designed to power a global unread badge on the frontend without N separate requests.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns unread counts grouped by company',
+    schema: {
+      example: {
+        companies: [
+          {
+            companyId: 'cuid-1',
+            companyName: 'Alfa LLC',
+            totalUnread: 12,
+            departments: [
+              { departmentId: 'cuid', departmentName: 'Buxgalteriya', departmentSlug: 'buxgalteriya', unreadCount: 7 },
+              { departmentId: 'cuid', departmentName: 'Yuridik', departmentSlug: 'yuridik', unreadCount: 5 },
+            ],
+          },
+          {
+            companyId: 'cuid-2',
+            companyName: 'Beta Corp',
+            totalUnread: 3,
+            departments: [
+              { departmentId: 'cuid', departmentName: 'Buxgalteriya', departmentSlug: 'buxgalteriya', unreadCount: 3 },
+            ],
+          },
+        ],
+        grandTotalUnread: 15,
+      },
+    },
+  })
+  async getAllCompaniesUnreadSummary(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole,
+  ) {
+    return this.departmentsService.getAllCompaniesUnreadSummary(userId, systemRole);
+  }
+
   @Get('unread-summary/:companyId')
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
@@ -145,7 +195,7 @@ export class DepartmentsController {
     SystemRole.CLIENT_DIRECTOR,
     SystemRole.CLIENT_EMPLOYEE,
   )
-  @ApiOperation({ summary: 'Get unread message counts for all departments' })
+  @ApiOperation({ summary: 'Get unread message counts for all departments in a single company' })
   @ApiResponse({
     status: 200,
     description: 'Returns unread count per department and total',
