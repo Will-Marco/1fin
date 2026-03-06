@@ -123,7 +123,12 @@ export class CompaniesController {
 
   @Post()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Create a new company (auto-links all global departments)' })
+  @ApiOperation({
+    summary: 'Create a new company (auto-links all global departments)',
+    description:
+      'Optionally attach existing users via the `members` field. ' +
+      'Users not found by ID are skipped; their IDs are returned in `skippedUserIds`.',
+  })
   @ApiResponse({
     status: 201,
     description: 'Company created',
@@ -139,6 +144,7 @@ export class CompaniesController {
         requisites2: null,
         isActive: true,
         createdAt: '2024-02-24T10:00:00.000Z',
+        skippedUserIds: ['nonexistent-user-id'],
       },
     },
   })

@@ -1,6 +1,6 @@
 import {
-    ConflictException,
-    NotFoundException,
+  ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SystemRole } from '../../../../generated/prisma/client';
@@ -48,6 +48,12 @@ describe('CompaniesService', () => {
     userCompanyMembership: {
       findMany: jest.fn(),
     },
+    user: {
+      findMany: jest.fn(),
+    },
+    membershipDepartmentAccess: {
+      createMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -60,7 +66,7 @@ describe('CompaniesService', () => {
     }).compile();
 
     service = module.get<CompaniesService>(CompaniesService);
-    jest.clearAllMocks();
+    jest.resetAllMocks(); // Full reset: clears Once queues + implementations
   });
 
   // ─────────────────────────────────────────────
@@ -68,20 +74,40 @@ describe('CompaniesService', () => {
   // ─────────────────────────────────────────────
 
   describe('create', () => {
-    it('should create a company and link global departments', async () => {
-      mockPrismaService.company.findUnique
-        .mockResolvedValueOnce(null)       // INN check
-        .mockResolvedValueOnce(mockCompany); // findOne
+    // Helper: sets up the transaction mock with full inner prisma tx object
+    const setupTransaction = (txOverrides: Record<string, any> = {}) => {
+      const txCompanyCreate = jest.fn().mockResolvedValue(mockCompany);
+      const txDeptConfigCreateMany = jest.fn().mockResolvedValue({});
+      const txMembershipCreate = jest.fn().mockResolvedValue({ id: 'membership-id' });
+      const txMembershipDeptCreateMany = jest.fn().mockResolvedValue({});
+
+      mockPrismaService.$transaction.mockImplementation(async (fn) =>
+        fn({
+          company: { create: txCompanyCreate },
+          companyDepartmentConfig: { createMany: txDeptConfigCreateMany },
+          userCompanyMembership: { create: txMembershipCreate },
+          membershipDepartmentAccess: { createMany: txMembershipDeptCreateMany },
+          ...txOverrides,
+        }),
+      );
+
+      return { txCompanyCreate, txDeptConfigCreateMany, txMembershipCreate, txMembershipDeptCreateMany };
+    };
+
+    beforeEach(() => {
+      // Permanent fallback for findOne — individual tests add Once values for INN check
+      mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
       mockPrismaService.globalDepartment.findMany.mockResolvedValue([
         { id: 'dept-1' },
         { id: 'dept-2' },
       ]);
-      mockPrismaService.$transaction.mockImplementation(async (fn) => {
-        return fn({
-          company: { create: jest.fn().mockResolvedValue(mockCompany) },
-          companyDepartmentConfig: { createMany: jest.fn().mockResolvedValue({}) },
-        });
-      });
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+    });
+
+    it('should create a company without members and return empty skippedUserIds', async () => {
+      // INN is provided → queue null for INN check (not found = can create)
+      mockPrismaService.company.findUnique.mockResolvedValueOnce(null);
+      setupTransaction();
 
       const result = await service.create(
         { name: 'Tech Solutions LLC', inn: '123456789' },
@@ -89,14 +115,85 @@ describe('CompaniesService', () => {
       );
 
       expect(result.name).toBe('Tech Solutions LLC');
+      expect(result.skippedUserIds).toEqual([]);
     });
 
     it('should throw ConflictException if INN already exists', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue({ id: 'existing' });
+      mockPrismaService.company.findUnique.mockResolvedValueOnce({ id: 'existing' });
 
       await expect(
         service.create({ name: 'Test', inn: '123456789' }, 'user-id'),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should attach valid members with allowedDepartments in the transaction', async () => {
+      const { txMembershipCreate, txMembershipDeptCreateMany } = setupTransaction();
+
+      mockPrismaService.user.findMany.mockResolvedValue([
+        { id: 'user-a' },
+        { id: 'user-b' },
+      ]);
+
+      await service.create(
+        {
+          name: 'Tech Solutions LLC',
+          members: [
+            { userId: 'user-a', rank: 1, allowedDepartmentIds: ['dept-1', 'dept-2'] },
+            { userId: 'user-b', allowedDepartmentIds: [] },
+          ],
+        },
+        'creator-id',
+      );
+
+      expect(txMembershipCreate).toHaveBeenCalledTimes(2);
+      // user-a has 2 dept IDs → createMany called once
+      expect(txMembershipDeptCreateMany).toHaveBeenCalledTimes(1);
+      expect(txMembershipDeptCreateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ globalDepartmentId: 'dept-1' }),
+            expect.objectContaining({ globalDepartmentId: 'dept-2' }),
+          ]),
+        }),
+      );
+    });
+
+    it('should skip users that are not found and report them in skippedUserIds', async () => {
+      setupTransaction();
+
+      // Only user-a exists; user-ghost does not
+      mockPrismaService.user.findMany.mockResolvedValue([{ id: 'user-a' }]);
+
+      const result = await service.create(
+        {
+          name: 'Tech Solutions LLC',
+          members: [
+            { userId: 'user-a', allowedDepartmentIds: [] },
+            { userId: 'user-ghost', allowedDepartmentIds: [] },
+          ],
+        },
+        'creator-id',
+      );
+
+      expect(result.skippedUserIds).toEqual(['user-ghost']);
+    });
+
+    it('should skip all members if none are found and return all IDs as skipped', async () => {
+      setupTransaction();
+      mockPrismaService.user.findMany.mockResolvedValue([]); // nobody found
+
+      const result = await service.create(
+        {
+          name: 'Tech Solutions LLC',
+          members: [
+            { userId: 'ghost-1', allowedDepartmentIds: [] },
+            { userId: 'ghost-2', allowedDepartmentIds: [] },
+          ],
+        },
+        'creator-id',
+      );
+
+      expect(result.skippedUserIds).toEqual(['ghost-1', 'ghost-2']);
     });
   });
 

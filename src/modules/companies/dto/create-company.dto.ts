@@ -1,5 +1,39 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+    IsArray,
+    IsInt,
+    IsNotEmpty,
+    IsObject,
+    IsOptional,
+    IsString,
+    Max,
+    Min,
+    ValidateNested,
+} from 'class-validator';
+
+export class CreateCompanyMemberDto {
+  @ApiProperty({ example: 'cuid-user-id', description: 'User ID to attach' })
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @ApiPropertyOptional({ example: 1, description: 'Rank (1-3), only for employees' })
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  @IsOptional()
+  rank?: number;
+
+  @ApiPropertyOptional({
+    example: ['dept-id-1', 'dept-id-2'],
+    description: "Allowed global department IDs. Empty array = no department access.",
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedDepartmentIds?: string[];
+}
 
 export class CreateCompanyDto {
   @ApiProperty({ example: 'Example LLC' })
@@ -55,4 +89,19 @@ export class CreateCompanyDto {
   @IsObject()
   @IsOptional()
   requisites2?: Record<string, any>;
+  @ApiPropertyOptional({
+    example: [
+      { userId: 'cuid-user-1', rank: 1, allowedDepartmentIds: ['dept-id-1'] },
+      { userId: 'cuid-user-2', allowedDepartmentIds: [] },
+    ],
+    description:
+      'Optional list of existing users to attach to this company on creation. ' +
+      'Users not found are skipped and reported in the response.',
+    type: [CreateCompanyMemberDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCompanyMemberDto)
+  @IsOptional()
+  members?: CreateCompanyMemberDto[];
 }

@@ -11,8 +11,11 @@ export class CompaniesService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Create a company and automatically link ALL active GlobalDepartments
-   * via CompanyDepartmentConfig (enabled by default).
+   * Create a company, auto-link all active GlobalDepartments,
+   * and optionally attach existing users as members — all in one transaction.
+   *
+   * Returns the company details plus a `skippedUserIds` array for any
+   * userId values that couldn't be found in the database.
    */
   async create(dto: CreateCompanyDto, createdById: string) {
     if (dto.inn) {
@@ -24,12 +27,31 @@ export class CompaniesService {
       }
     }
 
-    // Get all active global departments
+    // ── Resolve requested member user IDs in one query ──────────────────
+    const requestedMembers = dto.members ?? [];
+    const requestedUserIds = requestedMembers.map((m) => m.userId);
+
+    let foundUserIds = new Set<string>();
+    let skippedUserIds: string[] = [];
+
+    if (requestedUserIds.length > 0) {
+      const foundUsers = await this.prisma.user.findMany({
+        where: { id: { in: requestedUserIds }, isActive: true },
+        select: { id: true },
+      });
+      foundUserIds = new Set(foundUsers.map((u) => u.id));
+      skippedUserIds = requestedUserIds.filter((id) => !foundUserIds.has(id));
+    }
+
+    const validMembers = requestedMembers.filter((m) => foundUserIds.has(m.userId));
+
+    // ── Pre-fetch all active global departments ──────────────────────────
     const globalDepts = await this.prisma.globalDepartment.findMany({
       where: { isActive: true },
       select: { id: true },
     });
 
+    // ── Single transaction: company + departments + members ──────────────
     const company = await this.prisma.$transaction(async (tx) => {
       const created = await tx.company.create({
         data: {
@@ -56,10 +78,34 @@ export class CompaniesService {
         });
       }
 
+      // Attach valid members
+      for (const member of validMembers) {
+        const membership = await tx.userCompanyMembership.create({
+          data: {
+            userId: member.userId,
+            companyId: created.id,
+            rank: member.rank ?? null,
+            isActive: true,
+          },
+        });
+
+        const deptIds = member.allowedDepartmentIds ?? [];
+        if (deptIds.length > 0) {
+          await tx.membershipDepartmentAccess.createMany({
+            data: deptIds.map((deptId) => ({
+              userCompanyMembershipId: membership.id,
+              globalDepartmentId: deptId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
       return created;
     });
 
-    return this.findOne(company.id);
+    const companyData = await this.findOne(company.id);
+    return { ...companyData, skippedUserIds };
   }
 
   async findAll(page = 1, limit = 20, search?: string) {
