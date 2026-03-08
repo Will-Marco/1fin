@@ -92,39 +92,47 @@ export class FilesService {
     dto: UploadFileDto,
     userId: string,
   ) {
+    // Clean up empty strings to null/undefined for proper validation
+    const cleanedDto = {
+      ...dto,
+      messageId: dto.messageId?.trim() || undefined,
+      documentId: dto.documentId?.trim() || undefined,
+      globalDepartmentId: dto.globalDepartmentId?.trim() || undefined,
+    };
+
     // Validate foreign key references if provided
-    if (dto.messageId) {
+    if (cleanedDto.messageId) {
       const messageExists = await this.prisma.message.findUnique({
-        where: { id: dto.messageId },
+        where: { id: cleanedDto.messageId },
         select: { id: true },
       });
       if (!messageExists) {
         throw new NotFoundException(
-          `Message with ID ${dto.messageId} not found. Please create the message first or upload without messageId.`,
+          `Message with ID ${cleanedDto.messageId} not found. Please create the message first or upload without messageId.`,
         );
       }
     }
 
-    if (dto.documentId) {
+    if (cleanedDto.documentId) {
       const documentExists = await this.prisma.document.findUnique({
-        where: { id: dto.documentId },
+        where: { id: cleanedDto.documentId },
         select: { id: true },
       });
       if (!documentExists) {
         throw new NotFoundException(
-          `Document with ID ${dto.documentId} not found`,
+          `Document with ID ${cleanedDto.documentId} not found`,
         );
       }
     }
 
-    if (dto.globalDepartmentId) {
+    if (cleanedDto.globalDepartmentId) {
       const departmentExists = await this.prisma.globalDepartment.findUnique({
-        where: { id: dto.globalDepartmentId },
+        where: { id: cleanedDto.globalDepartmentId },
         select: { id: true },
       });
       if (!departmentExists) {
         throw new NotFoundException(
-          `Department with ID ${dto.globalDepartmentId} not found`,
+          `Department with ID ${cleanedDto.globalDepartmentId} not found`,
         );
       }
     }
@@ -145,9 +153,9 @@ export class FilesService {
     const savedFile = await this.prisma.file.create({
       data: {
         uploadedBy: userId,
-        globalDepartmentId: dto.globalDepartmentId,
-        messageId: dto.messageId,
-        documentId: dto.documentId,
+        globalDepartmentId: cleanedDto.globalDepartmentId,
+        messageId: cleanedDto.messageId,
+        documentId: cleanedDto.documentId,
         originalName: uploaded.originalName,
         fileName: uploaded.fileName,
         fileSize: uploaded.size,
