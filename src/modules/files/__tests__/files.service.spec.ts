@@ -40,6 +40,15 @@ describe('FilesService', () => {
       count: jest.fn(),
       findFirst: jest.fn(),
     },
+    globalDepartment: {
+      findUnique: jest.fn(),
+    },
+    message: {
+      findUnique: jest.fn(),
+    },
+    document: {
+      findUnique: jest.fn(),
+    },
   };
 
   const mockStorageProvider = {
@@ -70,6 +79,9 @@ describe('FilesService', () => {
     };
 
     it('should upload a file successfully', async () => {
+      // Mock validations
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-id' });
+
       mockStorageProvider.upload.mockResolvedValue({
         originalName: 'test.jpg',
         fileName: 'uuid-test.jpg',
@@ -83,6 +95,10 @@ describe('FilesService', () => {
       const result = await service.upload(mockMulterFile, { globalDepartmentId: 'dept-id' }, 'user-id');
 
       expect(result.id).toBe('file-id');
+      expect(mockPrismaService.globalDepartment.findUnique).toHaveBeenCalledWith({
+        where: { id: 'dept-id' },
+        select: { id: true },
+      });
       expect(mockPrismaService.file.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ globalDepartmentId: 'dept-id' }),
@@ -91,6 +107,9 @@ describe('FilesService', () => {
     });
 
     it('should throw error for oversized file', async () => {
+      // Mock validations to pass
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-id' });
+
       const largeFile = { ...mockMulterFile, size: 50 * 1024 * 1024 };
       await expect(
         service.upload(largeFile, { globalDepartmentId: 'dept-id' }, 'user-id'),
@@ -144,7 +163,7 @@ describe('FilesService', () => {
   describe('remove', () => {
     it('should soft delete a file', async () => {
       mockPrismaService.file.findUnique.mockResolvedValue(mockFile);
-      
+
       const result = await service.remove('file-id', 'user-id', null);
 
       expect(result.message).toBe("Fayl o'chirildi");
@@ -153,6 +172,108 @@ describe('FilesService', () => {
           data: expect.objectContaining({ isDeleted: true }),
         })
       );
+    });
+  });
+
+  describe('attachToMessage', () => {
+    it('should attach a file to a message', async () => {
+      const mockMessage = { id: 'msg-id', senderId: 'user-id' };
+      const updatedFile = { ...mockFile, messageId: 'msg-id' };
+
+      mockPrismaService.file.findUnique.mockResolvedValue(mockFile);
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.file.update.mockResolvedValue(updatedFile);
+      mockStorageProvider.getUrl.mockReturnValue('http://url');
+
+      const result = await service.attachToMessage('file-id', 'msg-id', 'user-id');
+
+      expect(result.messageId).toBe('msg-id');
+      expect(mockPrismaService.file.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'file-id' },
+          data: { messageId: 'msg-id' },
+        })
+      );
+    });
+
+    it('should throw error if file not found', async () => {
+      mockPrismaService.file.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.attachToMessage('file-id', 'msg-id', 'user-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw error if message not found', async () => {
+      mockPrismaService.file.findUnique.mockResolvedValue(mockFile);
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.attachToMessage('file-id', 'msg-id', 'user-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('upload with validations', () => {
+    it('should throw error if messageId does not exist', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.upload(
+          { mimetype: 'image/jpeg', size: 1024 } as any,
+          { messageId: 'nonexistent-msg-id' },
+          'user-id'
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw error if documentId does not exist', async () => {
+      mockPrismaService.document.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.upload(
+          { mimetype: 'image/jpeg', size: 1024 } as any,
+          { documentId: 'nonexistent-doc-id' },
+          'user-id'
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw error if globalDepartmentId does not exist', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.upload(
+          { mimetype: 'image/jpeg', size: 1024 } as any,
+          { globalDepartmentId: 'nonexistent-dept-id' },
+          'user-id'
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should upload successfully with valid messageId', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue({ id: 'msg-id' });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'test.jpg',
+        fileName: 'uuid-test.jpg',
+        path: 'images/uuid-test.jpg',
+        size: 1024,
+        mimeType: 'image/jpeg',
+      });
+      mockPrismaService.file.create.mockResolvedValue({ ...mockFile, messageId: 'msg-id' });
+      mockStorageProvider.getUrl.mockReturnValue('http://url');
+
+      const result = await service.upload(
+        { mimetype: 'image/jpeg', size: 1024, originalname: 'test.jpg' } as any,
+        { messageId: 'msg-id' },
+        'user-id'
+      );
+
+      expect(result.messageId).toBe('msg-id');
+      expect(mockPrismaService.message.findUnique).toHaveBeenCalledWith({
+        where: { id: 'msg-id' },
+        select: { id: true },
+      });
     });
   });
 });

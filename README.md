@@ -2,6 +2,26 @@
 
 Kompaniya ichidagi bo'limlar uchun chat, hujjat va fayl almashinuvi, statistik hisobotlar va kompaniya boshqaruvi platformasi.
 
+## 📋 So'nggi Yangilanishlar
+
+### v1.1.0 (2026-03-08)
+
+#### 🐛 Tuzatilgan Xatolar
+- **File Upload Foreign Key Constraint**: File yuklashda `messageId`, `documentId`, va `globalDepartmentId` uchun validatsiya qo'shildi. Endi mavjud bo'lmagan ID lar bilan fayl yuklanmaydi va aniq xatolik xabari qaytadi.
+
+#### ✨ Yangi Funksiyalar
+- **Fayl Biriktirish API**: Fayllarni avval yuklash, keyin xabarga biriktirish imkoniyati qo'shildi
+  - `PATCH /files/:fileId/attach/:messageId` - Bitta faylni biriktirish
+  - `PATCH /files/attach-multiple/:messageId` - Ko'p fayllarni biriktirish
+- **Ikki Xil Upload Workflow**: Xabarni avval yoki faylni avval yaratish imkoniyati
+- **Xavfsizlik**: Faqat fayl egasi o'z faylini, faqat xabar egasi o'z xabariga fayl biriktirishi mumkin
+
+#### 🧪 Testlar
+- File service uchun 9 ta yangi test qo'shildi
+- Validatsiya va attach funksiyalari uchun to'liq test coverage
+
+---
+
 ## Tech Stack
 
 | Texnologiya | Vazifasi |
@@ -117,9 +137,49 @@ Loyiha **Multi-Tenant** modelida qurilgan. Foydalanuvchilar ikki turga bo'linadi
 ### Files Module
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/files/upload` | Fayl yuklash (Company/Dept bog'langan) |
+| POST | `/files/upload` | Fayl yuklash (messageId/documentId/departmentId bilan) |
+| POST | `/files/upload-multiple` | Bir nechta fayllarni yuklash (max 10 ta) |
 | GET | `/files/:id` | Fayl ma'lumotlari |
+| GET | `/files/department/:departmentId` | Bo'lim fayllarini olish |
+| PATCH | `/files/:fileId/attach/:messageId` | Faylni xabarga biriktirish |
+| PATCH | `/files/attach-multiple/:messageId` | Ko'p fayllarni xabarga biriktirish |
 | DELETE | `/files/:id` | Soft-delete |
+| PATCH | `/files/:id/restore` | Faylni tiklash (Admin only) |
+| DELETE | `/files/:id/permanent` | Butunlay o'chirish (Admin only) |
+
+#### File Upload Workflows
+
+**Variant A: Xabarni avval yaratish (Tavsiya etiladi)**
+```bash
+# 1. Xabar yaratish
+POST /messages
+Response: { id: "msg-123", ... }
+
+# 2. Fayllarni xabarga biriktirish
+POST /files/upload
+Body: { messageId: "msg-123", file: ... }
+```
+
+**Variant B: Faylni avval yuklash**
+```bash
+# 1. Faylni yuklash (messageId bo'lmasa)
+POST /files/upload
+Body: { file: ... }
+Response: { id: "file-456", ... }
+
+# 2. Xabar yaratish
+POST /messages
+Response: { id: "msg-123", ... }
+
+# 3. Faylni xabarga biriktirish
+PATCH /files/file-456/attach/msg-123
+```
+
+#### File Size Limits
+- **Rasm**: 5MB
+- **Hujjat**: 10MB
+- **Ovoz**: 3MB
+- **Boshqa**: 10MB
 
 ## WebSocket Events
 
@@ -167,7 +227,3 @@ src/
 ├── common/         # SystemRole/CompanyRole guards & decorators
 └── database/       # Prisma service & configs
 ```
-
-## License
-
-MIT

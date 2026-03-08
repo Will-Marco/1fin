@@ -292,4 +292,65 @@ export class FilesController {
   ) {
     return this.filesService.permanentDelete(id, userId, systemRole);
   }
+
+  @Patch(':fileId/attach/:messageId')
+  @ApiOperation({ summary: 'Attach file to message after upload' })
+  @ApiResponse({
+    status: 200,
+    description: 'File attached to message',
+    schema: {
+      example: {
+        id: 'cuid-file-id',
+        messageId: 'cuid-message-id',
+        originalName: 'document.pdf',
+        fileName: 'uuid-document.pdf',
+        fileSize: 1024000,
+        mimeType: 'application/pdf',
+        fileType: 'DOCUMENT',
+        path: '/uploads/files/uuid-document.pdf',
+        url: 'http://localhost:3000/uploads/files/uuid-document.pdf',
+      },
+    },
+  })
+  async attachToMessage(
+    @Param('fileId') fileId: string,
+    @Param('messageId') messageId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.filesService.attachToMessage(fileId, messageId, userId);
+  }
+
+  @Patch('attach-multiple/:messageId')
+  @ApiOperation({ summary: 'Attach multiple files to message' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['fileIds'],
+      properties: {
+        fileIds: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['file-id-1', 'file-id-2', 'file-id-3'],
+          description: 'Array of file IDs to attach',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files attached to message',
+    schema: {
+      example: [
+        { id: 'file-1', messageId: 'msg-1', originalName: 'doc1.pdf' },
+        { id: 'file-2', messageId: 'msg-1', originalName: 'doc2.pdf' },
+      ],
+    },
+  })
+  async attachMultipleToMessage(
+    @Param('messageId') messageId: string,
+    @Body('fileIds') fileIds: string[],
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.filesService.attachMultipleToMessage(fileIds, messageId, userId);
+  }
 }

@@ -92,6 +92,43 @@ export class FilesService {
     dto: UploadFileDto,
     userId: string,
   ) {
+    // Validate foreign key references if provided
+    if (dto.messageId) {
+      const messageExists = await this.prisma.message.findUnique({
+        where: { id: dto.messageId },
+        select: { id: true },
+      });
+      if (!messageExists) {
+        throw new NotFoundException(
+          `Message with ID ${dto.messageId} not found. Please create the message first or upload without messageId.`,
+        );
+      }
+    }
+
+    if (dto.documentId) {
+      const documentExists = await this.prisma.document.findUnique({
+        where: { id: dto.documentId },
+        select: { id: true },
+      });
+      if (!documentExists) {
+        throw new NotFoundException(
+          `Document with ID ${dto.documentId} not found`,
+        );
+      }
+    }
+
+    if (dto.globalDepartmentId) {
+      const departmentExists = await this.prisma.globalDepartment.findUnique({
+        where: { id: dto.globalDepartmentId },
+        select: { id: true },
+      });
+      if (!departmentExists) {
+        throw new NotFoundException(
+          `Department with ID ${dto.globalDepartmentId} not found`,
+        );
+      }
+    }
+
     // Fayl turini aniqlash
     const fileType = this.getFileType(file.mimetype);
 
@@ -354,6 +391,74 @@ export class FilesService {
     await this.prisma.file.delete({ where: { id } });
 
     return { message: 'Fayl butunlay o\'chirildi' };
+  }
+
+  /**
+   * Faylni xabarga biriktirish (attach file to message after upload)
+   */
+  async attachToMessage(
+    fileId: string,
+    messageId: string,
+    userId: string,
+  ) {
+    // Check if file exists
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file) {
+      throw new NotFoundException('Fayl topilmadi');
+    }
+
+    // Verify the user owns the file
+    if (file.uploadedBy !== userId) {
+      throw new ForbiddenException('Siz faqat o\'zingiz yuklagan fayllarni biriktira olasiz');
+    }
+
+    // Check if message exists
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, senderId: true },
+    });
+    if (!message) {
+      throw new NotFoundException('Xabar topilmadi');
+    }
+
+    // Verify the user owns the message
+    if (message.senderId !== userId) {
+      throw new ForbiddenException('Siz faqat o\'zingizning xabaringizga fayl biriktira olasiz');
+    }
+
+    // Update file to attach it to message
+    const updatedFile = await this.prisma.file.update({
+      where: { id: fileId },
+      data: { messageId },
+      include: {
+        uploader: {
+          select: { id: true, name: true, username: true },
+        },
+      },
+    });
+
+    return {
+      ...updatedFile,
+      url: this.storage.getUrl(updatedFile.path),
+    };
+  }
+
+  /**
+   * Bir nechta fayllarni xabarga biriktirish
+   */
+  async attachMultipleToMessage(
+    fileIds: string[],
+    messageId: string,
+    userId: string,
+  ) {
+    const results: Awaited<ReturnType<typeof this.attachToMessage>>[] = [];
+
+    for (const fileId of fileIds) {
+      const result = await this.attachToMessage(fileId, messageId, userId);
+      results.push(result);
+    }
+
+    return results;
   }
 
   private getFolderName(fileType: FileType): string {
