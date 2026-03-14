@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsUUID, Matches } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches } from 'class-validator';
 
 export enum StatisticsPeriod {
   DAILY = 'daily',
@@ -14,7 +14,7 @@ export class GetStatisticsDto {
     example: 'cuid-company-id',
   })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   companyId?: string;
 
   @ApiPropertyOptional({
@@ -22,7 +22,7 @@ export class GetStatisticsDto {
     example: 'cuid-department-id',
   })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   globalDepartmentId?: string;
 
   @ApiPropertyOptional({

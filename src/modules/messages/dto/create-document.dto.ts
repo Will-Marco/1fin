@@ -1,14 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateDocumentDto {
-  @ApiProperty({ example: 'company-uuid' })
-  @IsUUID()
+  @ApiProperty({ example: 'company-cuid' })
+  @IsString()
   @IsNotEmpty()
   companyId: string;
 
-  @ApiProperty({ example: 'dept-uuid' })
-  @IsUUID()
+  @ApiProperty({ example: 'dept-cuid' })
+  @IsString()
   @IsNotEmpty()
   globalDepartmentId: string;
 
