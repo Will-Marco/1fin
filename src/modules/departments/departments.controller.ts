@@ -74,66 +74,8 @@ export class DepartmentsController {
     return this.departmentsService.findAll(includeInactive === 'true');
   }
 
-  @Get(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
-  @ApiOperation({ summary: 'Get a global department by ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Department details',
-    schema: {
-      example: {
-        id: 'cuid-dept-id',
-        name: 'Buxgalteriya',
-        slug: 'buxgalteriya',
-        isActive: true,
-        createdAt: '2024-02-24T10:00:00.000Z',
-        updatedAt: '2024-02-24T10:00:00.000Z',
-        _count: { companyConfigs: 5 },
-      },
-    },
-  })
-  @ApiResponse({ status: 404, description: 'Not found' })
-  async findOne(@Param('id') id: string) {
-    return this.departmentsService.findOne(id);
-  }
-
-  @Patch(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Update a global department (name, slug, or isActive)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Department updated',
-    schema: {
-      example: {
-        id: 'cuid-dept-id',
-        name: 'Buxgalteriya (yangilangan)',
-        slug: 'buxgalteriya',
-        isActive: true,
-        updatedAt: '2024-02-24T12:00:00.000Z',
-      },
-    },
-  })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateGlobalDepartmentDto,
-  ) {
-    return this.departmentsService.update(id, dto);
-  }
-
-  @Delete(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Deactivate a global department (soft delete)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Department deactivated',
-    schema: { example: { message: "Global department o'chirildi" } },
-  })
-  async deactivate(@Param('id') id: string) {
-    return this.departmentsService.deactivate(id);
-  }
-
   // ─────────────────────────────────────────────
-  // UNREAD MESSAGES ENDPOINTS
+  // UNREAD MESSAGES ENDPOINTS (static routes before :id)
   // ─────────────────────────────────────────────
 
   @Get('unread-summary')
@@ -217,29 +159,6 @@ export class DepartmentsController {
     return this.departmentsService.getUnreadSummary(userId, companyId, systemRole);
   }
 
-  @Post(':id/mark-read/:companyId')
-  @SystemRoles(
-    SystemRole.FIN_DIRECTOR,
-    SystemRole.FIN_ADMIN,
-    SystemRole.FIN_EMPLOYEE,
-    SystemRole.CLIENT_FOUNDER,
-    SystemRole.CLIENT_DIRECTOR,
-    SystemRole.CLIENT_EMPLOYEE,
-  )
-  @ApiOperation({ summary: 'Mark a department as read' })
-  @ApiResponse({
-    status: 200,
-    description: 'Department marked as read',
-    schema: { example: { message: "Bo'lim o'qilgan deb belgilandi" } },
-  })
-  async markDepartmentAsRead(
-    @Param('id') departmentId: string,
-    @Param('companyId') companyId: string,
-    @CurrentUser('id') userId: string,
-  ) {
-    return this.departmentsService.markDepartmentAsRead(userId, companyId, departmentId);
-  }
-
   @Post('mark-all-read/:companyId')
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
@@ -261,5 +180,90 @@ export class DepartmentsController {
     @CurrentUser('systemRole') systemRole: SystemRole,
   ) {
     return this.departmentsService.markAllAsRead(userId, companyId, systemRole);
+  }
+
+  // ─────────────────────────────────────────────
+  // DYNAMIC :id ROUTES (must come after static routes)
+  // ─────────────────────────────────────────────
+
+  @Get(':id')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @ApiOperation({ summary: 'Get a global department by ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Department details',
+    schema: {
+      example: {
+        id: 'cuid-dept-id',
+        name: 'Buxgalteriya',
+        slug: 'buxgalteriya',
+        isActive: true,
+        createdAt: '2024-02-24T10:00:00.000Z',
+        updatedAt: '2024-02-24T10:00:00.000Z',
+        _count: { companyConfigs: 5 },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  async findOne(@Param('id') id: string) {
+    return this.departmentsService.findOne(id);
+  }
+
+  @Patch(':id')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Update a global department (name, slug, or isActive)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Department updated',
+    schema: {
+      example: {
+        id: 'cuid-dept-id',
+        name: 'Buxgalteriya (yangilangan)',
+        slug: 'buxgalteriya',
+        isActive: true,
+        updatedAt: '2024-02-24T12:00:00.000Z',
+      },
+    },
+  })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateGlobalDepartmentDto,
+  ) {
+    return this.departmentsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({ summary: 'Deactivate a global department (soft delete)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Department deactivated',
+    schema: { example: { message: "Global department o'chirildi" } },
+  })
+  async deactivate(@Param('id') id: string) {
+    return this.departmentsService.deactivate(id);
+  }
+
+  @Post(':id/mark-read/:companyId')
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+    SystemRole.CLIENT_FOUNDER,
+    SystemRole.CLIENT_DIRECTOR,
+    SystemRole.CLIENT_EMPLOYEE,
+  )
+  @ApiOperation({ summary: 'Mark a department as read' })
+  @ApiResponse({
+    status: 200,
+    description: 'Department marked as read',
+    schema: { example: { message: "Bo'lim o'qilgan deb belgilandi" } },
+  })
+  async markDepartmentAsRead(
+    @Param('id') departmentId: string,
+    @Param('companyId') companyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.departmentsService.markDepartmentAsRead(userId, companyId, departmentId);
   }
 }
