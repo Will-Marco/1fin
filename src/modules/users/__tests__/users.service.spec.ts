@@ -6,8 +6,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import { SystemRole } from '../../../../generated/prisma/client';
+import { SystemRole, UserDocumentType } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { STORAGE_PROVIDER } from '../../files/storage/storage.interface';
 import { UsersService } from '../users.service';
 
 jest.mock('bcrypt');
@@ -28,6 +29,7 @@ describe('UsersService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     memberships: [],
+    userDocuments: [],
   };
 
   const mockClientUser = {
@@ -36,6 +38,33 @@ describe('UsersService', () => {
     username: 'client_director01',
     systemRole: SystemRole.CLIENT_DIRECTOR,
     memberships: [],
+    userDocuments: [],
+  };
+
+  const mockPassportFile = {
+    fieldname: 'passport',
+    originalname: 'passport.pdf',
+    encoding: '7bit',
+    mimetype: 'application/pdf',
+    buffer: Buffer.from('fake-passport'),
+    size: 1024,
+  } as Express.Multer.File;
+
+  const mockDocumentFile = {
+    fieldname: 'documents',
+    originalname: 'diploma.pdf',
+    encoding: '7bit',
+    mimetype: 'application/pdf',
+    buffer: Buffer.from('fake-diploma'),
+    size: 2048,
+  } as Express.Multer.File;
+
+  const mockUploadResult = {
+    originalName: 'passport.pdf',
+    fileName: 'uuid-passport.pdf',
+    path: 'user-documents/uuid-passport.pdf',
+    size: 1024,
+    mimeType: 'application/pdf',
   };
 
   const mockPrismaService = {
@@ -65,6 +94,9 @@ describe('UsersService', () => {
     companyDepartmentConfig: {
       findMany: jest.fn(),
     },
+    userDocument: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -75,12 +107,20 @@ describe('UsersService', () => {
     }),
   };
 
+  const mockStorageProvider = {
+    upload: jest.fn(),
+    delete: jest.fn(),
+    getUrl: jest.fn((path: string) => `http://localhost:3000/uploads/${path}`),
+    exists: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: STORAGE_PROVIDER, useValue: mockStorageProvider },
       ],
     }).compile();
 
@@ -99,14 +139,16 @@ describe('UsersService', () => {
       systemRole: SystemRole.FIN_EMPLOYEE,
     };
 
-    it('should create a system user with default password', async () => {
+    it('should create a system user with passport', async () => {
       mockPrismaService.user.findUnique
         .mockResolvedValueOnce(null)       // username check
         .mockResolvedValueOnce(mockUser);  // findOne
       mockPrismaService.user.create.mockResolvedValue(mockUser);
+      mockPrismaService.userDocument.create.mockResolvedValue({});
+      mockStorageProvider.upload.mockResolvedValue(mockUploadResult);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
-      const result = await service.createSystemUser(dto);
+      const result = await service.createSystemUser(dto, mockPassportFile);
 
       expect(result.username).toBe('fin_employee01');
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
@@ -116,14 +158,65 @@ describe('UsersService', () => {
           mustChangePassword: true,
         }),
       });
+      expect(mockStorageProvider.upload).toHaveBeenCalledWith(
+        mockPassportFile,
+        'user-documents',
+      );
+      expect(mockPrismaService.userDocument.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-id',
+          type: UserDocumentType.PASSPORT,
+        }),
+      });
+    });
+
+    it('should create a system user with passport and additional documents', async () => {
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockUser);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      mockPrismaService.userDocument.create.mockResolvedValue({});
+      mockStorageProvider.upload
+        .mockResolvedValueOnce(mockUploadResult)  // passport
+        .mockResolvedValueOnce({                   // additional document
+          ...mockUploadResult,
+          originalName: 'diploma.pdf',
+          fileName: 'uuid-diploma.pdf',
+          path: 'user-documents/uuid-diploma.pdf',
+        });
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+
+      const result = await service.createSystemUser(
+        dto,
+        mockPassportFile,
+        [mockDocumentFile],
+      );
+
+      expect(result.username).toBe('fin_employee01');
+      expect(mockStorageProvider.upload).toHaveBeenCalledTimes(2);
+      expect(mockPrismaService.userDocument.create).toHaveBeenCalledTimes(2);
+
+      // First call: passport
+      expect(mockPrismaService.userDocument.create).toHaveBeenNthCalledWith(1, {
+        data: expect.objectContaining({
+          type: UserDocumentType.PASSPORT,
+        }),
+      });
+
+      // Second call: additional document
+      expect(mockPrismaService.userDocument.create).toHaveBeenNthCalledWith(2, {
+        data: expect.objectContaining({
+          type: UserDocumentType.OTHER,
+        }),
+      });
     });
 
     it('should throw ConflictException if username already exists', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.createSystemUser(dto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.createSystemUser(dto, mockPassportFile),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -138,14 +231,16 @@ describe('UsersService', () => {
       systemRole: SystemRole.CLIENT_DIRECTOR,
     };
 
-    it('should create a client user with systemRole', async () => {
+    it('should create a client user with passport', async () => {
       mockPrismaService.user.findUnique
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(mockClientUser);
       mockPrismaService.user.create.mockResolvedValue(mockClientUser);
+      mockPrismaService.userDocument.create.mockResolvedValue({});
+      mockStorageProvider.upload.mockResolvedValue(mockUploadResult);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
-      const result = await service.createClientUser(dto);
+      const result = await service.createClientUser(dto, mockPassportFile);
 
       expect(result.systemRole).toBe(SystemRole.CLIENT_DIRECTOR);
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
@@ -155,14 +250,18 @@ describe('UsersService', () => {
           mustChangePassword: true,
         }),
       });
+      expect(mockStorageProvider.upload).toHaveBeenCalledWith(
+        mockPassportFile,
+        'user-documents',
+      );
     });
 
     it('should throw ConflictException if username already exists', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.createClientUser(dto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.createClientUser(dto, mockPassportFile),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -298,12 +397,31 @@ describe('UsersService', () => {
   // ─────────────────────────────────────────────
 
   describe('findOne', () => {
-    it('should return a user with memberships', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+    it('should return a user with memberships and documents', async () => {
+      const userWithDocs = {
+        ...mockUser,
+        userDocuments: [
+          {
+            id: 'doc-id',
+            type: UserDocumentType.PASSPORT,
+            originalName: 'passport.pdf',
+            fileName: 'uuid-passport.pdf',
+            fileSize: 1024,
+            mimeType: 'application/pdf',
+            path: 'user-documents/uuid-passport.pdf',
+            createdAt: new Date(),
+          },
+        ],
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(userWithDocs);
 
       const result = await service.findOne('user-id');
 
       expect(result.username).toBe('fin_employee01');
+      expect(result.userDocuments).toHaveLength(1);
+      expect(result.userDocuments[0].url).toBe(
+        'http://localhost:3000/uploads/user-documents/uuid-passport.pdf',
+      );
     });
 
     it('should throw NotFoundException if user not found', async () => {

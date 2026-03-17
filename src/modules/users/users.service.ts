@@ -1,13 +1,15 @@
 import {
     BadRequestException,
     ConflictException,
+    Inject,
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
-import { SystemRole } from '../../../generated/prisma/client';
+import { SystemRole, UserDocumentType } from '../../../generated/prisma/client';
+import { STORAGE_PROVIDER, StorageProvider } from '../files/storage/storage.interface';
 import {
     AssignMembershipDto,
     CreateClientUserDto,
@@ -21,6 +23,7 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    @Inject(STORAGE_PROVIDER) private storage: StorageProvider,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -31,7 +34,11 @@ export class UsersService {
    * Create a 1FIN system user (FIN_DIRECTOR / FIN_ADMIN / FIN_EMPLOYEE).
    * Called by FIN_DIRECTOR or FIN_ADMIN.
    */
-  async createSystemUser(dto: CreateSystemUserDto) {
+  async createSystemUser(
+    dto: CreateSystemUserDto,
+    passport: Express.Multer.File,
+    documents?: Express.Multer.File[],
+  ) {
     await this.ensureUsernameAvailable(dto.username);
 
     const defaultPassword =
@@ -50,6 +57,9 @@ export class UsersService {
         mustChangePassword: !dto.password, // if default password, must change
       },
     });
+
+    // Upload and save user documents
+    await this.uploadUserDocuments(user.id, passport, documents);
 
     return this.findOne(user.id);
   }
@@ -58,7 +68,11 @@ export class UsersService {
    * Create a client user (CLIENT_FOUNDER / CLIENT_DIRECTOR / CLIENT_EMPLOYEE).
    * systemRole is now required and set at user creation.
    */
-  async createClientUser(dto: CreateClientUserDto) {
+  async createClientUser(
+    dto: CreateClientUserDto,
+    passport: Express.Multer.File,
+    documents?: Express.Multer.File[],
+  ) {
     await this.ensureUsernameAvailable(dto.username);
 
     const defaultPassword =
@@ -77,6 +91,9 @@ export class UsersService {
         mustChangePassword: !dto.password, // if default password, must change
       },
     });
+
+    // Upload and save user documents
+    await this.uploadUserDocuments(user.id, passport, documents);
 
     return this.findOne(user.id);
   }
@@ -217,6 +234,18 @@ export class UsersService {
             },
           },
         },
+        userDocuments: {
+          select: {
+            id: true,
+            type: true,
+            originalName: true,
+            fileName: true,
+            fileSize: true,
+            mimeType: true,
+            path: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -224,7 +253,16 @@ export class UsersService {
       throw new NotFoundException('Foydalanuvchi topilmadi');
     }
 
-    return user;
+    // Add URLs to user documents
+    const userDocuments = user.userDocuments.map((doc) => ({
+      ...doc,
+      url: this.storage.getUrl(doc.path),
+    }));
+
+    return {
+      ...user,
+      userDocuments,
+    };
   }
 
   async update(id: string, dto: UpdateUserDto) {
@@ -427,6 +465,47 @@ export class UsersService {
     });
     if (existing) {
       throw new ConflictException('Bu username allaqachon band');
+    }
+  }
+
+  /**
+   * Upload passport and optional additional documents for a user.
+   */
+  private async uploadUserDocuments(
+    userId: string,
+    passport: Express.Multer.File,
+    documents?: Express.Multer.File[],
+  ) {
+    // Upload passport
+    const passportUploaded = await this.storage.upload(passport, 'user-documents');
+    await this.prisma.userDocument.create({
+      data: {
+        userId,
+        type: UserDocumentType.PASSPORT,
+        originalName: passportUploaded.originalName,
+        fileName: passportUploaded.fileName,
+        fileSize: passportUploaded.size,
+        mimeType: passportUploaded.mimeType,
+        path: passportUploaded.path,
+      },
+    });
+
+    // Upload additional documents
+    if (documents && documents.length > 0) {
+      for (const doc of documents) {
+        const uploaded = await this.storage.upload(doc, 'user-documents');
+        await this.prisma.userDocument.create({
+          data: {
+            userId,
+            type: UserDocumentType.OTHER,
+            originalName: uploaded.originalName,
+            fileName: uploaded.fileName,
+            fileSize: uploaded.size,
+            mimeType: uploaded.mimeType,
+            path: uploaded.path,
+          },
+        });
+      }
     }
   }
 

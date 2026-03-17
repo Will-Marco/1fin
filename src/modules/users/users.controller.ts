@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Body,
     Controller,
     Delete,
@@ -7,10 +8,15 @@ import {
     Patch,
     Post,
     Query,
+    UploadedFiles,
     UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
     ApiBearerAuth,
+    ApiBody,
+    ApiConsumes,
     ApiOperation,
     ApiQuery,
     ApiResponse,
@@ -42,10 +48,50 @@ export class UsersController {
 
   @Post('system')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Create a 1FIN system user (employee/admin/director)' })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'passport', maxCount: 1 },
+      { name: 'documents', maxCount: 5 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create a 1FIN system user (employee/admin/director) with passport' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['username', 'name', 'systemRole', 'passport'],
+      properties: {
+        username: { type: 'string', example: 'fin_employee01' },
+        password: {
+          type: 'string',
+          example: 'SecurePass123',
+          description: 'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
+        },
+        name: { type: 'string', example: 'Ali Valiyev' },
+        phone: { type: 'string', example: '+998901234567' },
+        avatar: { type: 'string', example: 'https://...' },
+        systemRole: {
+          type: 'string',
+          enum: ['FIN_DIRECTOR', 'FIN_ADMIN', 'FIN_EMPLOYEE'],
+          example: 'FIN_EMPLOYEE',
+        },
+        passport: {
+          type: 'string',
+          format: 'binary',
+          description: 'Pasport fayli (required)',
+        },
+        documents: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          maxItems: 5,
+          description: 'Qo\'shimcha hujjatlar (optional, max 5 ta)',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
-    description: 'System user created',
+    description: 'System user created with documents',
     schema: {
       example: {
         id: 'cuid-user-id',
@@ -56,20 +102,85 @@ export class UsersController {
         systemRole: 'FIN_EMPLOYEE',
         isActive: true,
         createdAt: '2024-02-24T10:00:00.000Z',
+        userDocuments: [
+          {
+            id: 'cuid-doc-id',
+            type: 'PASSPORT',
+            originalName: 'passport.pdf',
+            fileSize: 1024000,
+            url: 'http://localhost:3000/uploads/user-documents/uuid-passport.pdf',
+          },
+        ],
       },
     },
   })
+  @ApiResponse({ status: 400, description: 'Passport file is required' })
   @ApiResponse({ status: 409, description: 'Username already taken' })
-  async createSystemUser(@Body() dto: CreateSystemUserDto) {
-    return this.usersService.createSystemUser(dto);
+  async createSystemUser(
+    @Body() dto: CreateSystemUserDto,
+    @UploadedFiles()
+    files: {
+      passport?: Express.Multer.File[];
+      documents?: Express.Multer.File[];
+    },
+  ) {
+    if (!files?.passport || files.passport.length === 0) {
+      throw new BadRequestException('Pasport fayli majburiy');
+    }
+
+    return this.usersService.createSystemUser(
+      dto,
+      files.passport[0],
+      files.documents,
+    );
   }
 
   @Post('client')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Create a client user (no systemRole, assign to company separately)' })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'passport', maxCount: 1 },
+      { name: 'documents', maxCount: 5 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create a client user with passport' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['username', 'name', 'systemRole', 'passport'],
+      properties: {
+        username: { type: 'string', example: 'company_director01' },
+        password: {
+          type: 'string',
+          example: 'SecurePass123',
+          description: 'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
+        },
+        name: { type: 'string', example: 'Bobur Toshmatov' },
+        phone: { type: 'string', example: '+998901234567' },
+        avatar: { type: 'string', example: 'https://...' },
+        systemRole: {
+          type: 'string',
+          enum: ['CLIENT_FOUNDER', 'CLIENT_DIRECTOR', 'CLIENT_EMPLOYEE'],
+          example: 'CLIENT_EMPLOYEE',
+        },
+        passport: {
+          type: 'string',
+          format: 'binary',
+          description: 'Pasport fayli (required)',
+        },
+        documents: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          maxItems: 5,
+          description: 'Qo\'shimcha hujjatlar (optional, max 5 ta)',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
-    description: 'Client user created',
+    description: 'Client user created with documents',
     schema: {
       example: {
         id: 'cuid-user-id',
@@ -80,12 +191,37 @@ export class UsersController {
         systemRole: 'CLIENT_DIRECTOR',
         isActive: true,
         createdAt: '2024-02-24T10:00:00.000Z',
+        userDocuments: [
+          {
+            id: 'cuid-doc-id',
+            type: 'PASSPORT',
+            originalName: 'passport.pdf',
+            fileSize: 1024000,
+            url: 'http://localhost:3000/uploads/user-documents/uuid-passport.pdf',
+          },
+        ],
       },
     },
   })
+  @ApiResponse({ status: 400, description: 'Passport file is required' })
   @ApiResponse({ status: 409, description: 'Username already taken' })
-  async createClientUser(@Body() dto: CreateClientUserDto) {
-    return this.usersService.createClientUser(dto);
+  async createClientUser(
+    @Body() dto: CreateClientUserDto,
+    @UploadedFiles()
+    files: {
+      passport?: Express.Multer.File[];
+      documents?: Express.Multer.File[];
+    },
+  ) {
+    if (!files?.passport || files.passport.length === 0) {
+      throw new BadRequestException('Pasport fayli majburiy');
+    }
+
+    return this.usersService.createClientUser(
+      dto,
+      files.passport[0],
+      files.documents,
+    );
   }
 
   // ─────────────────────────────────────────────
@@ -153,10 +289,10 @@ export class UsersController {
 
   @Get(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
-  @ApiOperation({ summary: 'Get a user by ID (includes memberships)' })
+  @ApiOperation({ summary: 'Get a user by ID (includes memberships and documents)' })
   @ApiResponse({
     status: 200,
-    description: 'User with memberships',
+    description: 'User with memberships and documents',
     schema: {
       example: {
         id: 'cuid-user-id',
@@ -176,6 +312,16 @@ export class UsersController {
             allowedDepartments: [
               { globalDepartment: { id: 'cuid-dept-id', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
             ],
+          },
+        ],
+        userDocuments: [
+          {
+            id: 'cuid-doc-id',
+            type: 'PASSPORT',
+            originalName: 'passport.pdf',
+            fileSize: 1024000,
+            mimeType: 'application/pdf',
+            url: 'http://localhost:3000/uploads/user-documents/uuid-passport.pdf',
           },
         ],
       },

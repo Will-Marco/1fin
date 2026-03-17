@@ -54,6 +54,11 @@ enum DocumentStatus {
   AUTO_EXPIRED // 10 days without action
 }
 
+enum UserDocumentType {
+  PASSPORT
+  OTHER
+}
+
 // ============================================
 // USER & AUTHENTICATION
 // ============================================
@@ -81,6 +86,7 @@ model User {
   createdDocuments  Document[]             @relation("DocumentCreator")
   approvedDocuments Document[]             @relation("DocumentApprover")
   departmentReads   UserDepartmentRead[]
+  userDocuments     UserDocument[]
 
   @@map("users")
 }
@@ -391,6 +397,28 @@ model UserDepartmentRead {
 
   @@unique([userId, companyId, globalDepartmentId])
   @@map("user_department_reads")
+}
+
+// ============================================
+// USER DOCUMENTS (passport, etc.)
+// ============================================
+
+model UserDocument {
+  id           String           @id @default(cuid())
+  userId       String           @map("user_id")
+  type         UserDocumentType
+  originalName String           @map("original_name")
+  fileName     String           @map("file_name")
+  fileSize     Int              @map("file_size")
+  mimeType     String           @map("mime_type")
+  path         String
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_documents")
 }
 
 // ============================================

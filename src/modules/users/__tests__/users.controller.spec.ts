@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SystemRole } from '../../../../generated/prisma/client';
@@ -15,7 +16,26 @@ describe('UsersController', () => {
     systemRole: SystemRole.FIN_EMPLOYEE,
     isActive: true,
     memberships: [],
+    userDocuments: [],
   };
+
+  const mockPassportFile = {
+    fieldname: 'passport',
+    originalname: 'passport.pdf',
+    encoding: '7bit',
+    mimetype: 'application/pdf',
+    buffer: Buffer.from('fake-passport'),
+    size: 1024,
+  } as Express.Multer.File;
+
+  const mockDocumentFile = {
+    fieldname: 'documents',
+    originalname: 'diploma.pdf',
+    encoding: '7bit',
+    mimetype: 'application/pdf',
+    buffer: Buffer.from('fake-diploma'),
+    size: 2048,
+  } as Express.Multer.File;
 
   const mockUsersService = {
     createSystemUser: jest.fn(),
@@ -44,35 +64,88 @@ describe('UsersController', () => {
   });
 
   describe('createSystemUser', () => {
-    it('should create a system user', async () => {
-      const dto = {
-        username: 'fin_employee01',
-        name: 'Ali',
-        systemRole: SystemRole.FIN_EMPLOYEE,
-      };
+    const dto = {
+      username: 'fin_employee01',
+      name: 'Ali',
+      systemRole: SystemRole.FIN_EMPLOYEE,
+    };
+
+    it('should create a system user with passport', async () => {
       mockUsersService.createSystemUser.mockResolvedValue(mockUser);
 
-      const result = await controller.createSystemUser(dto);
+      const result = await controller.createSystemUser(dto, {
+        passport: [mockPassportFile],
+        documents: [],
+      });
 
       expect(result).toEqual(mockUser);
-      expect(service.createSystemUser).toHaveBeenCalledWith(dto);
+      expect(service.createSystemUser).toHaveBeenCalledWith(
+        dto,
+        mockPassportFile,
+        [],
+      );
+    });
+
+    it('should create a system user with passport and documents', async () => {
+      mockUsersService.createSystemUser.mockResolvedValue(mockUser);
+
+      const result = await controller.createSystemUser(dto, {
+        passport: [mockPassportFile],
+        documents: [mockDocumentFile],
+      });
+
+      expect(result).toEqual(mockUser);
+      expect(service.createSystemUser).toHaveBeenCalledWith(
+        dto,
+        mockPassportFile,
+        [mockDocumentFile],
+      );
+    });
+
+    it('should throw BadRequestException if passport is missing', async () => {
+      await expect(
+        controller.createSystemUser(dto, { passport: [], documents: [] }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if no files provided', async () => {
+      await expect(
+        controller.createSystemUser(dto, {} as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('createClientUser', () => {
-    it('should create a client user', async () => {
-      const dto = {
-        username: 'client01',
-        name: 'Bobur',
+    const dto = {
+      username: 'client01',
+      name: 'Bobur',
+      systemRole: SystemRole.CLIENT_DIRECTOR,
+    };
+
+    it('should create a client user with passport', async () => {
+      const clientUser = {
+        ...mockUser,
         systemRole: SystemRole.CLIENT_DIRECTOR,
+        userDocuments: [],
       };
-      const clientUser = { ...mockUser, systemRole: SystemRole.CLIENT_DIRECTOR };
       mockUsersService.createClientUser.mockResolvedValue(clientUser);
 
-      const result = await controller.createClientUser(dto);
+      const result = await controller.createClientUser(dto, {
+        passport: [mockPassportFile],
+      });
 
       expect(result.systemRole).toBe(SystemRole.CLIENT_DIRECTOR);
-      expect(service.createClientUser).toHaveBeenCalledWith(dto);
+      expect(service.createClientUser).toHaveBeenCalledWith(
+        dto,
+        mockPassportFile,
+        undefined,
+      );
+    });
+
+    it('should throw BadRequestException if passport is missing', async () => {
+      await expect(
+        controller.createClientUser(dto, { passport: [], documents: [] }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
