@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemRole, DocumentStatus } from '../../../generated/prisma/client';
-import { BANK_PAYMENT_DEPARTMENT_SLUG } from '../constants';
+import {
+  BANK_PAYMENT_DEPARTMENT_SLUG,
+  LETTERS_DEPARTMENT_SLUG,
+} from '../constants';
 
 /**
  * Guard for document operations (accept/reject)
@@ -17,6 +20,7 @@ import { BANK_PAYMENT_DEPARTMENT_SLUG } from '../constants';
  * - CLIENT_FOUNDER cannot accept/reject (monitoring only)
  * - CLIENT_DIRECTOR and CLIENT_EMPLOYEE can accept/reject
  * - Bank Oplata department has no accept/reject
+ * - Xatlar department restricts clients to Accept ("Tanishdim") only; no Reject.
  * - Document must be in PENDING status
  *
  * FIN_* users can accept/reject
@@ -103,6 +107,16 @@ export class DocumentPermissionGuard implements CanActivate {
       user.systemRole !== SystemRole.CLIENT_EMPLOYEE
     ) {
       throw new ForbiddenException('Sizda ushbu amalni bajarish huquqi yo\'q');
+    }
+
+    // Check Xatlar special rule - clients can only Accept ("Tanishdim"), no Reject
+    if (document.globalDepartment.slug === LETTERS_DEPARTMENT_SLUG) {
+      // The path usually ends with /reject or /approve
+      if (request.route?.path?.endsWith('/reject')) {
+        throw new ForbiddenException(
+          "Xatlar bo'limida hujjatlarni rad etish mumkin emas (faqat 'Tanishdim' tugmasi majvud)",
+        );
+      }
     }
 
     // Attach document and membership to request for later use

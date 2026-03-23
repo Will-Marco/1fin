@@ -7,3 +7,6 @@ export const DOCUMENT_EXPIRATION_DAYS = 10;
 
 // Bank payment department slug - special rule: no accept/reject
 export const BANK_PAYMENT_DEPARTMENT_SLUG = 'bank-payment';
+
+// Letters department slug - special rule: no reject, clients only accept (Tanishdim)
+export const LETTERS_DEPARTMENT_SLUG = 'letters';

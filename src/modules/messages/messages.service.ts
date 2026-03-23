@@ -13,6 +13,7 @@ import {
     ForwardMessageDto,
     UpdateMessageDto,
 } from './dto';
+import { LETTERS_DEPARTMENT_SLUG } from '../../common/constants';
 
 @Injectable()
 export class MessagesService {
@@ -60,6 +61,17 @@ export class MessagesService {
     }
 
     await this.checkAccess(dto.companyId, dto.globalDepartmentId, userId, userSystemRole);
+
+    // Xatlar special rule: Only 1FIN users can send messages
+    const department = await this.prisma.globalDepartment.findUnique({
+      where: { id: dto.globalDepartmentId },
+    });
+
+    if (department?.slug === LETTERS_DEPARTMENT_SLUG && !userSystemRole) {
+      throw new ForbiddenException(
+        "Xatlar bo'limida mijozlar xabar yoza olmaydi (faqat hujjatlar bilan tanishadi)",
+      );
+    }
 
     // Reply validation
     if (dto.replyToId) {

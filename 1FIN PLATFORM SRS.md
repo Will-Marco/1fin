@@ -192,6 +192,17 @@ AUTO_EXPIRED
 
 ---
 
+# 9.2 Xatlar Special Rule
+
+- Only 1Fin employees can write messages
+- Clients cannot write messages
+- Clients only have a "Tanishdim" (Accept) button for documents, no "Reject" button
+- If "Tanishdim" is not clicked, daily notifications are sent (standard PENDING behavior)
+- Actor clicking "Tanishdim" is logged in audit
+- Status moves from PENDING to ACCEPTED upon clicking "Tanishdim"
+
+---
+
 # 10. Permission Matrix
 
 ## 10.1 System Roles

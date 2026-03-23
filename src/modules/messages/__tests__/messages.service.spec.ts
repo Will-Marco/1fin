@@ -8,6 +8,7 @@ import { MessageStatus, MessageType, SystemRole } from '../../../../generated/pr
 import { PrismaService } from '../../../database/prisma.service';
 import { MessageProducer } from '../../../queues/producers';
 import { MessagesService } from '../messages.service';
+import { LETTERS_DEPARTMENT_SLUG } from '../../../common/constants';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -43,6 +44,9 @@ describe('MessagesService', () => {
       create: jest.fn(),
     },
     companyDepartmentConfig: {
+      findUnique: jest.fn(),
+    },
+    globalDepartment: {
       findUnique: jest.fn(),
     },
     file: {
@@ -116,6 +120,44 @@ describe('MessagesService', () => {
       await expect(service.create('user-1', null, dto)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    it('should throw ForbiddenException if client user tries to send to Xatlar department', async () => {
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({ id: 'mem-1' });
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-letters',
+        slug: LETTERS_DEPARTMENT_SLUG,
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-letters',
+        content: 'Hello',
+      };
+
+      await expect(service.create('user-client', null, dto)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should create a message if 1FIN user tries to send to Xatlar department', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-letters',
+        slug: LETTERS_DEPARTMENT_SLUG,
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-letters',
+        content: 'Hello',
+      };
+
+      const result = await service.create('user-admin', SystemRole.FIN_ADMIN, dto);
+
+      expect(result).toEqual(mockMessage);
+      expect(mockPrismaService.message.create).toHaveBeenCalled();
     });
   });
 
