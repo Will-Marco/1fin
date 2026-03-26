@@ -13,8 +13,8 @@ import { STORAGE_PROVIDER, StorageProvider } from './storage/storage.interface';
 // Fayl o'lchamlari (baytlarda)
 const FILE_SIZE_LIMITS = {
   IMAGE: 5 * 1024 * 1024, // 5MB
-  DOCUMENT: 10 * 1024 * 1024, // 10MB
-  VOICE: 3 * 1024 * 1024, // 3MB
+  DOCUMENT: 15 * 1024 * 1024, // 15MB (katta PDF/Excel uchun)
+  VOICE: 5 * 1024 * 1024, // 5MB (uzoqroq audio uchun)
   OTHER: 10 * 1024 * 1024, // 10MB
 };
 
