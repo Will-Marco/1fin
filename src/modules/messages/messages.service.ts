@@ -15,6 +15,38 @@ import {
 } from './dto';
 import { LETTERS_DEPARTMENT_SLUG } from '../../common/constants';
 
+/**
+ * Reply qilingan xabar uchun qisqacha ma'lumot
+ * Frontend preview uchun optimallashtirilgan
+ */
+const REPLY_TO_SELECT = {
+  id: true,
+  content: true,
+  type: true,
+  voiceDuration: true,
+  sender: {
+    select: {
+      id: true,
+      name: true,
+      username: true,
+    },
+  },
+  files: {
+    select: {
+      id: true,
+      fileType: true,
+      originalName: true,
+      mimeType: true,
+    },
+    take: 3, // Faqat birinchi 3 ta fayl (preview uchun)
+  },
+  _count: {
+    select: {
+      files: true,
+    },
+  },
+} as const;
+
 @Injectable()
 export class MessagesService {
   constructor(
@@ -100,11 +132,7 @@ export class MessagesService {
           select: { id: true, username: true, name: true, avatar: true, systemRole: true },
         },
         replyTo: {
-          select: {
-            id: true,
-            content: true,
-            sender: { select: { id: true, name: true } },
-          },
+          select: REPLY_TO_SELECT,
         },
       },
     });
@@ -165,11 +193,7 @@ export class MessagesService {
             select: { id: true, username: true, name: true, avatar: true, systemRole: true },
           },
           replyTo: {
-            select: {
-              id: true,
-              content: true,
-              sender: { select: { id: true, name: true } },
-            },
+            select: REPLY_TO_SELECT,
           },
           files: true,
           _count: { select: { edits: true } },
@@ -197,11 +221,7 @@ export class MessagesService {
           select: { id: true, username: true, name: true, avatar: true, systemRole: true },
         },
         replyTo: {
-          select: {
-            id: true,
-            content: true,
-            sender: { select: { id: true, name: true } },
-          },
+          select: REPLY_TO_SELECT,
         },
         files: true,
       },
