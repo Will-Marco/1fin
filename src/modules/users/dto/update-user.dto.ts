@@ -1,10 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
     IsBoolean,
-    IsNumber,
     IsOptional,
     IsString,
-    Min,
 } from 'class-validator';
 
 export class UpdateUserDto {
@@ -23,14 +21,13 @@ export class UpdateUserDto {
   @IsOptional()
   avatar?: string;
 
-  @ApiPropertyOptional({ example: 2, description: 'UI display rank' })
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  rank?: number;
-
   @ApiPropertyOptional({ example: true })
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  notificationsEnabled?: boolean;
 }

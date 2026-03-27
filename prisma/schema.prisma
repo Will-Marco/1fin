@@ -81,6 +81,7 @@ model User {
   memberships       UserCompanyMembership[]
   sessions          Session[]
   sentMessages      Message[]              @relation("SentMessages")
+  deletedMessages   Message[]              @relation("DeletedMessages")
   files             File[]
   notifications     Notification[]
   createdDocuments  Document[]             @relation("DocumentCreator")
@@ -283,6 +284,7 @@ model Message {
   // Relations
   globalDepartment     GlobalDepartment   @relation(fields: [globalDepartmentId], references: [id])
   sender               User               @relation("SentMessages", fields: [senderId], references: [id])
+  deletedByUser        User?              @relation("DeletedMessages", fields: [deletedBy], references: [id])
   replyTo              Message?           @relation("MessageReplies", fields: [replyToId], references: [id])
   replies              Message[]          @relation("MessageReplies")
   parent               Message?           @relation("MessageVersions", fields: [parentId], references: [id])

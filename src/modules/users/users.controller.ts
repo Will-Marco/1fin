@@ -334,7 +334,7 @@ export class UsersController {
 
   @Patch(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Update user info (name, phone, avatar, rank, isActive)' })
+  @ApiOperation({ summary: 'Update user info (name, phone, avatar, isActive, notificationsEnabled)' })
   @ApiResponse({
     status: 200,
     description: 'User updated',

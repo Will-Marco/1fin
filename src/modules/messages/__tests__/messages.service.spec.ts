@@ -31,6 +31,7 @@ describe('MessagesService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       count: jest.fn(),
       update: jest.fn(),
     },
@@ -385,6 +386,178 @@ describe('MessagesService', () => {
       await expect(
         service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_ADMIN),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('replyTo structure', () => {
+    const mockMessageWithReply = {
+      ...mockMessage,
+      replyToId: 'reply-msg-id',
+      replyTo: {
+        id: 'reply-msg-id',
+        content: 'Original message text',
+        type: MessageType.TEXT,
+        voiceDuration: null,
+        sender: {
+          id: 'sender-id',
+          name: 'Original Sender',
+          username: 'original.sender',
+        },
+        files: [],
+        _count: { files: 0 },
+      },
+    };
+
+    const mockVoiceReply = {
+      ...mockMessage,
+      replyToId: 'voice-msg-id',
+      replyTo: {
+        id: 'voice-msg-id',
+        content: null,
+        type: MessageType.VOICE,
+        voiceDuration: 45,
+        sender: {
+          id: 'sender-id',
+          name: 'Voice Sender',
+          username: 'voice.sender',
+        },
+        files: [],
+        _count: { files: 0 },
+      },
+    };
+
+    const mockFileReply = {
+      ...mockMessage,
+      replyToId: 'file-msg-id',
+      replyTo: {
+        id: 'file-msg-id',
+        content: 'Message with files',
+        type: MessageType.FILE,
+        voiceDuration: null,
+        sender: {
+          id: 'sender-id',
+          name: 'File Sender',
+          username: 'file.sender',
+        },
+        files: [
+          { id: 'file-1', fileType: 'IMAGE', originalName: 'photo.jpg', mimeType: 'image/jpeg' },
+          { id: 'file-2', fileType: 'DOCUMENT', originalName: 'doc.pdf', mimeType: 'application/pdf' },
+        ],
+        _count: { files: 3 },
+      },
+    };
+
+    it('should include replyTo with type and sender info for TEXT message', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue([mockMessageWithReply]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+
+      expect(result.data[0].replyTo).toBeDefined();
+      expect(result.data[0].replyTo.type).toBe(MessageType.TEXT);
+      expect(result.data[0].replyTo.sender.name).toBe('Original Sender');
+      expect(result.data[0].replyTo.sender.username).toBe('original.sender');
+    });
+
+    it('should include voiceDuration for VOICE message reply', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue([mockVoiceReply]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+
+      expect(result.data[0].replyTo.type).toBe(MessageType.VOICE);
+      expect(result.data[0].replyTo.voiceDuration).toBe(45);
+    });
+
+    it('should include files preview and count for FILE message reply', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue([mockFileReply]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+
+      expect(result.data[0].replyTo.type).toBe(MessageType.FILE);
+      expect(result.data[0].replyTo.files).toHaveLength(2);
+      expect(result.data[0].replyTo.files[0].fileType).toBe('IMAGE');
+      expect(result.data[0].replyTo._count.files).toBe(3);
+    });
+
+    it('should create message with replyTo and return full structure', async () => {
+      const createdMessage = {
+        ...mockMessage,
+        replyToId: 'reply-msg-id',
+        replyTo: mockMessageWithReply.replyTo,
+      };
+      mockPrismaService.message.findFirst.mockResolvedValue({ id: 'reply-msg-id' });
+      mockPrismaService.message.create.mockResolvedValue(createdMessage);
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-1', slug: 'dept-1' });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: 'Reply message',
+        replyToId: 'reply-msg-id',
+      };
+
+      const result = await service.create('user-1', SystemRole.FIN_ADMIN, dto);
+
+      expect(result.replyTo).toBeDefined();
+      expect(result.replyTo).not.toBeNull();
+      expect((result.replyTo as any).type).toBe(MessageType.TEXT);
+      expect((result.replyTo as any).sender).toBeDefined();
+    });
+  });
+
+  describe('deletedByUser', () => {
+    const mockDeletedMessage = {
+      ...mockMessage,
+      isDeleted: true,
+      deletedAt: new Date(),
+      deletedBy: 'admin-user-id',
+      deletedByUser: {
+        id: 'admin-user-id',
+        name: 'Admin User',
+        username: 'admin.user',
+        systemRole: SystemRole.FIN_ADMIN,
+      },
+    };
+
+    it('should include deletedByUser info for deleted messages (admin view)', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue([mockDeletedMessage]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+
+      expect(result.data[0].isDeleted).toBe(true);
+      expect(result.data[0].deletedByUser).toBeDefined();
+      expect(result.data[0].deletedByUser.name).toBe('Admin User');
+      expect(result.data[0].deletedByUser.systemRole).toBe(SystemRole.FIN_ADMIN);
+    });
+
+    it('should include deletedByUser with username for findOne', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockDeletedMessage);
+
+      const result = await service.findOne('msg-1', 'admin-1', SystemRole.FIN_ADMIN);
+
+      expect(result.deletedByUser).toBeDefined();
+      expect(result.deletedByUser.username).toBe('admin.user');
+    });
+
+    it('should show deletedByUser role correctly', async () => {
+      const directorDeletedMessage = {
+        ...mockDeletedMessage,
+        deletedByUser: {
+          id: 'director-id',
+          name: 'Director User',
+          username: 'director',
+          systemRole: SystemRole.FIN_DIRECTOR,
+        },
+      };
+      mockPrismaService.message.findMany.mockResolvedValue([directorDeletedMessage]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+
+      expect(result.data[0].deletedByUser.systemRole).toBe(SystemRole.FIN_DIRECTOR);
     });
   });
 });

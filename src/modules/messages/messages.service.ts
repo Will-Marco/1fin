@@ -195,6 +195,9 @@ export class MessagesService {
           replyTo: {
             select: REPLY_TO_SELECT,
           },
+          deletedByUser: {
+            select: { id: true, name: true, username: true, systemRole: true },
+          },
           files: true,
           _count: { select: { edits: true } },
         },
@@ -222,6 +225,9 @@ export class MessagesService {
         },
         replyTo: {
           select: REPLY_TO_SELECT,
+        },
+        deletedByUser: {
+          select: { id: true, name: true, username: true, systemRole: true },
         },
         files: true,
       },

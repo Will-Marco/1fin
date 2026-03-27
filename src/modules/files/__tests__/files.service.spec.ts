@@ -115,6 +115,124 @@ describe('FilesService', () => {
         service.upload(largeFile, { globalDepartmentId: 'dept-id' }, 'user-id'),
       ).rejects.toThrow(BadRequestException);
     });
+
+    // FILE_SIZE_LIMITS tests for each type
+    describe('file size limits per type', () => {
+      beforeEach(() => {
+        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-id' });
+      });
+
+      it('should reject IMAGE files larger than 5MB', async () => {
+        const imageFile = {
+          mimetype: 'image/jpeg',
+          size: 6 * 1024 * 1024, // 6MB > 5MB limit
+          originalname: 'large-image.jpg',
+        };
+
+        await expect(
+          service.upload(imageFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should accept IMAGE files up to 5MB', async () => {
+        const imageFile = {
+          mimetype: 'image/jpeg',
+          size: 5 * 1024 * 1024, // exactly 5MB
+          originalname: 'valid-image.jpg',
+        };
+
+        mockStorageProvider.upload.mockResolvedValue({
+          originalName: 'valid-image.jpg',
+          fileName: 'uuid-valid-image.jpg',
+          path: 'images/uuid-valid-image.jpg',
+          size: 5 * 1024 * 1024,
+          mimeType: 'image/jpeg',
+        });
+        mockPrismaService.file.create.mockResolvedValue({ ...mockFile, fileType: FileType.IMAGE });
+        mockStorageProvider.getUrl.mockReturnValue('http://url');
+
+        const result = await service.upload(imageFile as any, { globalDepartmentId: 'dept-id' }, 'user-id');
+        expect(result).toBeDefined();
+      });
+
+      it('should reject DOCUMENT files larger than 15MB', async () => {
+        const docFile = {
+          mimetype: 'application/pdf',
+          size: 16 * 1024 * 1024, // 16MB > 15MB limit
+          originalname: 'large-doc.pdf',
+        };
+
+        await expect(
+          service.upload(docFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should accept DOCUMENT files up to 15MB', async () => {
+        const docFile = {
+          mimetype: 'application/pdf',
+          size: 15 * 1024 * 1024, // exactly 15MB
+          originalname: 'valid-doc.pdf',
+        };
+
+        mockStorageProvider.upload.mockResolvedValue({
+          originalName: 'valid-doc.pdf',
+          fileName: 'uuid-valid-doc.pdf',
+          path: 'documents/uuid-valid-doc.pdf',
+          size: 15 * 1024 * 1024,
+          mimeType: 'application/pdf',
+        });
+        mockPrismaService.file.create.mockResolvedValue({ ...mockFile, fileType: FileType.DOCUMENT });
+        mockStorageProvider.getUrl.mockReturnValue('http://url');
+
+        const result = await service.upload(docFile as any, { globalDepartmentId: 'dept-id' }, 'user-id');
+        expect(result).toBeDefined();
+      });
+
+      it('should reject VOICE files larger than 5MB', async () => {
+        const voiceFile = {
+          mimetype: 'audio/mpeg',
+          size: 6 * 1024 * 1024, // 6MB > 5MB limit
+          originalname: 'large-voice.mp3',
+        };
+
+        await expect(
+          service.upload(voiceFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should accept VOICE files up to 5MB', async () => {
+        const voiceFile = {
+          mimetype: 'audio/mpeg',
+          size: 5 * 1024 * 1024, // exactly 5MB
+          originalname: 'valid-voice.mp3',
+        };
+
+        mockStorageProvider.upload.mockResolvedValue({
+          originalName: 'valid-voice.mp3',
+          fileName: 'uuid-valid-voice.mp3',
+          path: 'voice/uuid-valid-voice.mp3',
+          size: 5 * 1024 * 1024,
+          mimeType: 'audio/mpeg',
+        });
+        mockPrismaService.file.create.mockResolvedValue({ ...mockFile, fileType: FileType.VOICE });
+        mockStorageProvider.getUrl.mockReturnValue('http://url');
+
+        const result = await service.upload(voiceFile as any, { globalDepartmentId: 'dept-id' }, 'user-id');
+        expect(result).toBeDefined();
+      });
+
+      it('should reject OTHER files larger than 10MB', async () => {
+        const otherFile = {
+          mimetype: 'application/octet-stream',
+          size: 11 * 1024 * 1024, // 11MB > 10MB limit
+          originalname: 'large-file.bin',
+        };
+
+        await expect(
+          service.upload(otherFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
   });
 
   describe('findOne', () => {
