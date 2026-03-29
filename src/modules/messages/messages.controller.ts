@@ -2,19 +2,16 @@ import {
     Body,
     Controller,
     Delete,
-    FileTypeValidator,
     Get,
-    MaxFileSizeValidator,
     Param,
-    ParseFilePipe,
     Patch,
     Post,
     Query,
-    UploadedFile,
+    UploadedFiles,
     UseGuards,
     UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
     ApiBearerAuth,
     ApiBody,
@@ -24,14 +21,13 @@ import {
     ApiResponse,
     ApiTags,
 } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser, SystemRoles } from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
-    CreateMessageDto,
+    CreateMessageWithFilesDto,
     ForwardMessageDto,
     UpdateMessageDto,
 } from './dto';
@@ -45,63 +41,46 @@ export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Send a new message' })
-  @ApiResponse({
-    status: 201,
-    description: 'Message sent',
-    schema: {
-      example: {
-        id: 'cuid-message-id',
-        content: 'Salom, hammaga!',
-        type: 'TEXT',
-        status: 'SENT',
-        isOutgoing: true,
-        createdAt: '2024-02-24T10:00:00.000Z',
-        sender: { id: 'cuid', name: 'Ali Valiyev' },
-      },
-    },
-  })
-  async create(
-    @Body() dto: CreateMessageDto,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('systemRole') systemRole: SystemRole | null,
-  ) {
-    return this.messagesService.create(userId, systemRole, dto);
-  }
-
-  @Post('voice')
   @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/voice',
-        filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, `voice-${uniqueSuffix}${extname(file.originalname)}`);
-        },
-      }),
+    FilesInterceptor('files', 10, {
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max per file
     }),
   )
-  @ApiOperation({ summary: 'Send a voice message' })
+  @ApiOperation({
+    summary: 'Send a message with optional files (atomic transaction)',
+    description:
+      'Xabar va fayllarni bitta atomic operatsiyada yuboradi. ' +
+      'Agar biror qadam xato bo\'lsa, hammasi rollback qilinadi.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['file', 'companyId', 'globalDepartmentId', 'voiceDuration'],
+      required: ['companyId', 'globalDepartmentId'],
       properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-          description: 'Ovozli xabar fayli (audio/mpeg, audio/ogg, audio/webm, audio/wav)',
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Fayllar (max 10 ta, har biri max 15MB)',
         },
         companyId: {
           type: 'string',
           example: 'company-uuid',
-          description: 'Kompaniya ID',
         },
         globalDepartmentId: {
           type: 'string',
           example: 'dept-uuid',
-          description: 'Global department ID',
+        },
+        content: {
+          type: 'string',
+          example: 'Salom, hammaga!',
+          description: 'Xabar matni (ixtiyoriy agar fayl mavjud bo\'lsa)',
+        },
+        replyToId: {
+          type: 'string',
+          example: 'message-uuid',
+          description: 'Reply qilish uchun xabar ID',
         },
         voiceDuration: {
           type: 'number',
@@ -113,44 +92,33 @@ export class MessagesController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Voice message sent',
+    description: 'Message sent with files',
     schema: {
       example: {
         id: 'cuid-message-id',
-        content: './uploads/voice/voice-123456789.ogg',
-        type: 'VOICE',
-        voiceDuration: 30,
+        content: 'Salom, hammaga!',
+        type: 'FILE',
         status: 'SENT',
-        isOutgoing: true,
         createdAt: '2024-02-24T10:00:00.000Z',
         sender: { id: 'cuid', name: 'Ali Valiyev' },
+        files: [
+          {
+            id: 'file-id',
+            originalName: 'document.pdf',
+            fileType: 'DOCUMENT',
+            url: '/uploads/documents/uuid.pdf',
+          },
+        ],
       },
     },
   })
-  async createVoiceMessage(
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }), // 10MB
-          new FileTypeValidator({ fileType: /audio\/(mpeg|mp4|ogg|webm|wav)/ }),
-        ],
-      }),
-    )
-    file: Express.Multer.File,
-    @Body('companyId') companyId: string,
-    @Body('globalDepartmentId') globalDepartmentId: string,
-    @Body('voiceDuration') voiceDuration: string,
+  async create(
+    @Body() dto: CreateMessageWithFilesDto,
+    @UploadedFiles() files: Express.Multer.File[],
     @CurrentUser('id') userId: string,
     @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
-    const dto: CreateMessageDto = {
-      companyId,
-      globalDepartmentId,
-      type: 'VOICE' as any,
-      voiceDuration: parseInt(voiceDuration, 10),
-      content: file.path,
-    };
-    return this.messagesService.create(userId, systemRole, dto);
+    return this.messagesService.createWithFiles(userId, systemRole, dto, files || []);
   }
 
   @Get()
@@ -301,29 +269,4 @@ export class MessagesController {
     return this.messagesService.forwardMessage(messageId, dto, userId, systemRole);
   }
 
-  @Get(':id/history')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Get message edit history (Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Message edit history',
-    schema: {
-      example: {
-        id: 'cuid-message-id',
-        content: 'Current content',
-        edits: [
-          { id: 'cuid', content: 'Previous content', editedAt: '2024-02-24T11:00:00.000Z' },
-        ],
-      },
-    },
-  })
-  async getEditHistory(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('systemRole') systemRole: SystemRole | null,
-  ) {
-    // Note: getEditHistory method needs to be updated in service if we want to support SystemRole check there too
-    // But SystemRoles guard handles it here.
-    return this.messagesService.findOne(id, userId, systemRole); // Placeholder or actual history call
   }
-}

@@ -7,10 +7,12 @@ import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { MessagesGateway } from './messages.gateway';
 import { QueuesModule } from '../../queues/queues.module';
+import { FilesModule } from '../files/files.module';
 
 @Module({
   imports: [
     forwardRef(() => QueuesModule),
+    FilesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

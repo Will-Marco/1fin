@@ -105,19 +105,24 @@ Authorization: Bearer {token}
 }
 ```
 
-### 2.2. Oddiy Matnli Xabar Yuborish
+### 2.2. Xabar Yuborish (Atomic - Tavsiya etiladi)
+
+> **Yangi!** Endi xabar va fayllarni bitta so'rovda atomic tarzda yuborishingiz mumkin. Bu usul **tavsiya etiladi** chunki:
+> - Xabar va fayllar bir vaqtda yaratiladi yoki hech biri yaratilmaydi (transaction)
+> - Orphan fayllar muammosi yo'q
+> - Bitta HTTP so'rov - tezroq
 
 ```http
 POST /messages
 Authorization: Bearer {token}
-Content-Type: application/json
+Content-Type: multipart/form-data
 
-{
-  "companyId": "company-uuid",
-  "globalDepartmentId": "dept-uuid",
-  "content": "Salom, hammaga!",
-  "type": "TEXT"
-}
+companyId: "company-uuid"
+globalDepartmentId: "dept-uuid"
+content: "Salom, hammaga!"           # ixtiyoriy (agar fayl bo'lsa)
+replyToId: "original-msg-uuid"       # ixtiyoriy
+voiceDuration: 45                    # ixtiyoriy (voice uchun)
+files: [file1, file2, ...]           # ixtiyoriy (max 10 ta, har biri max 15MB)
 ```
 
 **Response:**
@@ -132,24 +137,36 @@ Content-Type: application/json
     "name": "Ali Valiyev",
     "username": "ali.valiyev"
   },
+  "files": [
+    {
+      "id": "file-uuid",
+      "originalName": "document.pdf",
+      "fileType": "DOCUMENT",
+      "url": "/uploads/documents/uuid.pdf"
+    }
+  ],
   "createdAt": "2024-03-08T10:00:00.000Z"
 }
 ```
+
+**Xabar turi avtomatik aniqlanadi:**
+| Holat | type |
+|-------|------|
+| Faqat matn | `TEXT` |
+| Fayllar bilan | `FILE` |
+| Audio fayl + voiceDuration | `VOICE` |
 
 ### 2.3. Reply Xabar Yuborish
 
 ```http
 POST /messages
 Authorization: Bearer {token}
-Content-Type: application/json
+Content-Type: multipart/form-data
 
-{
-  "companyId": "company-uuid",
-  "globalDepartmentId": "dept-uuid",
-  "content": "Ha, to'g'ri aytdingiz!",
-  "type": "TEXT",
-  "replyToId": "original-msg-uuid"
-}
+companyId: "company-uuid"
+globalDepartmentId: "dept-uuid"
+content: "Ha, to'g'ri aytdingiz!"
+replyToId: "original-msg-uuid"
 ```
 
 ### 2.4. Xabarni Tahrirlash
@@ -175,23 +192,52 @@ Authorization: Bearer {token}
 
 ## 3. Fayl Yuklash
 
-### 3.1. Workflow A: Xabar bilan birga fayl (Tavsiya etiladi)
+### 3.1. Atomic Workflow (Tavsiya etiladi)
 
-**1-qadam: Xabar yaratish**
+> **Eng yaxshi usul!** Xabar va fayllarni bitta so'rovda yuborish - transaction bilan himoyalangan.
+
 ```http
 POST /messages
 Authorization: Bearer {token}
-Content-Type: application/json
+Content-Type: multipart/form-data
 
+companyId: "company-uuid"
+globalDepartmentId: "dept-uuid"
+content: "Mana hujjatlar"           # ixtiyoriy
+files: [file1, file2, file3]        # max 10 ta fayl
+```
+
+**Response:**
+```json
 {
-  "companyId": "company-uuid",
-  "globalDepartmentId": "dept-uuid",
-  "content": "Mana hujjat",
-  "type": "FILE"
+  "id": "msg-uuid",
+  "content": "Mana hujjatlar",
+  "type": "FILE",
+  "files": [
+    {
+      "id": "file-uuid",
+      "originalName": "document.pdf",
+      "fileType": "DOCUMENT",
+      "url": "/uploads/documents/uuid.pdf"
+    }
+  ],
+  "createdAt": "2024-03-08T10:00:00.000Z"
 }
 ```
 
-**2-qadam: Faylni yuklash (messageId bilan)**
+**Afzalliklari:**
+- ✅ Atomic - hammasi muvaffaqiyatli yoki hech narsa
+- ✅ Rollback - xato bo'lsa fayllar avtomatik o'chiriladi
+- ✅ Bitta request - tezroq
+- ✅ Orphan fayllar yo'q
+
+---
+
+### 3.2. Legacy Workflow A (Backward Compatible)
+
+> Eski usul - hali ham ishlaydi, lekin atomic emas.
+
+**1-qadam: Faylni yuklash (messageId bilan)**
 ```http
 POST /files/upload
 Authorization: Bearer {token}
@@ -202,7 +248,7 @@ messageId: "msg-uuid"
 globalDepartmentId: "dept-uuid"
 ```
 
-### 3.2. Workflow B: Avval fayl, keyin xabar
+### 3.3. Legacy Workflow B: Avval fayl, keyin xabar
 
 **1-qadam: Faylni yuklash (messageId bo'lmasa)**
 ```http
@@ -227,26 +273,13 @@ globalDepartmentId: "dept-uuid"
 }
 ```
 
-**2-qadam: Xabar yaratish**
-```http
-POST /messages
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "companyId": "company-uuid",
-  "globalDepartmentId": "dept-uuid",
-  "type": "FILE"
-}
-```
-
-**3-qadam: Faylni xabarga biriktirish**
+**2-qadam: Faylni xabarga biriktirish**
 ```http
 PATCH /files/{fileId}/attach/{messageId}
 Authorization: Bearer {token}
 ```
 
-### 3.3. Ko'p Fayllarni Yuklash
+### 3.4. Ko'p Fayllarni Yuklash (Legacy)
 
 ```http
 POST /files/upload-multiple
@@ -258,7 +291,7 @@ messageId: "msg-uuid"
 globalDepartmentId: "dept-uuid"
 ```
 
-### 3.4. Ko'p Fayllarni Biriktirish
+### 3.5. Ko'p Fayllarni Biriktirish (Legacy)
 
 ```http
 PATCH /files/attach-multiple/{messageId}
@@ -270,16 +303,16 @@ Content-Type: application/json
 }
 ```
 
-### 3.5. Fayl O'lcham Limitlari
+### 3.6. Fayl O'lcham Limitlari
 
 | Fayl Turi | Maksimum O'lcham |
 |-----------|------------------|
 | Rasm (IMAGE) | 5 MB |
-| Hujjat (DOCUMENT) | 10 MB |
-| Ovoz (VOICE) | 3 MB |
+| Hujjat (DOCUMENT) | 15 MB |
+| Ovoz (VOICE) | 5 MB |
 | Boshqa (OTHER) | 10 MB |
 
-### 3.6. Ruxsat Berilgan MIME Turlari
+### 3.7. Ruxsat Berilgan MIME Turlari
 
 **Rasmlar:**
 - `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/svg+xml`
@@ -430,73 +463,44 @@ interface TypingPayload {
 
 ```http
 POST /messages
-{
-  "companyId": "...",
-  "globalDepartmentId": "...",
-  "content": "Salom!",
-  "type": "TEXT"
-}
+Content-Type: multipart/form-data
+
+companyId: "company-uuid"
+globalDepartmentId: "dept-uuid"
+content: "Salom!"
 ```
 
-### 5.2. FILE - Fayl bilan Xabar
+### 5.2. FILE - Fayl bilan Xabar (Tavsiya etiladi)
+
+> Atomic usul - bitta so'rovda xabar va fayllar
 
 ```http
-# 1. Xabar yaratish
 POST /messages
-{
-  "companyId": "...",
-  "globalDepartmentId": "...",
-  "content": "Mana hujjat", // ixtiyoriy
-  "type": "FILE"
-}
+Content-Type: multipart/form-data
 
-# 2. Fayl yuklash
-POST /files/upload
-multipart/form-data:
-  file: [binary]
-  messageId: "{msg-id}"
+companyId: "company-uuid"
+globalDepartmentId: "dept-uuid"
+content: "Mana hujjatlar"           # ixtiyoriy
+files: [document.pdf, image.png]    # max 10 ta
 ```
 
-### 5.3. VOICE - Ovozli Xabar
+**Xabar type avtomatik `FILE` bo'ladi**
+
+### 5.3. VOICE - Ovozli Xabar (Tavsiya etiladi)
+
+> Atomic usul - bitta so'rovda voice va xabar
 
 ```http
-# 1. Ovozni yozib olish (frontend)
-# 2. Audio faylni yuklash
-POST /files/upload
-multipart/form-data:
-  file: [audio blob]
-  globalDepartmentId: "{dept-id}"
-
-# 3. Xabar yaratish
 POST /messages
-{
-  "companyId": "...",
-  "globalDepartmentId": "...",
-  "type": "VOICE",
-  "voiceDuration": 45  // sekundlarda
-}
+Content-Type: multipart/form-data
 
-# 4. Faylni biriktirish
-PATCH /files/{fileId}/attach/{messageId}
+companyId: "company-uuid"
+globalDepartmentId: "dept-uuid"
+voiceDuration: 45                   # sekundlarda (majburiy)
+files: [voice-message.webm]         # audio fayl
 ```
 
-**Yoki bitta so'rovda:**
-```http
-# 1. Xabar yaratish
-POST /messages
-{
-  "companyId": "...",
-  "globalDepartmentId": "...",
-  "type": "VOICE",
-  "voiceDuration": 45
-}
-
-# 2. Audio yuklash
-POST /files/upload
-multipart/form-data:
-  file: [audio blob]
-  messageId: "{msg-id}"
-```
+**Xabar type avtomatik `VOICE` bo'ladi**
 
 ### 5.4. DOCUMENT_FORWARD - Hujjat Forward
 
@@ -616,29 +620,45 @@ export function useChat(companyId: string, deptId: string, token: string) {
 }
 ```
 
-### 6.2. Fayl Yuklash Service
+### 6.2. Xabar Yuborish Service (Atomic)
 
 ```typescript
-// services/fileService.ts
+// services/messageService.ts
 const API_URL = 'http://localhost:3000';
 
-export async function uploadFile(
-  file: File,
-  options: {
-    messageId?: string;
-    documentId?: string;
-    globalDepartmentId?: string;
-  },
+interface SendMessageOptions {
+  companyId: string;
+  globalDepartmentId: string;
+  content?: string;
+  replyToId?: string;
+  voiceDuration?: number;
+  files?: File[];
+}
+
+/**
+ * Xabar yuborish - atomic (xabar + fayllar bitta transaction'da)
+ */
+export async function sendMessage(
+  options: SendMessageOptions,
   token: string
 ) {
   const formData = new FormData();
-  formData.append('file', file);
 
-  if (options.messageId) formData.append('messageId', options.messageId);
-  if (options.documentId) formData.append('documentId', options.documentId);
-  if (options.globalDepartmentId) formData.append('globalDepartmentId', options.globalDepartmentId);
+  formData.append('companyId', options.companyId);
+  formData.append('globalDepartmentId', options.globalDepartmentId);
 
-  const response = await fetch(`${API_URL}/files/upload`, {
+  if (options.content) formData.append('content', options.content);
+  if (options.replyToId) formData.append('replyToId', options.replyToId);
+  if (options.voiceDuration) formData.append('voiceDuration', String(options.voiceDuration));
+
+  // Fayllarni qo'shish
+  if (options.files?.length) {
+    options.files.forEach(file => {
+      formData.append('files', file);
+    });
+  }
+
+  const response = await fetch(`${API_URL}/messages`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -654,58 +674,38 @@ export async function uploadFile(
   return response.json();
 }
 
-export async function uploadMultipleFiles(
-  files: File[],
-  options: {
-    messageId?: string;
-    globalDepartmentId?: string;
-  },
-  token: string
-) {
-  const formData = new FormData();
+// Foydalanish misollari:
 
-  files.forEach(file => {
-    formData.append('files', file);
-  });
+// 1. Oddiy matn
+await sendMessage({
+  companyId: 'company-uuid',
+  globalDepartmentId: 'dept-uuid',
+  content: 'Salom!',
+}, token);
 
-  if (options.messageId) formData.append('messageId', options.messageId);
-  if (options.globalDepartmentId) formData.append('globalDepartmentId', options.globalDepartmentId);
+// 2. Fayllar bilan
+await sendMessage({
+  companyId: 'company-uuid',
+  globalDepartmentId: 'dept-uuid',
+  content: 'Mana hujjatlar',
+  files: [file1, file2],
+}, token);
 
-  const response = await fetch(`${API_URL}/files/upload-multiple`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-    body: formData,
-  });
+// 3. Voice xabar
+await sendMessage({
+  companyId: 'company-uuid',
+  globalDepartmentId: 'dept-uuid',
+  voiceDuration: 45,
+  files: [audioBlob],
+}, token);
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message);
-  }
-
-  return response.json();
-}
-
-export async function attachFileToMessage(
-  fileId: string,
-  messageId: string,
-  token: string
-) {
-  const response = await fetch(`${API_URL}/files/${fileId}/attach/${messageId}`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message);
-  }
-
-  return response.json();
-}
+// 4. Reply bilan
+await sendMessage({
+  companyId: 'company-uuid',
+  globalDepartmentId: 'dept-uuid',
+  content: 'Javob',
+  replyToId: 'original-msg-uuid',
+}, token);
 ```
 
 ### 6.3. Ovozli Xabar Yozib Olish
@@ -773,10 +773,12 @@ export function useVoiceRecorder() {
 }
 ```
 
-### 6.4. Ovozli Xabar Yuborish
+### 6.4. Ovozli Xabar Yuborish (Atomic)
 
 ```typescript
 // components/VoiceMessageButton.tsx
+import { sendMessage } from '../services/messageService';
+
 async function sendVoiceMessage(
   companyId: string,
   globalDepartmentId: string,
@@ -784,37 +786,22 @@ async function sendVoiceMessage(
 ) {
   const { blob, duration } = await stopRecording();
 
-  // 1. Xabar yaratish
-  const messageRes = await fetch('/messages', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      companyId,
-      globalDepartmentId,
-      type: 'VOICE',
-      voiceDuration: duration,
-    }),
-  });
-  const message = await messageRes.json();
+  // Bitta atomic so'rov - xabar va audio birga
+  const audioFile = new File([blob], 'voice-message.webm', { type: 'audio/webm' });
 
-  // 2. Audio faylni yuklash
-  const formData = new FormData();
-  formData.append('file', blob, 'voice-message.webm');
-  formData.append('messageId', message.id);
-  formData.append('globalDepartmentId', globalDepartmentId);
-
-  await fetch('/files/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-    body: formData,
-  });
+  await sendMessage({
+    companyId,
+    globalDepartmentId,
+    voiceDuration: duration,
+    files: [audioFile],
+  }, token);
 }
 ```
+
+**Afzalliklari:**
+- ✅ Bitta HTTP so'rov
+- ✅ Atomic - xato bo'lsa hech narsa saqlanmaydi
+- ✅ Orphan audio fayllar yo'q
 
 ---
 
@@ -843,12 +830,14 @@ async function sendVoiceMessage(
 
 ## 8. Muhim Eslatmalar
 
-1. **Token muddati:** Access token 15 daqiqa, Refresh token 7 kun amal qiladi
-2. **WebSocket reconnect:** Ulanish uzilganda avtomatik qayta ulanish qo'shing
-3. **Fayl yuklash progress:** XMLHttpRequest yoki axios bilan progress tracking qiling
-4. **Typing debounce:** `typing:start` ni 500ms debounce bilan chaqiring
-5. **Offline support:** Xabarlarni local storage da saqlang va sync qiling
-6. **Pagination:** Xabarlarni infinite scroll bilan yuklang (eng yangisi pastda)
+1. **Atomic API:** Har doim `POST /messages` bilan multipart/form-data ishlating - bu atomic va xavfsiz
+2. **Token muddati:** Access token 15 daqiqa, Refresh token 7 kun amal qiladi
+3. **WebSocket reconnect:** Ulanish uzilganda avtomatik qayta ulanish qo'shing
+4. **Fayl yuklash progress:** XMLHttpRequest yoki axios bilan progress tracking qiling
+5. **Typing debounce:** `typing:start` ni 500ms debounce bilan chaqiring
+6. **Offline support:** Xabarlarni local storage da saqlang va sync qiling
+7. **Pagination:** Xabarlarni infinite scroll bilan yuklang (eng yangisi pastda)
+8. **Transaction:** Agar xabar yuborishda xato bo'lsa, fayllar avtomatik rollback qilinadi
 
 ---
 

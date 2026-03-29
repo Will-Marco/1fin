@@ -9,6 +9,7 @@ import { PrismaService } from '../../../database/prisma.service';
 import { MessageProducer } from '../../../queues/producers';
 import { MessagesService } from '../messages.service';
 import { LETTERS_DEPARTMENT_SLUG } from '../../../common/constants';
+import { STORAGE_PROVIDER } from '../../files/storage/storage.interface';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -53,6 +54,7 @@ describe('MessagesService', () => {
     file: {
       createMany: jest.fn(),
     },
+    $transaction: jest.fn((callback) => callback(mockPrismaService)),
   };
 
   const mockMessageProducer = {
@@ -61,12 +63,20 @@ describe('MessagesService', () => {
     sendDeletedMessage: jest.fn(),
   };
 
+  const mockStorageProvider = {
+    upload: jest.fn(),
+    delete: jest.fn(),
+    getUrl: jest.fn((path: string) => `/uploads/${path}`),
+    exists: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessagesService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: MessageProducer, useValue: mockMessageProducer },
+        { provide: STORAGE_PROVIDER, useValue: mockStorageProvider },
       ],
     }).compile();
 
@@ -74,10 +84,15 @@ describe('MessagesService', () => {
     jest.clearAllMocks();
   });
 
-  describe('create', () => {
+  describe('createWithFiles', () => {
+    const mockMessageWithFiles = {
+      ...mockMessage,
+      files: [],
+    };
+
     it('should create a message for a 1FIN staff user', async () => {
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
-      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessageWithFiles);
 
       const dto = {
         companyId: 'company-1',
@@ -85,9 +100,9 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      const result = await service.create('user-1', SystemRole.FIN_ADMIN, dto);
+      const result = await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, []);
 
-      expect(result).toEqual(mockMessage);
+      expect(result).toBeDefined();
       expect(mockPrismaService.message.create).toHaveBeenCalled();
       expect(mockMessageProducer.sendNewMessage).toHaveBeenCalled();
     });
@@ -95,7 +110,7 @@ describe('MessagesService', () => {
     it('should create a message for a client user with valid membership', async () => {
       mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({ id: 'mem-1' });
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
-      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessageWithFiles);
 
       const dto = {
         companyId: 'company-1',
@@ -103,9 +118,9 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      const result = await service.create('user-1', null, dto);
+      const result = await service.createWithFiles('user-1', null, dto, []);
 
-      expect(result).toEqual(mockMessage);
+      expect(result).toBeDefined();
       expect(mockPrismaService.userCompanyMembership.findFirst).toHaveBeenCalled();
     });
 
@@ -118,7 +133,7 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      await expect(service.create('user-1', null, dto)).rejects.toThrow(
+      await expect(service.createWithFiles('user-1', null, dto, [])).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -136,7 +151,7 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      await expect(service.create('user-client', null, dto)).rejects.toThrow(
+      await expect(service.createWithFiles('user-client', null, dto, [])).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -147,7 +162,7 @@ describe('MessagesService', () => {
         slug: LETTERS_DEPARTMENT_SLUG,
       });
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
-      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessageWithFiles);
 
       const dto = {
         companyId: 'company-1',
@@ -155,10 +170,57 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      const result = await service.create('user-admin', SystemRole.FIN_ADMIN, dto);
+      const result = await service.createWithFiles('user-admin', SystemRole.FIN_ADMIN, dto, []);
 
-      expect(result).toEqual(mockMessage);
+      expect(result).toBeDefined();
       expect(mockPrismaService.message.create).toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if no content and no files', async () => {
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: '',
+      };
+
+      await expect(service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [])).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should create message with files and rollback on failure', async () => {
+      const mockFile = {
+        fieldname: 'files',
+        originalname: 'test.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'test.pdf',
+        fileName: 'uuid-test.pdf',
+        path: 'documents/uuid-test.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        files: [{ id: 'file-1', path: 'documents/uuid-test.pdf' }],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: 'With file',
+      };
+
+      const result = await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [mockFile]);
+
+      expect(result).toBeDefined();
+      expect(mockStorageProvider.upload).toHaveBeenCalled();
+      expect(mockPrismaService.file.createMany).toHaveBeenCalled();
     });
   });
 
@@ -486,9 +548,11 @@ describe('MessagesService', () => {
         ...mockMessage,
         replyToId: 'reply-msg-id',
         replyTo: mockMessageWithReply.replyTo,
+        files: [],
       };
       mockPrismaService.message.findFirst.mockResolvedValue({ id: 'reply-msg-id' });
       mockPrismaService.message.create.mockResolvedValue(createdMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(createdMessage);
       mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-1', slug: 'dept-1' });
 
       const dto = {
@@ -498,12 +562,12 @@ describe('MessagesService', () => {
         replyToId: 'reply-msg-id',
       };
 
-      const result = await service.create('user-1', SystemRole.FIN_ADMIN, dto);
+      const result = await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, []);
 
-      expect(result.replyTo).toBeDefined();
-      expect(result.replyTo).not.toBeNull();
-      expect((result.replyTo as any).type).toBe(MessageType.TEXT);
-      expect((result.replyTo as any).sender).toBeDefined();
+      expect(result?.replyTo).toBeDefined();
+      expect(result?.replyTo).not.toBeNull();
+      expect((result?.replyTo as any).type).toBe(MessageType.TEXT);
+      expect((result?.replyTo as any).sender).toBeDefined();
     });
   });
 

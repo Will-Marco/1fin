@@ -1,19 +1,44 @@
 import {
     BadRequestException,
     ForbiddenException,
+    Inject,
     Injectable,
     NotFoundException,
     Optional,
 } from '@nestjs/common';
-import { MessageStatus, SystemRole } from '../../../generated/prisma/client';
+import { FileType, MessageStatus, MessageType, SystemRole } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { MessageProducer } from '../../queues/producers';
 import {
-    CreateMessageDto,
+    CreateMessageWithFilesDto,
     ForwardMessageDto,
     UpdateMessageDto,
 } from './dto';
 import { LETTERS_DEPARTMENT_SLUG } from '../../common/constants';
+import { STORAGE_PROVIDER, StorageProvider, UploadedFile } from '../files/storage/storage.interface';
+
+const ALLOWED_MIME_TYPES = {
+  IMAGE: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+  DOCUMENT: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'text/csv',
+  ],
+  VOICE: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/aac'],
+};
+
+const FILE_SIZE_LIMITS = {
+  IMAGE: 5 * 1024 * 1024,
+  DOCUMENT: 15 * 1024 * 1024,
+  VOICE: 5 * 1024 * 1024,
+  OTHER: 10 * 1024 * 1024,
+};
 
 /**
  * Reply qilingan xabar uchun qisqacha ma'lumot
@@ -52,6 +77,7 @@ export class MessagesService {
   constructor(
     private prisma: PrismaService,
     @Optional() private messageProducer?: MessageProducer,
+    @Optional() @Inject(STORAGE_PROVIDER) private storage?: StorageProvider,
   ) {}
 
   /**
@@ -85,80 +111,6 @@ export class MessagesService {
     }
 
     return true;
-  }
-
-  async create(userId: string, userSystemRole: SystemRole | null, dto: CreateMessageDto) {
-    if (!dto.companyId || !dto.globalDepartmentId) {
-      throw new BadRequestException('companyId va globalDepartmentId majburiy');
-    }
-
-    await this.checkAccess(dto.companyId, dto.globalDepartmentId, userId, userSystemRole);
-
-    // Xatlar special rule: Only 1FIN users can send messages
-    const department = await this.prisma.globalDepartment.findUnique({
-      where: { id: dto.globalDepartmentId },
-    });
-
-    if (department?.slug === LETTERS_DEPARTMENT_SLUG && !userSystemRole) {
-      throw new ForbiddenException(
-        "Xatlar bo'limida mijozlar xabar yoza olmaydi (faqat hujjatlar bilan tanishadi)",
-      );
-    }
-
-    // Reply validation
-    if (dto.replyToId) {
-      const replyToMessage = await this.prisma.message.findFirst({
-        where: { id: dto.replyToId, companyId: dto.companyId, isDeleted: false },
-      });
-      if (!replyToMessage) {
-        throw new NotFoundException('Reply qilinayotgan xabar topilmadi');
-      }
-    }
-
-    // Create message
-    const message = await this.prisma.message.create({
-      data: {
-        companyId: dto.companyId,
-        globalDepartmentId: dto.globalDepartmentId,
-        senderId: userId,
-        content: dto.content,
-        type: (dto.type as any) || 'TEXT',
-        voiceDuration: dto.voiceDuration,
-        replyToId: dto.replyToId,
-        status: MessageStatus.SENT,
-      },
-      include: {
-        sender: {
-          select: { id: true, username: true, name: true, avatar: true, systemRole: true },
-        },
-        replyTo: {
-          select: REPLY_TO_SELECT,
-        },
-      },
-    });
-
-    // Notify via WebSocket/RabbitMQ
-    if (this.messageProducer) {
-      await this.messageProducer.sendNewMessage({
-        messageId: message.id,
-        // @ts-ignore - Update MessagePayload interface later or ignore if it's transient
-        companyId: dto.companyId,
-        globalDepartmentId: dto.globalDepartmentId,
-        senderId: userId,
-        content: dto.content,
-        type: message.type,
-        replyToId: dto.replyToId as any,
-        createdAt: message.createdAt,
-        sender: {
-          id: message.sender.id,
-          username: message.sender.username,
-          name: message.sender.name,
-          avatar: message.sender.avatar || undefined,
-        },
-      });
-    }
-
-    return message;
   }
 
   async findAll(
@@ -474,5 +426,205 @@ export class MessagesService {
       };
     }
     return message;
+  }
+
+  /**
+   * Xabar + fayllarni atomic tarzda yaratish (transaction bilan)
+   */
+  async createWithFiles(
+    userId: string,
+    userSystemRole: SystemRole | null,
+    dto: CreateMessageWithFilesDto,
+    files: Express.Multer.File[],
+  ) {
+    if (!this.storage) {
+      throw new BadRequestException('Storage provider mavjud emas');
+    }
+
+    // Validation
+    if (!dto.companyId || !dto.globalDepartmentId) {
+      throw new BadRequestException('companyId va globalDepartmentId majburiy');
+    }
+
+    // Fayl yoki content majburiy
+    if (!files?.length && !dto.content?.trim()) {
+      throw new BadRequestException('Kamida bitta fayl yoki matn bo\'lishi kerak');
+    }
+
+    await this.checkAccess(dto.companyId, dto.globalDepartmentId, userId, userSystemRole);
+
+    // Xatlar special rule
+    const department = await this.prisma.globalDepartment.findUnique({
+      where: { id: dto.globalDepartmentId },
+    });
+
+    if (department?.slug === LETTERS_DEPARTMENT_SLUG && !userSystemRole) {
+      throw new ForbiddenException(
+        "Xatlar bo'limida mijozlar xabar yoza olmaydi",
+      );
+    }
+
+    // Reply validation
+    if (dto.replyToId) {
+      const replyToMessage = await this.prisma.message.findFirst({
+        where: { id: dto.replyToId, companyId: dto.companyId, isDeleted: false },
+      });
+      if (!replyToMessage) {
+        throw new NotFoundException('Reply qilinayotgan xabar topilmadi');
+      }
+    }
+
+    // Fayllarni validatsiya qilish
+    for (const file of files || []) {
+      const fileType = this.getFileType(file.mimetype);
+      this.validateFileSize(file.size, fileType);
+    }
+
+    // Fayllarni storage'ga yuklash (transaction'dan tashqarida)
+    const uploadedFiles: { file: Express.Multer.File; uploaded: UploadedFile; fileType: FileType }[] = [];
+
+    try {
+      for (const file of files || []) {
+        const fileType = this.getFileType(file.mimetype);
+        const folder = this.getFolderName(fileType);
+        const uploaded = await this.storage.upload(file, folder);
+        uploadedFiles.push({ file, uploaded, fileType });
+      }
+
+      // Message type aniqlash
+      const messageType = this.determineMessageType(dto, files);
+
+      // Transaction: message + files yaratish
+      const result = await this.prisma.$transaction(async (tx) => {
+        // 1. Message yaratish
+        const message = await tx.message.create({
+          data: {
+            companyId: dto.companyId,
+            globalDepartmentId: dto.globalDepartmentId,
+            senderId: userId,
+            content: dto.content || null,
+            type: messageType,
+            voiceDuration: dto.voiceDuration,
+            replyToId: dto.replyToId,
+            status: MessageStatus.SENT,
+          },
+        });
+
+        // 2. File records yaratish
+        if (uploadedFiles.length > 0) {
+          await tx.file.createMany({
+            data: uploadedFiles.map(({ uploaded, fileType }) => ({
+              uploadedBy: userId,
+              globalDepartmentId: dto.globalDepartmentId,
+              messageId: message.id,
+              originalName: uploaded.originalName,
+              fileName: uploaded.fileName,
+              fileSize: uploaded.size,
+              mimeType: uploaded.mimeType,
+              fileType,
+              path: uploaded.path,
+              isOutgoing: true,
+            })),
+          });
+        }
+
+        // 3. Full message olish
+        return tx.message.findUnique({
+          where: { id: message.id },
+          include: {
+            sender: {
+              select: { id: true, username: true, name: true, avatar: true, systemRole: true },
+            },
+            replyTo: {
+              select: REPLY_TO_SELECT,
+            },
+            files: true,
+          },
+        });
+      });
+
+      // Notification yuborish (transaction'dan keyin)
+      if (this.messageProducer && result) {
+        await this.messageProducer.sendNewMessage({
+          messageId: result.id,
+          companyId: dto.companyId,
+          globalDepartmentId: dto.globalDepartmentId,
+          senderId: userId,
+          content: dto.content,
+          type: result.type,
+          replyToId: dto.replyToId as any,
+          createdAt: result.createdAt,
+          sender: {
+            id: result.sender.id,
+            username: result.sender.username,
+            name: result.sender.name,
+            avatar: result.sender.avatar || undefined,
+          },
+          files: result.files?.map((f) => ({
+            id: f.id,
+            originalName: f.originalName,
+            fileType: f.fileType,
+            url: this.storage!.getUrl(f.path),
+          })),
+        } as any);
+      }
+
+      return {
+        ...result,
+        files: result?.files?.map((f) => ({
+          ...f,
+          url: this.storage!.getUrl(f.path),
+        })),
+      };
+    } catch (error) {
+      // Rollback: yuklangan fayllarni o'chirish
+      for (const { uploaded } of uploadedFiles) {
+        try {
+          await this.storage.delete(uploaded.path);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+      throw error;
+    }
+  }
+
+  private getFileType(mimeType: string): FileType {
+    if (ALLOWED_MIME_TYPES.IMAGE.includes(mimeType)) return FileType.IMAGE;
+    if (ALLOWED_MIME_TYPES.DOCUMENT.includes(mimeType)) return FileType.DOCUMENT;
+    if (ALLOWED_MIME_TYPES.VOICE.includes(mimeType)) return FileType.VOICE;
+    return FileType.OTHER;
+  }
+
+  private validateFileSize(size: number, fileType: FileType): void {
+    const maxSize = FILE_SIZE_LIMITS[fileType];
+    if (size > maxSize) {
+      const maxMB = maxSize / (1024 * 1024);
+      throw new BadRequestException(`Fayl hajmi ${maxMB}MB dan oshmasligi kerak`);
+    }
+  }
+
+  private getFolderName(fileType: FileType): string {
+    switch (fileType) {
+      case FileType.IMAGE: return 'images';
+      case FileType.DOCUMENT: return 'documents';
+      case FileType.VOICE: return 'voice';
+      default: return 'other';
+    }
+  }
+
+  private determineMessageType(
+    dto: CreateMessageWithFilesDto,
+    files: Express.Multer.File[],
+  ): MessageType {
+    if (!files?.length) return MessageType.TEXT;
+
+    // Voice file mavjud bo'lsa
+    if (dto.voiceDuration && files.some((f) => ALLOWED_MIME_TYPES.VOICE.includes(f.mimetype))) {
+      return MessageType.VOICE;
+    }
+
+    // Fayllar mavjud bo'lsa FILE type
+    return MessageType.FILE;
   }
 }

@@ -18,7 +18,7 @@ describe('MessagesController', () => {
   };
 
   const mockMessagesService = {
-    create: jest.fn(),
+    createWithFiles: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
@@ -39,18 +39,19 @@ describe('MessagesController', () => {
   });
 
   describe('create', () => {
-    it('should create a message', async () => {
-      mockMessagesService.create.mockResolvedValue(mockMessage);
+    it('should create a message with files', async () => {
+      mockMessagesService.createWithFiles.mockResolvedValue(mockMessage);
       const dto = {
         companyId: 'company-1',
         globalDepartmentId: 'dept-1',
         content: 'Hello',
       };
+      const files: Express.Multer.File[] = [];
 
-      const result = await controller.create(dto, 'user-1', SystemRole.FIN_ADMIN);
+      const result = await controller.create(dto, files, 'user-1', SystemRole.FIN_ADMIN);
 
       expect(result).toEqual(mockMessage);
-      expect(service.create).toHaveBeenCalledWith('user-1', SystemRole.FIN_ADMIN, dto);
+      expect(service.createWithFiles).toHaveBeenCalledWith('user-1', SystemRole.FIN_ADMIN, dto, files);
     });
   });
 
