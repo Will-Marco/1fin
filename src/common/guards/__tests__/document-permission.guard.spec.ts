@@ -1,9 +1,20 @@
-import { ExecutionContext, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../database/prisma.service';
 import { DocumentPermissionGuard } from '../document-permission.guard';
-import { SystemRole, DocumentStatus } from '../../../../generated/prisma/client';
-import { BANK_PAYMENT_DEPARTMENT_SLUG, LETTERS_DEPARTMENT_SLUG } from '../../constants';
+import {
+  SystemRole,
+  DocumentStatus,
+} from '../../../../generated/prisma/client';
+import {
+  BANK_PAYMENT_DEPARTMENT_SLUG,
+  LETTERS_DEPARTMENT_SLUG,
+} from '../../constants';
 
 describe('DocumentPermissionGuard', () => {
   let guard: DocumentPermissionGuard;
@@ -45,46 +56,66 @@ describe('DocumentPermissionGuard', () => {
 
   it('should throw ForbiddenException if user not found', async () => {
     const context = createMockContext({});
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should throw BadRequestException if documentId not provided', async () => {
     const context = createMockContext({ user: { id: 'user-1' }, params: {} });
-    await expect(guard.canActivate(context)).rejects.toThrow(BadRequestException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('should throw NotFoundException if document not found', async () => {
     mockPrismaService.document.findUnique.mockResolvedValue(null);
-    const context = createMockContext({ user: { id: 'user-1' }, params: { id: 'doc-1' } });
+    const context = createMockContext({
+      user: { id: 'user-1' },
+      params: { id: 'doc-1' },
+    });
     await expect(guard.canActivate(context)).rejects.toThrow(NotFoundException);
   });
 
   it('should throw ForbiddenException if document is not PENDING', async () => {
     mockPrismaService.document.findUnique.mockResolvedValue({
       status: DocumentStatus.ACCEPTED,
-      globalDepartment: { slug: 'test' }
+      globalDepartment: { slug: 'test' },
     });
-    const context = createMockContext({ user: { id: 'user-1' }, params: { id: 'doc-1' } });
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    const context = createMockContext({
+      user: { id: 'user-1' },
+      params: { id: 'doc-1' },
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should throw ForbiddenException for Bank Oplata', async () => {
     mockPrismaService.document.findUnique.mockResolvedValue({
       status: DocumentStatus.PENDING,
-      globalDepartment: { slug: BANK_PAYMENT_DEPARTMENT_SLUG }
+      globalDepartment: { slug: BANK_PAYMENT_DEPARTMENT_SLUG },
     });
-    const context = createMockContext({ user: { id: 'user-1' }, params: { id: 'doc-1' } });
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    const context = createMockContext({
+      user: { id: 'user-1' },
+      params: { id: 'doc-1' },
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should pass for FIN_* users', async () => {
     mockPrismaService.document.findUnique.mockResolvedValue({
       status: DocumentStatus.PENDING,
-      globalDepartment: { slug: 'test' }
+      globalDepartment: { slug: 'test' },
     });
-    const request = { user: { id: 'user-1', systemRole: SystemRole.FIN_ADMIN }, params: { id: 'doc-1' } };
+    const request = {
+      user: { id: 'user-1', systemRole: SystemRole.FIN_ADMIN },
+      params: { id: 'doc-1' },
+    };
     const context = createMockContext(request);
-    
+
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
     expect((request as any).document).toBeDefined();
@@ -94,22 +125,22 @@ describe('DocumentPermissionGuard', () => {
     mockPrismaService.document.findUnique.mockResolvedValue({
       companyId: 'company-1',
       status: DocumentStatus.PENDING,
-      globalDepartment: { slug: LETTERS_DEPARTMENT_SLUG }
+      globalDepartment: { slug: LETTERS_DEPARTMENT_SLUG },
     });
     mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
       isActive: true,
     });
-    
+
     // Simulating a reject request by adding /reject to path
-    const request = { 
-      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR }, 
+    const request = {
+      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR },
       params: { id: 'doc-1' },
-      route: { path: '/documents/:id/reject' }
+      route: { path: '/documents/:id/reject' },
     };
     const context = createMockContext(request);
-    
+
     await expect(guard.canActivate(context)).rejects.toThrow(
-      "Xatlar bo'limida hujjatlarni rad etish mumkin emas (faqat 'Tanishdim' tugmasi majvud)"
+      "Xatlar bo'limida hujjatlarni rad etish mumkin emas (faqat 'Tanishdim' tugmasi majvud)",
     );
   });
 
@@ -117,19 +148,19 @@ describe('DocumentPermissionGuard', () => {
     mockPrismaService.document.findUnique.mockResolvedValue({
       companyId: 'company-1',
       status: DocumentStatus.PENDING,
-      globalDepartment: { slug: LETTERS_DEPARTMENT_SLUG }
+      globalDepartment: { slug: LETTERS_DEPARTMENT_SLUG },
     });
     mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
       isActive: true,
     });
-    
-    const request = { 
-      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR }, 
+
+    const request = {
+      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR },
       params: { id: 'doc-1' },
-      route: { path: '/documents/:id/approve' }
+      route: { path: '/documents/:id/approve' },
     };
     const context = createMockContext(request);
-    
+
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
   });

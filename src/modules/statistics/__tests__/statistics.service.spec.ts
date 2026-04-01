@@ -66,11 +66,13 @@ describe('StatisticsService', () => {
       mockPrismaService.document.findMany.mockResolvedValue([
         {
           createdAt: new Date('2026-03-01T10:00:00Z'),
-          approvedAt: new Date('2026-03-01T12:00:00Z')
+          approvedAt: new Date('2026-03-01T12:00:00Z'),
         },
       ]);
 
-      const result = await service.getStatistics({ period: StatisticsPeriod.MONTHLY });
+      const result = await service.getStatistics({
+        period: StatisticsPeriod.MONTHLY,
+      });
 
       expect(result.documents.total).toBe(7);
       expect(result.documents.accepted).toBe(5);
@@ -94,7 +96,9 @@ describe('StatisticsService', () => {
       };
       mockCacheManager.get.mockResolvedValue(cachedResult);
 
-      const result = await service.getStatistics({ period: StatisticsPeriod.MONTHLY });
+      const result = await service.getStatistics({
+        period: StatisticsPeriod.MONTHLY,
+      });
 
       expect(result).toEqual(cachedResult);
       // Database chaqirilmasligi kerak
@@ -105,11 +109,20 @@ describe('StatisticsService', () => {
     it('should build different cache keys for different parameters', async () => {
       mockPrismaService.document.groupBy.mockResolvedValue([]);
       mockPrismaService.message.groupBy.mockResolvedValue([]);
-      mockPrismaService.file.aggregate.mockResolvedValue({ _count: { _all: 0 }, _sum: { fileSize: 0 } });
+      mockPrismaService.file.aggregate.mockResolvedValue({
+        _count: { _all: 0 },
+        _sum: { fileSize: 0 },
+      });
       mockPrismaService.document.findMany.mockResolvedValue([]);
 
-      await service.getStatistics({ period: StatisticsPeriod.MONTHLY, companyId: 'company-1' });
-      await service.getStatistics({ period: StatisticsPeriod.MONTHLY, companyId: 'company-2' });
+      await service.getStatistics({
+        period: StatisticsPeriod.MONTHLY,
+        companyId: 'company-1',
+      });
+      await service.getStatistics({
+        period: StatisticsPeriod.MONTHLY,
+        companyId: 'company-2',
+      });
 
       // Ikki xil key bilan cache set qilinishi kerak
       expect(mockCacheManager.set).toHaveBeenCalledTimes(2);

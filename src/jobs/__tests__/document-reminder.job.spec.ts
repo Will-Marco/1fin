@@ -47,14 +47,15 @@ describe('DocumentReminderJob', () => {
         },
       ];
 
-      const mockMemberships = [
-        { userId: 'user-1' },
-        { userId: 'user-2' },
-      ];
+      const mockMemberships = [{ userId: 'user-1' }, { userId: 'user-2' }];
 
       mockPrismaService.document.findMany.mockResolvedValue(mockDocuments);
-      mockPrismaService.userCompanyMembership.findMany.mockResolvedValue(mockMemberships);
-      mockNotificationProducer.sendDocumentReminder.mockResolvedValue(undefined);
+      mockPrismaService.userCompanyMembership.findMany.mockResolvedValue(
+        mockMemberships,
+      );
+      mockNotificationProducer.sendDocumentReminder.mockResolvedValue(
+        undefined,
+      );
 
       await job.handleDocumentReminder();
 
@@ -62,7 +63,9 @@ describe('DocumentReminderJob', () => {
         where: { status: DocumentStatus.PENDING },
       });
 
-      expect(mockPrismaService.userCompanyMembership.findMany).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.userCompanyMembership.findMany,
+      ).toHaveBeenCalledWith({
         where: {
           companyId: 'company-1',
           isActive: true,
@@ -73,7 +76,9 @@ describe('DocumentReminderJob', () => {
         select: { userId: true },
       });
 
-      expect(mockNotificationProducer.sendDocumentReminder).toHaveBeenCalledWith({
+      expect(
+        mockNotificationProducer.sendDocumentReminder,
+      ).toHaveBeenCalledWith({
         userIds: ['user-1', 'user-2'],
         documentId: 'doc-1',
         documentName: 'Contract A',
@@ -86,16 +91,22 @@ describe('DocumentReminderJob', () => {
     it('should handle zero documents', async () => {
       mockPrismaService.document.findMany.mockResolvedValue([]);
       await job.handleDocumentReminder();
-      expect(mockNotificationProducer.sendDocumentReminder).not.toHaveBeenCalled();
+      expect(
+        mockNotificationProducer.sendDocumentReminder,
+      ).not.toHaveBeenCalled();
     });
 
     it('should handle documents with no members', async () => {
-      mockPrismaService.document.findMany.mockResolvedValue([{ id: 'doc-1', companyId: 'c1', globalDepartmentId: 'd1' }]);
+      mockPrismaService.document.findMany.mockResolvedValue([
+        { id: 'doc-1', companyId: 'c1', globalDepartmentId: 'd1' },
+      ]);
       mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([]);
-      
+
       await job.handleDocumentReminder();
-      
-      expect(mockNotificationProducer.sendDocumentReminder).not.toHaveBeenCalled();
+
+      expect(
+        mockNotificationProducer.sendDocumentReminder,
+      ).not.toHaveBeenCalled();
     });
   });
 });

@@ -108,7 +108,7 @@ describe('MessageConsumer', () => {
           expect.objectContaining({
             type: NotificationType.NEW_MESSAGE,
             title: 'Yangi xabar - User',
-          })
+          }),
         );
       });
     });
@@ -116,18 +116,36 @@ describe('MessageConsumer', () => {
     describe('edit message handler', () => {
       it('should emit edited message', async () => {
         await (consumer as any).consumeEditedMessages();
-        const payload = { companyId: 'c1', globalDepartmentId: 'd1', messageId: 'm1' };
+        const payload = {
+          companyId: 'c1',
+          globalDepartmentId: 'd1',
+          messageId: 'm1',
+        };
         await editMessageHandler({ payload });
-        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith('c1', 'd1', 'message:edited', payload);
+        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith(
+          'c1',
+          'd1',
+          'message:edited',
+          payload,
+        );
       });
     });
 
     describe('delete message handler', () => {
       it('should emit deleted message', async () => {
         await (consumer as any).consumeDeletedMessages();
-        const payload = { companyId: 'c1', globalDepartmentId: 'd1', messageId: 'm1' };
+        const payload = {
+          companyId: 'c1',
+          globalDepartmentId: 'd1',
+          messageId: 'm1',
+        };
         await deleteMessageHandler({ payload });
-        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith('c1', 'd1', 'message:deleted', { messageId: 'm1' });
+        expect(mockMessagesGateway.emitToRoom).toHaveBeenCalledWith(
+          'c1',
+          'd1',
+          'message:deleted',
+          { messageId: 'm1' },
+        );
       });
     });
   });

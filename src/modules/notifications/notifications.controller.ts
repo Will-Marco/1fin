@@ -84,10 +84,7 @@ export class NotificationsController {
       },
     },
   })
-  async markAsRead(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  async markAsRead(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.notificationsService.markAsRead(id, userId);
   }
 
@@ -96,7 +93,12 @@ export class NotificationsController {
   @ApiResponse({
     status: 200,
     description: 'All notifications marked as read',
-    schema: { example: { message: "Barcha bildirishnomalar o'qilgan deb belgilandi", count: 5 } },
+    schema: {
+      example: {
+        message: "Barcha bildirishnomalar o'qilgan deb belgilandi",
+        count: 5,
+      },
+    },
   })
   async markAllAsRead(@CurrentUser('id') userId: string) {
     return this.notificationsService.markAllAsRead(userId);
@@ -109,10 +111,7 @@ export class NotificationsController {
     description: 'Notification deleted',
     schema: { example: { message: "Bildirishnoma o'chirildi" } },
   })
-  async delete(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  async delete(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.notificationsService.delete(id, userId);
   }
 
@@ -121,7 +120,9 @@ export class NotificationsController {
   @ApiResponse({
     status: 200,
     description: 'All notifications deleted',
-    schema: { example: { message: "Barcha bildirishnomalar o'chirildi", count: 10 } },
+    schema: {
+      example: { message: "Barcha bildirishnomalar o'chirildi", count: 10 },
+    },
   })
   async deleteAll(@CurrentUser('id') userId: string) {
     return this.notificationsService.deleteAll(userId);

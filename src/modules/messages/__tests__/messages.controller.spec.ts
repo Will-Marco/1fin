@@ -28,9 +28,7 @@ describe('MessagesController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MessagesController],
-      providers: [
-        { provide: MessagesService, useValue: mockMessagesService },
-      ],
+      providers: [{ provide: MessagesService, useValue: mockMessagesService }],
     }).compile();
 
     controller = module.get<MessagesController>(MessagesController);
@@ -48,43 +46,93 @@ describe('MessagesController', () => {
       };
       const files: Express.Multer.File[] = [];
 
-      const result = await controller.create(dto, files, 'user-1', SystemRole.FIN_ADMIN);
+      const result = await controller.create(
+        dto,
+        files,
+        'user-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result).toEqual(mockMessage);
-      expect(service.createWithFiles).toHaveBeenCalledWith('user-1', SystemRole.FIN_ADMIN, dto, files);
+      expect(service.createWithFiles).toHaveBeenCalledWith(
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        dto,
+        files,
+      );
     });
   });
 
   describe('findAll', () => {
     it('should return messages', async () => {
-      mockMessagesService.findAll.mockResolvedValue({ data: [mockMessage], meta: {} });
+      mockMessagesService.findAll.mockResolvedValue({
+        data: [mockMessage],
+        meta: {},
+      });
 
-      const result = await controller.findAll('company-1', 'dept-1', '1', '50', 'user-1', SystemRole.FIN_ADMIN);
+      const result = await controller.findAll(
+        'company-1',
+        'dept-1',
+        '1',
+        '50',
+        'user-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.data).toHaveLength(1);
-      expect(service.findAll).toHaveBeenCalledWith('company-1', 'dept-1', 'user-1', SystemRole.FIN_ADMIN, 1, 50);
+      expect(service.findAll).toHaveBeenCalledWith(
+        'company-1',
+        'dept-1',
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        1,
+        50,
+      );
     });
   });
 
   describe('update', () => {
     it('should update a message', async () => {
-      mockMessagesService.update.mockResolvedValue({ ...mockMessage, content: 'Updated' });
+      mockMessagesService.update.mockResolvedValue({
+        ...mockMessage,
+        content: 'Updated',
+      });
 
-      const result = await controller.update('msg-1', { content: 'Updated' }, 'user-1', SystemRole.FIN_ADMIN);
+      const result = await controller.update(
+        'msg-1',
+        { content: 'Updated' },
+        'user-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.content).toBe('Updated');
-      expect(service.update).toHaveBeenCalledWith('msg-1', { content: 'Updated' }, 'user-1', SystemRole.FIN_ADMIN);
+      expect(service.update).toHaveBeenCalledWith(
+        'msg-1',
+        { content: 'Updated' },
+        'user-1',
+        SystemRole.FIN_ADMIN,
+      );
     });
   });
 
   describe('remove', () => {
     it('should delete a message', async () => {
-      mockMessagesService.remove.mockResolvedValue({ message: 'Xabar o\'chirildi' });
+      mockMessagesService.remove.mockResolvedValue({
+        message: "Xabar o'chirildi",
+      });
 
-      const result = await controller.remove('msg-1', 'user-1', SystemRole.FIN_ADMIN);
+      const result = await controller.remove(
+        'msg-1',
+        'user-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.message).toBeDefined();
-      expect(service.remove).toHaveBeenCalledWith('msg-1', 'user-1', SystemRole.FIN_ADMIN);
+      expect(service.remove).toHaveBeenCalledWith(
+        'msg-1',
+        'user-1',
+        SystemRole.FIN_ADMIN,
+      );
     });
   });
 });

@@ -1,15 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-    IsArray,
-    IsInt,
-    IsNotEmpty,
-    IsObject,
-    IsOptional,
-    IsString,
-    Max,
-    Min,
-    ValidateNested,
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateCompanyMemberDto {
@@ -18,7 +18,10 @@ export class CreateCompanyMemberDto {
   @IsNotEmpty()
   userId: string;
 
-  @ApiPropertyOptional({ example: 1, description: 'Rank (1-3), only for employees' })
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Rank (1-3), only for employees',
+  })
   @IsInt()
   @Min(1)
   @Max(3)
@@ -27,7 +30,8 @@ export class CreateCompanyMemberDto {
 
   @ApiPropertyOptional({
     example: ['dept-id-1', 'dept-id-2'],
-    description: "Allowed global department IDs. Empty array = no department access.",
+    description:
+      'Allowed global department IDs. Empty array = no department access.',
   })
   @IsArray()
   @IsString({ each: true })
@@ -42,7 +46,7 @@ export class CreateCompanyDto {
   name: string;
 
   @ApiPropertyOptional({
-    example: 'IT xizmatlari va dasturiy ta\'minot ishlab chiqarish',
+    example: "IT xizmatlari va dasturiy ta'minot ishlab chiqarish",
   })
   @IsString()
   @IsOptional()
@@ -84,7 +88,7 @@ export class CreateCompanyDto {
       additionalBank: 'Second Bank',
       additionalAccount: '20208000000000000002',
     },
-    description: 'Kompaniya qo\'shimcha rekvizitlari (JSON)',
+    description: "Kompaniya qo'shimcha rekvizitlari (JSON)",
   })
   @IsObject()
   @IsOptional()

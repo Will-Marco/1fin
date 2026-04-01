@@ -223,9 +223,7 @@ describe('NotificationConsumer', () => {
 
     it('should handle push notification errors gracefully', async () => {
       mockPrismaService.notification.create.mockResolvedValue({});
-      mockOneSignalService.sendPush.mockRejectedValue(
-        new Error('Push failed'),
-      );
+      mockOneSignalService.sendPush.mockRejectedValue(new Error('Push failed'));
 
       const message = {
         type: NotificationType.NEW_MESSAGE,

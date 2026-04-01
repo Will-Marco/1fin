@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EXCHANGES, ROUTING_KEYS } from '../constants';
-import { NotificationPayload, NotificationProducer, NotificationType } from '../producers/notification.producer';
+import {
+  NotificationPayload,
+  NotificationProducer,
+  NotificationType,
+} from '../producers/notification.producer';
 import { RabbitMQService } from '../rabbitmq.service';
 
 describe('NotificationProducer', () => {

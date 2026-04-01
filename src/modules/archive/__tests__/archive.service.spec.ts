@@ -77,14 +77,27 @@ describe('ArchiveService', () => {
         },
       ]);
       mockPrismaService.document.findMany.mockResolvedValue([
-        { id: 'doc1', globalDepartmentId: 'd1', companyId: 'c1', documentName: 'Doc', documentNumber: '123', createdById: 'u1', expiresAt: oldDate, createdAt: oldDate, files: [] }
+        {
+          id: 'doc1',
+          globalDepartmentId: 'd1',
+          companyId: 'c1',
+          documentName: 'Doc',
+          documentNumber: '123',
+          createdById: 'u1',
+          expiresAt: oldDate,
+          createdAt: oldDate,
+          files: [],
+        },
       ]);
 
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         const txMock = {
           messageArchive: { create: jest.fn() },
           documentArchive: { create: jest.fn() },
-          fileArchive: { create: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+          fileArchive: {
+            create: jest.fn(),
+            findUnique: jest.fn().mockResolvedValue(null),
+          },
           file: { deleteMany: jest.fn() },
           messageEdit: { deleteMany: jest.fn() },
           messageForward: { deleteMany: jest.fn() },

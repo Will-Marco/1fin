@@ -123,7 +123,9 @@ describe('AuthService', () => {
       await expect(service.login(loginDto)).rejects.toThrow(
         UnauthorizedException,
       );
-      await expect(service.login(loginDto)).rejects.toThrow('Invalid credentials');
+      await expect(service.login(loginDto)).rejects.toThrow(
+        'Invalid credentials',
+      );
     });
 
     it('should throw UnauthorizedException if user is inactive', async () => {
@@ -147,7 +149,9 @@ describe('AuthService', () => {
       await expect(service.login(loginDto)).rejects.toThrow(
         UnauthorizedException,
       );
-      await expect(service.login(loginDto)).rejects.toThrow('Invalid credentials');
+      await expect(service.login(loginDto)).rejects.toThrow(
+        'Invalid credentials',
+      );
     });
   });
 
@@ -168,7 +172,11 @@ describe('AuthService', () => {
         .mockResolvedValueOnce('new-refresh-token');
       mockPrismaService.session.update.mockResolvedValue({});
 
-      const result = await service.refreshTokens('user-id', 'session-id', 'old-refresh');
+      const result = await service.refreshTokens(
+        'user-id',
+        'session-id',
+        'old-refresh',
+      );
 
       expect(result.accessToken).toBe('new-access-token');
       expect(result.refreshToken).toBe('new-refresh-token');

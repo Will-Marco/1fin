@@ -105,9 +105,13 @@ describe('LocalStorage', () => {
     });
 
     it('should not throw if file does not exist', async () => {
-      (fs.promises.access as jest.Mock).mockRejectedValue(new Error('Not found'));
+      (fs.promises.access as jest.Mock).mockRejectedValue(
+        new Error('Not found'),
+      );
 
-      await expect(storage.delete('images/nonexistent.jpg')).resolves.not.toThrow();
+      await expect(
+        storage.delete('images/nonexistent.jpg'),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -129,7 +133,9 @@ describe('LocalStorage', () => {
     });
 
     it('should return false if file does not exist', async () => {
-      (fs.promises.access as jest.Mock).mockRejectedValue(new Error('Not found'));
+      (fs.promises.access as jest.Mock).mockRejectedValue(
+        new Error('Not found'),
+      );
 
       const result = await storage.exists('images/nonexistent.jpg');
 

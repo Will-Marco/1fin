@@ -10,10 +10,7 @@ export interface StorageProvider {
   /**
    * Faylni yuklash
    */
-  upload(
-    file: Express.Multer.File,
-    folder: string,
-  ): Promise<UploadedFile>;
+  upload(file: Express.Multer.File, folder: string): Promise<UploadedFile>;
 
   /**
    * Faylni o'chirish

@@ -1,27 +1,27 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    FileTypeValidator,
-    Get,
-    MaxFileSizeValidator,
-    Param,
-    ParseFilePipe,
-    Patch,
-    Post,
-    Query,
-    UploadedFile,
-    UseGuards,
-    UseInterceptors,
+  Body,
+  Controller,
+  Delete,
+  FileTypeValidator,
+  Get,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
-    ApiBearerAuth,
-    ApiConsumes,
-    ApiOperation,
-    ApiQuery,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -57,7 +57,7 @@ export class CompaniesController {
         data: [
           {
             id: 'cuid-company-id',
-            name: 'O\'chirilgan kompaniya',
+            name: "O'chirilgan kompaniya",
             inn: '123456789',
             logo: null,
             address: 'Toshkent',
@@ -112,7 +112,10 @@ export class CompaniesController {
     schema: { example: { message: "Kompaniya butunlay o'chirildi" } },
   })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  @ApiResponse({ status: 409, description: 'Only deleted companies can be permanently removed' })
+  @ApiResponse({
+    status: 409,
+    description: 'Only deleted companies can be permanently removed',
+  })
   async permanentDelete(@Param('id') id: string) {
     return this.companiesService.permanentDelete(id);
   }
@@ -157,7 +160,11 @@ export class CompaniesController {
   }
 
   @Get()
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get all companies (paginated)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -196,7 +203,11 @@ export class CompaniesController {
   }
 
   @Get(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get company by ID (with department configs)' })
   @ApiResponse({
     status: 200,
@@ -212,7 +223,15 @@ export class CompaniesController {
         requisites2: null,
         isActive: true,
         departmentConfigs: [
-          { id: 'cuid', isEnabled: true, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          {
+            id: 'cuid',
+            isEnabled: true,
+            globalDepartment: {
+              id: 'cuid',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
         ],
         _count: { memberships: 5 },
       },
@@ -274,7 +293,8 @@ export class CompaniesController {
       storage: diskStorage({
         destination: './uploads/logos',
         filename: (_req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
           cb(null, uniqueSuffix + extname(file.originalname));
         },
       }),
@@ -292,7 +312,10 @@ export class CompaniesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.companiesService.updateLogo(id, `/uploads/logos/${file.filename}`);
+    return this.companiesService.updateLogo(
+      id,
+      `/uploads/logos/${file.filename}`,
+    );
   }
 
   // ─────────────────────────────────────────────
@@ -300,15 +323,31 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Get(':id/departments')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get all department configs for a company' })
   @ApiResponse({
     status: 200,
     description: 'List of department configs',
     schema: {
       example: [
-        { id: 'cuid', isEnabled: true, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
-        { id: 'cuid', isEnabled: false, globalDepartment: { id: 'cuid', name: 'Yuridik', slug: 'yuridik' } },
+        {
+          id: 'cuid',
+          isEnabled: true,
+          globalDepartment: {
+            id: 'cuid',
+            name: 'Buxgalteriya',
+            slug: 'buxgalteriya',
+          },
+        },
+        {
+          id: 'cuid',
+          isEnabled: false,
+          globalDepartment: { id: 'cuid', name: 'Yuridik', slug: 'yuridik' },
+        },
       ],
     },
   })
@@ -323,7 +362,15 @@ export class CompaniesController {
     status: 200,
     description: 'Department enabled',
     schema: {
-      example: { id: 'cuid', isEnabled: true, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+      example: {
+        id: 'cuid',
+        isEnabled: true,
+        globalDepartment: {
+          id: 'cuid',
+          name: 'Buxgalteriya',
+          slug: 'buxgalteriya',
+        },
+      },
     },
   })
   async enableDepartment(
@@ -340,7 +387,15 @@ export class CompaniesController {
     status: 200,
     description: 'Department disabled',
     schema: {
-      example: { id: 'cuid', isEnabled: false, globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+      example: {
+        id: 'cuid',
+        isEnabled: false,
+        globalDepartment: {
+          id: 'cuid',
+          name: 'Buxgalteriya',
+          slug: 'buxgalteriya',
+        },
+      },
     },
   })
   async disableDepartment(
@@ -355,7 +410,11 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Get(':id/members')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get all active members of a company with roles' })
   @ApiResponse({
     status: 200,
@@ -376,7 +435,13 @@ export class CompaniesController {
             isActive: true,
           },
           allowedDepartments: [
-            { globalDepartment: { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+            {
+              globalDepartment: {
+                id: 'cuid',
+                name: 'Buxgalteriya',
+                slug: 'buxgalteriya',
+              },
+            },
           ],
         },
       ],

@@ -1,12 +1,15 @@
 import {
-    BadRequestException,
-    ConflictException,
-    NotFoundException,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import { SystemRole, UserDocumentType } from '../../../../generated/prisma/client';
+import {
+  SystemRole,
+  UserDocumentType,
+} from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { STORAGE_PROVIDER } from '../../files/storage/storage.interface';
 import { UsersService } from '../users.service';
@@ -141,8 +144,8 @@ describe('UsersService', () => {
 
     it('should create a system user with passport', async () => {
       mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(null)       // username check
-        .mockResolvedValueOnce(mockUser);  // findOne
+        .mockResolvedValueOnce(null) // username check
+        .mockResolvedValueOnce(mockUser); // findOne
       mockPrismaService.user.create.mockResolvedValue(mockUser);
       mockPrismaService.userDocument.create.mockResolvedValue({});
       mockStorageProvider.upload.mockResolvedValue(mockUploadResult);
@@ -177,8 +180,9 @@ describe('UsersService', () => {
       mockPrismaService.user.create.mockResolvedValue(mockUser);
       mockPrismaService.userDocument.create.mockResolvedValue({});
       mockStorageProvider.upload
-        .mockResolvedValueOnce(mockUploadResult)  // passport
-        .mockResolvedValueOnce({                   // additional document
+        .mockResolvedValueOnce(mockUploadResult) // passport
+        .mockResolvedValueOnce({
+          // additional document
           ...mockUploadResult,
           originalName: 'diploma.pdf',
           fileName: 'uuid-diploma.pdf',
@@ -186,11 +190,9 @@ describe('UsersService', () => {
         });
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
-      const result = await service.createSystemUser(
-        dto,
-        mockPassportFile,
-        [mockDocumentFile],
-      );
+      const result = await service.createSystemUser(dto, mockPassportFile, [
+        mockDocumentFile,
+      ]);
 
       expect(result.username).toBe('fin_employee01');
       expect(mockStorageProvider.upload).toHaveBeenCalledTimes(2);
@@ -277,7 +279,12 @@ describe('UsersService', () => {
       const result = await service.findAll(1, 20, {}, SystemRole.FIN_DIRECTOR);
 
       expect(result.data).toHaveLength(1);
-      expect(result.meta).toMatchObject({ total: 1, page: 1, limit: 20, totalPages: 1 });
+      expect(result.meta).toMatchObject({
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      });
     });
 
     it('should filter by role visibility - FIN_DIRECTOR sees all', async () => {
@@ -427,7 +434,9 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -497,8 +506,12 @@ describe('UsersService', () => {
       mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
         { globalDepartmentId: 'dept-id-1' },
       ]);
-      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue(null);
-      mockPrismaService.userCompanyMembership.create.mockResolvedValue(mockMembership);
+      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue(
+        null,
+      );
+      mockPrismaService.userCompanyMembership.create.mockResolvedValue(
+        mockMembership,
+      );
 
       const result = await service.assignMembership('user-id', dto);
 
@@ -565,10 +578,14 @@ describe('UsersService', () => {
       mockPrismaService.$transaction.mockResolvedValue([]);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
-      const result = await service.updateMembership('user-id', 'membership-id', {
-        rank: 2,
-        allowedDepartmentIds: ['dept-id-2'],
-      });
+      const result = await service.updateMembership(
+        'user-id',
+        'membership-id',
+        {
+          rank: 2,
+          allowedDepartmentIds: ['dept-id-2'],
+        },
+      );
 
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
     });
@@ -597,7 +614,9 @@ describe('UsersService', () => {
       const result = await service.removeMembership('user-id', 'membership-id');
 
       expect(result.message).toBe("Membership o'chirildi");
-      expect(mockPrismaService.userCompanyMembership.delete).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.userCompanyMembership.delete,
+      ).toHaveBeenCalledWith({
         where: { id: 'membership-id' },
       });
     });

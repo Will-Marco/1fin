@@ -84,7 +84,9 @@ export class DepartmentAccessGuard implements CanActivate {
     });
 
     if (!membership || !membership.isActive) {
-      throw new ForbiddenException('Siz bu kompaniyaga kirish huquqiga ega emassiz');
+      throw new ForbiddenException(
+        'Siz bu kompaniyaga kirish huquqiga ega emassiz',
+      );
     }
 
     // Check if user has access to this department

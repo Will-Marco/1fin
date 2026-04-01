@@ -72,7 +72,9 @@ describe('RabbitMQService', () => {
 
     it('should handle connection errors gracefully', async () => {
       mockConfigService.get.mockReturnValue('amqp://localhost:5672');
-      (amqp.connect as jest.Mock).mockRejectedValue(new Error('Connection failed'));
+      (amqp.connect as jest.Mock).mockRejectedValue(
+        new Error('Connection failed'),
+      );
 
       await service.onModuleInit();
 
@@ -87,7 +89,9 @@ describe('RabbitMQService', () => {
     });
 
     it('should publish message to exchange', async () => {
-      const result = await service.publish('test-exchange', 'test-key', { data: 'test' });
+      const result = await service.publish('test-exchange', 'test-key', {
+        data: 'test',
+      });
 
       expect(result).toBe(true);
       expect(mockChannel.publish).toHaveBeenCalledWith(
@@ -102,7 +106,9 @@ describe('RabbitMQService', () => {
       // Create new service without connection
       const newService = new RabbitMQService(configService);
 
-      const result = await newService.publish('test-exchange', 'test-key', { data: 'test' });
+      const result = await newService.publish('test-exchange', 'test-key', {
+        data: 'test',
+      });
 
       expect(result).toBe(false);
     });
@@ -128,7 +134,9 @@ describe('RabbitMQService', () => {
     it('should return false when not connected', async () => {
       const newService = new RabbitMQService(configService);
 
-      const result = await newService.sendToQueue('test-queue', { data: 'test' });
+      const result = await newService.sendToQueue('test-queue', {
+        data: 'test',
+      });
 
       expect(result).toBe(false);
     });

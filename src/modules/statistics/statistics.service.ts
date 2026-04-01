@@ -1,7 +1,18 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { Cache } from 'cache-manager';
-import { endOfDay, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
+import {
+  endOfDay,
+  parseISO,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns';
 import { DocumentStatus, MessageType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { GetStatisticsDto, StatisticsPeriod } from './dto/get-statistics.dto';
@@ -20,7 +31,11 @@ export class StatisticsService {
   ) {}
 
   async getStatistics(dto: GetStatisticsDto) {
-    const { startDate, endDate } = this.getDateRange(dto.period, dto.from, dto.to);
+    const { startDate, endDate } = this.getDateRange(
+      dto.period,
+      dto.from,
+      dto.to,
+    );
 
     // Cache key yaratish
     const cacheKey = this.buildCacheKey(dto, startDate, endDate);
@@ -40,65 +55,86 @@ export class StatisticsService {
         lte: endDate,
       },
       ...(dto.companyId && { companyId: dto.companyId }),
-      ...(dto.globalDepartmentId && { globalDepartmentId: dto.globalDepartmentId }),
+      ...(dto.globalDepartmentId && {
+        globalDepartmentId: dto.globalDepartmentId,
+      }),
     };
 
     // Parallel hisoblashlar (barcha query'lar bir vaqtda)
-    const [documentsRaw, messagesRaw, filesRaw, approvedDocs] = await Promise.all([
-      // Documents by status
-      this.prisma.document.groupBy({
-        by: ['status'],
-        where: baseWhere,
-        _count: { _all: true },
-      }),
-      // Messages by type
-      this.prisma.message.groupBy({
-        by: ['type'],
-        where: baseWhere,
-        _count: { _all: true },
-      }),
-      // Files aggregate
-      this.prisma.file.aggregate({
-        where: baseWhere,
-        _count: { _all: true },
-        _sum: { fileSize: true },
-      }),
-      // Approved documents for avg response time
-      this.prisma.document.findMany({
-        where: {
-          ...baseWhere,
-          status: DocumentStatus.ACCEPTED,
-          approvedAt: { not: null },
-        },
-        select: { createdAt: true, approvedAt: true },
-      }),
-    ]);
+    const [documentsRaw, messagesRaw, filesRaw, approvedDocs] =
+      await Promise.all([
+        // Documents by status
+        this.prisma.document.groupBy({
+          by: ['status'],
+          where: baseWhere,
+          _count: { _all: true },
+        }),
+        // Messages by type
+        this.prisma.message.groupBy({
+          by: ['type'],
+          where: baseWhere,
+          _count: { _all: true },
+        }),
+        // Files aggregate
+        this.prisma.file.aggregate({
+          where: baseWhere,
+          _count: { _all: true },
+          _sum: { fileSize: true },
+        }),
+        // Approved documents for avg response time
+        this.prisma.document.findMany({
+          where: {
+            ...baseWhere,
+            status: DocumentStatus.ACCEPTED,
+            approvedAt: { not: null },
+          },
+          select: { createdAt: true, approvedAt: true },
+        }),
+      ]);
 
     const avgResponseHours = this.calculateAvgResponseHours(approvedDocs);
 
     // Shake values
     const documentsStats = {
       total: documentsRaw.reduce((acc, curr) => acc + curr._count._all, 0),
-      accepted: documentsRaw.find((d) => d.status === DocumentStatus.ACCEPTED)?._count._all || 0,
-      rejected: documentsRaw.find((d) => d.status === DocumentStatus.REJECTED)?._count._all || 0,
-      autoExpired: documentsRaw.find((d) => d.status === DocumentStatus.AUTO_EXPIRED)?._count._all || 0,
-      pending: documentsRaw.find((d) => d.status === DocumentStatus.PENDING)?._count._all || 0,
+      accepted:
+        documentsRaw.find((d) => d.status === DocumentStatus.ACCEPTED)?._count
+          ._all || 0,
+      rejected:
+        documentsRaw.find((d) => d.status === DocumentStatus.REJECTED)?._count
+          ._all || 0,
+      autoExpired:
+        documentsRaw.find((d) => d.status === DocumentStatus.AUTO_EXPIRED)
+          ?._count._all || 0,
+      pending:
+        documentsRaw.find((d) => d.status === DocumentStatus.PENDING)?._count
+          ._all || 0,
       avgResponseHours,
     };
 
     const messagesStats = {
       total: messagesRaw.reduce((acc, curr) => acc + curr._count._all, 0),
       byType: {
-        TEXT: messagesRaw.find((m) => m.type === MessageType.TEXT)?._count._all || 0,
-        FILE: messagesRaw.find((m) => m.type === MessageType.FILE)?._count._all || 0,
-        VOICE: messagesRaw.find((m) => m.type === MessageType.VOICE)?._count._all || 0,
-        DOCUMENT_FORWARD: messagesRaw.find((m) => m.type === MessageType.DOCUMENT_FORWARD)?._count._all || 0,
+        TEXT:
+          messagesRaw.find((m) => m.type === MessageType.TEXT)?._count._all ||
+          0,
+        FILE:
+          messagesRaw.find((m) => m.type === MessageType.FILE)?._count._all ||
+          0,
+        VOICE:
+          messagesRaw.find((m) => m.type === MessageType.VOICE)?._count._all ||
+          0,
+        DOCUMENT_FORWARD:
+          messagesRaw.find((m) => m.type === MessageType.DOCUMENT_FORWARD)
+            ?._count._all || 0,
       },
     };
 
     const filesStats = {
       total: filesRaw._count._all || 0,
-      totalSizeMB: filesRaw._sum.fileSize ? Number((filesRaw._sum.fileSize / (1024 * 1024)).toFixed(2)) : 0,
+      totalSizeMB: filesRaw._sum.fileSize
+        ? Number((filesRaw._sum.fileSize / (1024 * 1024)).toFixed(2))
+        : 0,
     };
 
     const result = {
@@ -139,13 +175,17 @@ export class StatisticsService {
         break;
       case StatisticsPeriod.CUSTOM:
         if (!from || !to) {
-          throw new BadRequestException('CUSTOM period requires "from" and "to" dates.');
+          throw new BadRequestException(
+            'CUSTOM period requires "from" and "to" dates.',
+          );
         }
         startDate = startOfDay(parseISO(from));
         endDate = endOfDay(parseISO(to));
-        
+
         if (startDate > endDate) {
-            throw new BadRequestException('"from" date must be before "to" date.');
+          throw new BadRequestException(
+            '"from" date must be before "to" date.',
+          );
         }
         break;
       default:
@@ -158,7 +198,11 @@ export class StatisticsService {
   /**
    * Cache key yaratish
    */
-  private buildCacheKey(dto: GetStatisticsDto, startDate: Date, endDate: Date): string {
+  private buildCacheKey(
+    dto: GetStatisticsDto,
+    startDate: Date,
+    endDate: Date,
+  ): string {
     const parts = [
       CACHE_PREFIX,
       dto.companyId || 'all',

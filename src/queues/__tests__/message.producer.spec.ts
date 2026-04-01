@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { MessageProducer, MessagePayload, MessageEditPayload, MessageDeletePayload } from '../producers/message.producer';
+import {
+  MessageProducer,
+  MessagePayload,
+  MessageEditPayload,
+  MessageDeletePayload,
+} from '../producers/message.producer';
 import { RabbitMQService } from '../rabbitmq.service';
 import { EXCHANGES, ROUTING_KEYS } from '../constants';
 

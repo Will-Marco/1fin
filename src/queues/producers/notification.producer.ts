@@ -13,7 +13,7 @@ export enum NotificationType {
 
 export interface NotificationPayload {
   type: NotificationType;
-  userId: string;       // kimga yuboriladi
+  userId: string; // kimga yuboriladi
   title: string;
   body: string;
   data?: {
@@ -40,7 +40,10 @@ export class NotificationProducer {
     );
   }
 
-  async sendToMany(userIds: string[], notification: Omit<NotificationPayload, 'userId'>) {
+  async sendToMany(
+    userIds: string[],
+    notification: Omit<NotificationPayload, 'userId'>,
+  ) {
     const promises = userIds.map((userId) =>
       this.send({
         ...notification,

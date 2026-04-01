@@ -56,7 +56,9 @@ describe('NotificationsController', () => {
 
   describe('getUnreadCount', () => {
     it('should return unread count', async () => {
-      mockNotificationsService.getUnreadCount.mockResolvedValue({ unreadCount: 5 });
+      mockNotificationsService.getUnreadCount.mockResolvedValue({
+        unreadCount: 5,
+      });
 
       const result = await controller.getUnreadCount('user-id');
 

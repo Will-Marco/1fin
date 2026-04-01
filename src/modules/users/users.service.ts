@@ -1,21 +1,24 @@
 import {
-    BadRequestException,
-    ConflictException,
-    Inject,
-    Injectable,
-    NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemRole, UserDocumentType } from '../../../generated/prisma/client';
-import { STORAGE_PROVIDER, StorageProvider } from '../files/storage/storage.interface';
 import {
-    AssignMembershipDto,
-    CreateClientUserDto,
-    CreateSystemUserDto,
-    UpdateMembershipDto,
-    UpdateUserDto,
+  STORAGE_PROVIDER,
+  StorageProvider,
+} from '../files/storage/storage.interface';
+import {
+  AssignMembershipDto,
+  CreateClientUserDto,
+  CreateSystemUserDto,
+  UpdateMembershipDto,
+  UpdateUserDto,
 } from './dto';
 
 @Injectable()
@@ -294,7 +297,7 @@ export class UsersService {
       }),
     ]);
 
-    return { message: 'Foydalanuvchi o\'chirildi' };
+    return { message: "Foydalanuvchi o'chirildi" };
   }
 
   // ─────────────────────────────────────────────
@@ -338,7 +341,7 @@ export class UsersService {
     });
     if (existing) {
       throw new ConflictException(
-        'Foydalanuvchi bu kompaniyada allaqachon ro\'yxatdan o\'tgan',
+        "Foydalanuvchi bu kompaniyada allaqachon ro'yxatdan o'tgan",
       );
     }
 
@@ -452,7 +455,7 @@ export class UsersService {
       where: { id: membershipId },
     });
 
-    return { message: 'Membership o\'chirildi' };
+    return { message: "Membership o'chirildi" };
   }
 
   // ─────────────────────────────────────────────
@@ -477,7 +480,10 @@ export class UsersService {
     documents?: Express.Multer.File[],
   ) {
     // Upload passport
-    const passportUploaded = await this.storage.upload(passport, 'user-documents');
+    const passportUploaded = await this.storage.upload(
+      passport,
+      'user-documents',
+    );
     await this.prisma.userDocument.create({
       data: {
         userId,

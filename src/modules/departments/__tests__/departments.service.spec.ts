@@ -1,7 +1,4 @@
-import {
-    ConflictException,
-    NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../database/prisma.service';
 import { DepartmentsService } from '../departments.service';
@@ -67,7 +64,10 @@ describe('DepartmentsService (GlobalDepartment)', () => {
       expect(result.slug).toBe('bank-payment');
       expect(mockPrismaService.globalDepartment.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ name: "Bank to'lovlari", isActive: true }),
+          data: expect.objectContaining({
+            name: "Bank to'lovlari",
+            isActive: true,
+          }),
         }),
       );
     });
@@ -80,7 +80,7 @@ describe('DepartmentsService (GlobalDepartment)', () => {
       });
 
       const result = await service.create({
-        name: "Umumiy chat",
+        name: 'Umumiy chat',
         slug: 'custom-slug',
       });
 
@@ -90,9 +90,9 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     it('should throw ConflictException if slug already exists', async () => {
       mockPrismaService.globalDepartment.findUnique.mockResolvedValue(mockDept);
 
-      await expect(
-        service.create({ name: "Bank to'lovlari" }),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.create({ name: "Bank to'lovlari" })).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -145,7 +145,9 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     it('should throw NotFoundException if not found', async () => {
       mockPrismaService.globalDepartment.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -157,7 +159,7 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     it('should update department name', async () => {
       mockPrismaService.globalDepartment.findUnique
         .mockResolvedValueOnce(mockDept) // findOne check
-        .mockResolvedValueOnce(null);    // slug uniqueness check
+        .mockResolvedValueOnce(null); // slug uniqueness check
 
       mockPrismaService.globalDepartment.update.mockResolvedValue({
         ...mockDept,
@@ -175,7 +177,7 @@ describe('DepartmentsService (GlobalDepartment)', () => {
 
     it('should throw ConflictException if new slug already taken by another dept', async () => {
       mockPrismaService.globalDepartment.findUnique
-        .mockResolvedValueOnce(mockDept)                          // findOne check
+        .mockResolvedValueOnce(mockDept) // findOne check
         .mockResolvedValueOnce({ id: 'other-dept', slug: 'taken' }); // slug conflict
 
       await expect(
@@ -213,44 +215,78 @@ describe('DepartmentsService (GlobalDepartment)', () => {
 
     it('FIN user — should return unread counts for all enabled company departments', async () => {
       mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
-        { globalDepartment: { id: 'dept-1', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
-        { globalDepartment: { id: 'dept-2', name: 'Yuridik', slug: 'yuridik' } },
+        {
+          globalDepartment: {
+            id: 'dept-1',
+            name: 'Buxgalteriya',
+            slug: 'buxgalteriya',
+          },
+        },
+        {
+          globalDepartment: { id: 'dept-2', name: 'Yuridik', slug: 'yuridik' },
+        },
       ]);
       mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([
         { globalDepartmentId: 'dept-1', lastReadAt: new Date('2024-01-01') },
       ]);
       // dept-1: 3 unread after lastReadAt; dept-2: never read → 5 total
       mockPrismaService.message.count
-        .mockResolvedValueOnce(3)  // dept-1
+        .mockResolvedValueOnce(3) // dept-1
         .mockResolvedValueOnce(5); // dept-2
 
-      const result = await service.getUnreadSummary(userId, companyId, 'FIN_DIRECTOR' as any);
+      const result = await service.getUnreadSummary(
+        userId,
+        companyId,
+        'FIN_DIRECTOR' as any,
+      );
 
       expect(result.totalUnread).toBe(8);
       expect(result.departments).toHaveLength(2);
-      expect(result.departments[0]).toMatchObject({ departmentSlug: 'buxgalteriya', unreadCount: 3 });
-      expect(result.departments[1]).toMatchObject({ departmentSlug: 'yuridik', unreadCount: 5 });
+      expect(result.departments[0]).toMatchObject({
+        departmentSlug: 'buxgalteriya',
+        unreadCount: 3,
+      });
+      expect(result.departments[1]).toMatchObject({
+        departmentSlug: 'yuridik',
+        unreadCount: 5,
+      });
     });
 
     it('CLIENT user — should return unread counts for allowed departments only', async () => {
       mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
         allowedDepartments: [
-          { globalDepartment: { id: 'dept-1', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          {
+            globalDepartment: {
+              id: 'dept-1',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
         ],
       });
       mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([]);
       mockPrismaService.message.count.mockResolvedValueOnce(2);
 
-      const result = await service.getUnreadSummary(userId, companyId, 'CLIENT_DIRECTOR' as any);
+      const result = await service.getUnreadSummary(
+        userId,
+        companyId,
+        'CLIENT_DIRECTOR' as any,
+      );
 
       expect(result.totalUnread).toBe(2);
       expect(result.departments).toHaveLength(1);
     });
 
     it('CLIENT user with no membership — should return empty result', async () => {
-      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue(null);
+      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue(
+        null,
+      );
 
-      const result = await service.getUnreadSummary(userId, companyId, 'CLIENT_EMPLOYEE' as any);
+      const result = await service.getUnreadSummary(
+        userId,
+        companyId,
+        'CLIENT_EMPLOYEE' as any,
+      );
 
       expect(result).toEqual({ departments: [], totalUnread: 0 });
       expect(mockPrismaService.message.count).not.toHaveBeenCalled();
@@ -274,23 +310,44 @@ describe('DepartmentsService (GlobalDepartment)', () => {
       // company-2: 1 department with 2 unreads
       mockPrismaService.companyDepartmentConfig.findMany
         .mockResolvedValueOnce([
-          { globalDepartment: { id: 'dept-1', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          {
+            globalDepartment: {
+              id: 'dept-1',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
         ])
         .mockResolvedValueOnce([
-          { globalDepartment: { id: 'dept-2', name: 'Yuridik', slug: 'yuridik' } },
+          {
+            globalDepartment: {
+              id: 'dept-2',
+              name: 'Yuridik',
+              slug: 'yuridik',
+            },
+          },
         ]);
 
       mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([]);
       mockPrismaService.message.count
-        .mockResolvedValueOnce(4)  // company-1 / dept-1
+        .mockResolvedValueOnce(4) // company-1 / dept-1
         .mockResolvedValueOnce(2); // company-2 / dept-2
 
-      const result = await service.getAllCompaniesUnreadSummary(userId, 'FIN_ADMIN' as any);
+      const result = await service.getAllCompaniesUnreadSummary(
+        userId,
+        'FIN_ADMIN' as any,
+      );
 
       expect(result.grandTotalUnread).toBe(6);
       expect(result.companies).toHaveLength(2);
-      expect(result.companies[0]).toMatchObject({ companyName: 'Alfa LLC', totalUnread: 4 });
-      expect(result.companies[1]).toMatchObject({ companyName: 'Beta Corp', totalUnread: 2 });
+      expect(result.companies[0]).toMatchObject({
+        companyName: 'Alfa LLC',
+        totalUnread: 4,
+      });
+      expect(result.companies[1]).toMatchObject({
+        companyName: 'Beta Corp',
+        totalUnread: 2,
+      });
     });
 
     it('CLIENT user — should show only allowed departments per company', async () => {
@@ -299,13 +356,22 @@ describe('DepartmentsService (GlobalDepartment)', () => {
       ]);
       mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
         allowedDepartments: [
-          { globalDepartment: { id: 'dept-1', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          {
+            globalDepartment: {
+              id: 'dept-1',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
         ],
       });
       mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([]);
       mockPrismaService.message.count.mockResolvedValueOnce(3);
 
-      const result = await service.getAllCompaniesUnreadSummary(userId, 'CLIENT_FOUNDER' as any);
+      const result = await service.getAllCompaniesUnreadSummary(
+        userId,
+        'CLIENT_FOUNDER' as any,
+      );
 
       expect(result.grandTotalUnread).toBe(3);
       expect(result.companies[0].departments).toHaveLength(1);
@@ -314,7 +380,10 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     it('user with no memberships — should return empty companies and zero total', async () => {
       mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([]);
 
-      const result = await service.getAllCompaniesUnreadSummary(userId, 'CLIENT_EMPLOYEE' as any);
+      const result = await service.getAllCompaniesUnreadSummary(
+        userId,
+        'CLIENT_EMPLOYEE' as any,
+      );
 
       expect(result.grandTotalUnread).toBe(0);
       expect(result.companies).toHaveLength(0);

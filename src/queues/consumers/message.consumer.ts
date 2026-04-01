@@ -64,17 +64,20 @@ export class MessageConsumer implements OnModuleInit {
   }
 
   private async consumeDeletedMessages() {
-    await this.rabbitMQService.consume(QUEUES.MESSAGE_DELETE, async (message) => {
-      const { payload } = message;
+    await this.rabbitMQService.consume(
+      QUEUES.MESSAGE_DELETE,
+      async (message) => {
+        const { payload } = message;
 
-      // WebSocket orqali yuborish
-      this.messagesGateway.emitToRoom(
-        payload.companyId,
-        payload.globalDepartmentId,
-        'message:deleted',
-        { messageId: payload.messageId },
-      );
-    });
+        // WebSocket orqali yuborish
+        this.messagesGateway.emitToRoom(
+          payload.companyId,
+          payload.globalDepartmentId,
+          'message:deleted',
+          { messageId: payload.messageId },
+        );
+      },
+    );
   }
 
   private async sendNotificationToOfflineUsers(payload: any) {

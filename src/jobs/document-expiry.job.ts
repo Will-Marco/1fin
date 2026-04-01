@@ -49,7 +49,7 @@ export class DocumentExpiryJob {
               userId: doc.createdById, // Sistema uchun maxsus ID bo'lmasa, yaratuvchini ishlatamiz
               action: 'AUTO_EXPIRED',
               details: {
-                message: 'Hujjat muddati o\'tgani uchun avtomat yopildi',
+                message: "Hujjat muddati o'tgani uchun avtomat yopildi",
                 expiredAt: doc.expiresAt,
                 processedAt: now,
               },
@@ -57,7 +57,9 @@ export class DocumentExpiryJob {
           });
         });
 
-        this.logger.log(`Document ${doc.documentNumber} marked as AUTO_EXPIRED`);
+        this.logger.log(
+          `Document ${doc.documentNumber} marked as AUTO_EXPIRED`,
+        );
       }
 
       this.logger.log('Document expiry job completed');

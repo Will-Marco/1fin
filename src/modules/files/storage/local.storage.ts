@@ -12,8 +12,10 @@ export class LocalStorage implements StorageProvider {
   private readonly baseUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.uploadDir = this.configService.get<string>('UPLOAD_DIR') || './uploads';
-    this.baseUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+    this.uploadDir =
+      this.configService.get<string>('UPLOAD_DIR') || './uploads';
+    this.baseUrl =
+      this.configService.get<string>('APP_URL') || 'http://localhost:3000';
 
     // Upload papkasini yaratish
     this.ensureDirectoryExists(this.uploadDir);

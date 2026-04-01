@@ -101,7 +101,9 @@ describe('NotificationsService', () => {
 
   describe('findAll', () => {
     it('should return paginated notifications', async () => {
-      mockPrismaService.notification.findMany.mockResolvedValue([mockNotification]);
+      mockPrismaService.notification.findMany.mockResolvedValue([
+        mockNotification,
+      ]);
       mockPrismaService.notification.count
         .mockResolvedValueOnce(1) // total
         .mockResolvedValueOnce(1); // unread
@@ -116,7 +118,9 @@ describe('NotificationsService', () => {
 
   describe('markAsRead', () => {
     it('should mark notification as read', async () => {
-      mockPrismaService.notification.findFirst.mockResolvedValue(mockNotification);
+      mockPrismaService.notification.findFirst.mockResolvedValue(
+        mockNotification,
+      );
       mockPrismaService.notification.update.mockResolvedValue({
         ...mockNotification,
         isRead: true,
@@ -135,9 +139,9 @@ describe('NotificationsService', () => {
     it('should throw NotFoundException if notification not found', async () => {
       mockPrismaService.notification.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.markAsRead('invalid', 'user-id'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.markAsRead('invalid', 'user-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -167,7 +171,9 @@ describe('NotificationsService', () => {
 
   describe('delete', () => {
     it('should delete a notification', async () => {
-      mockPrismaService.notification.findFirst.mockResolvedValue(mockNotification);
+      mockPrismaService.notification.findFirst.mockResolvedValue(
+        mockNotification,
+      );
       mockPrismaService.notification.delete.mockResolvedValue(mockNotification);
 
       const result = await service.delete('notif-id', 'user-id');
@@ -178,15 +184,17 @@ describe('NotificationsService', () => {
     it('should throw NotFoundException if notification not found', async () => {
       mockPrismaService.notification.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.delete('invalid', 'user-id'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.delete('invalid', 'user-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('deleteAll', () => {
     it('should delete all notifications', async () => {
-      mockPrismaService.notification.deleteMany.mockResolvedValue({ count: 10 });
+      mockPrismaService.notification.deleteMany.mockResolvedValue({
+        count: 10,
+      });
 
       const result = await service.deleteAll('user-id');
 

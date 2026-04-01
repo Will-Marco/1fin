@@ -40,7 +40,7 @@ export class SystemRoleGuard implements CanActivate {
     const hasRole = requiredRoles.includes(user.systemRole);
 
     if (!hasRole) {
-      throw new ForbiddenException('Sizda ushbu amalni bajarish huquqi yo\'q');
+      throw new ForbiddenException("Sizda ushbu amalni bajarish huquqi yo'q");
     }
 
     return true;

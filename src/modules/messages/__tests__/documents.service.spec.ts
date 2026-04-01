@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentStatus } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
@@ -137,7 +134,9 @@ describe('DocumentsService', () => {
     it('should throw NotFoundException if document not found', async () => {
       mockPrismaService.document.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

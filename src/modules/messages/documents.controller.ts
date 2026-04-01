@@ -1,19 +1,19 @@
 import {
-    Body,
-    Controller,
-    Get,
-    Param,
-    Patch,
-    Post,
-    Query,
-    UseGuards,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-    ApiBearerAuth,
-    ApiOperation,
-    ApiQuery,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { DocumentStatus, SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser, SystemRoles } from '../../common/decorators';
@@ -30,7 +30,11 @@ export class DocumentsController {
   constructor(private documentsService: DocumentsService) {}
 
   @Post()
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Create a new document' })
   @ApiResponse({ status: 201, description: 'Document created' })
   async create(
@@ -41,7 +45,11 @@ export class DocumentsController {
   }
 
   @Get()
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get all documents (paginated/filtered)' })
   @ApiQuery({ name: 'companyId', required: false })
   @ApiQuery({ name: 'globalDepartmentId', required: false })
@@ -65,7 +73,11 @@ export class DocumentsController {
   }
 
   @Get(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get document by ID' })
   @ApiResponse({ status: 200, description: 'Document details' })
   async findOne(@Param('id') id: string) {
@@ -76,10 +88,7 @@ export class DocumentsController {
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Approve a document (ACCEPTED status)' })
   @ApiResponse({ status: 200, description: 'Document approved' })
-  async approve(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  async approve(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.documentsService.approve(id, userId);
   }
 

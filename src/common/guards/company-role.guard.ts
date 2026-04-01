@@ -46,7 +46,7 @@ export class CompanyRoleGuard implements CanActivate {
     const hasRole = requiredRoles.includes(user.systemRole);
 
     if (!hasRole) {
-      throw new ForbiddenException('Sizda ushbu amalni bajarish huquqi yo\'q');
+      throw new ForbiddenException("Sizda ushbu amalni bajarish huquqi yo'q");
     }
 
     // If CLIENT_* role, verify company membership

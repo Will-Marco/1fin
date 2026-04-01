@@ -4,7 +4,7 @@ import { IsOptional, IsString } from 'class-validator';
 export class UploadFileDto {
   @ApiPropertyOptional({
     example: 'dept-uuid',
-    description: 'Global department ID (fayl qaysi bo\'limga tegishli)',
+    description: "Global department ID (fayl qaysi bo'limga tegishli)",
   })
   @IsOptional()
   @IsString()

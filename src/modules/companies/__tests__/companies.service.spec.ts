@@ -1,7 +1,4 @@
-import {
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SystemRole } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
@@ -78,7 +75,9 @@ describe('CompaniesService', () => {
     const setupTransaction = (txOverrides: Record<string, any> = {}) => {
       const txCompanyCreate = jest.fn().mockResolvedValue(mockCompany);
       const txDeptConfigCreateMany = jest.fn().mockResolvedValue({});
-      const txMembershipCreate = jest.fn().mockResolvedValue({ id: 'membership-id' });
+      const txMembershipCreate = jest
+        .fn()
+        .mockResolvedValue({ id: 'membership-id' });
       const txMembershipDeptCreateMany = jest.fn().mockResolvedValue({});
 
       mockPrismaService.$transaction.mockImplementation(async (fn) =>
@@ -86,12 +85,19 @@ describe('CompaniesService', () => {
           company: { create: txCompanyCreate },
           companyDepartmentConfig: { createMany: txDeptConfigCreateMany },
           userCompanyMembership: { create: txMembershipCreate },
-          membershipDepartmentAccess: { createMany: txMembershipDeptCreateMany },
+          membershipDepartmentAccess: {
+            createMany: txMembershipDeptCreateMany,
+          },
           ...txOverrides,
         }),
       );
 
-      return { txCompanyCreate, txDeptConfigCreateMany, txMembershipCreate, txMembershipDeptCreateMany };
+      return {
+        txCompanyCreate,
+        txDeptConfigCreateMany,
+        txMembershipCreate,
+        txMembershipDeptCreateMany,
+      };
     };
 
     beforeEach(() => {
@@ -119,7 +125,9 @@ describe('CompaniesService', () => {
     });
 
     it('should throw ConflictException if INN already exists', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValueOnce({ id: 'existing' });
+      mockPrismaService.company.findUnique.mockResolvedValueOnce({
+        id: 'existing',
+      });
 
       await expect(
         service.create({ name: 'Test', inn: '123456789' }, 'user-id'),
@@ -127,7 +135,8 @@ describe('CompaniesService', () => {
     });
 
     it('should attach valid members with allowedDepartments in the transaction', async () => {
-      const { txMembershipCreate, txMembershipDeptCreateMany } = setupTransaction();
+      const { txMembershipCreate, txMembershipDeptCreateMany } =
+        setupTransaction();
 
       mockPrismaService.user.findMany.mockResolvedValue([
         { id: 'user-a' },
@@ -138,7 +147,11 @@ describe('CompaniesService', () => {
         {
           name: 'Tech Solutions LLC',
           members: [
-            { userId: 'user-a', rank: 1, allowedDepartmentIds: ['dept-1', 'dept-2'] },
+            {
+              userId: 'user-a',
+              rank: 1,
+              allowedDepartmentIds: ['dept-1', 'dept-2'],
+            },
             { userId: 'user-b', allowedDepartmentIds: [] },
           ],
         },
@@ -242,7 +255,9 @@ describe('CompaniesService', () => {
     it('should throw NotFoundException if not found', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException if inactive', async () => {
@@ -251,7 +266,9 @@ describe('CompaniesService', () => {
         isActive: false,
       });
 
-      await expect(service.findOne('company-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('company-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -262,7 +279,7 @@ describe('CompaniesService', () => {
   describe('update', () => {
     it('should update company info', async () => {
       mockPrismaService.company.findUnique
-        .mockResolvedValueOnce(mockCompany)  // first findOne
+        .mockResolvedValueOnce(mockCompany) // first findOne
         .mockResolvedValueOnce({ ...mockCompany, name: 'Updated' }); // second findOne
       mockPrismaService.company.update.mockResolvedValue({});
 
@@ -308,7 +325,11 @@ describe('CompaniesService', () => {
       mockPrismaService.companyDepartmentConfig.update.mockResolvedValue({
         id: 'config-id',
         isEnabled: true,
-        globalDepartment: { id: 'dept-1', name: 'Umumiy chat', slug: 'general-chat' },
+        globalDepartment: {
+          id: 'dept-1',
+          name: 'Umumiy chat',
+          slug: 'general-chat',
+        },
       });
 
       const result = await service.enableDepartment('company-id', 'dept-1');
@@ -318,7 +339,9 @@ describe('CompaniesService', () => {
 
     it('should create config if not exists', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(null);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(
+        null,
+      );
       mockPrismaService.companyDepartmentConfig.create.mockResolvedValue({
         id: 'new-config',
         isEnabled: true,
@@ -327,7 +350,9 @@ describe('CompaniesService', () => {
 
       const result = await service.enableDepartment('company-id', 'dept-new');
 
-      expect(mockPrismaService.companyDepartmentConfig.create).toHaveBeenCalled();
+      expect(
+        mockPrismaService.companyDepartmentConfig.create,
+      ).toHaveBeenCalled();
     });
   });
 
@@ -351,7 +376,9 @@ describe('CompaniesService', () => {
 
     it('should throw NotFoundException if config not found', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany);
-      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(null);
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(
+        null,
+      );
 
       await expect(
         service.disableDepartment('company-id', 'invalid-dept'),
@@ -400,7 +427,9 @@ describe('CompaniesService', () => {
     };
 
     it('should return paginated deleted companies', async () => {
-      mockPrismaService.company.findMany.mockResolvedValue([mockDeletedCompany]);
+      mockPrismaService.company.findMany.mockResolvedValue([
+        mockDeletedCompany,
+      ]);
       mockPrismaService.company.count.mockResolvedValue(1);
 
       const result = await service.findAllDeleted(1, 20);
@@ -444,7 +473,7 @@ describe('CompaniesService', () => {
 
     it('should restore a soft-deleted company', async () => {
       mockPrismaService.company.findUnique
-        .mockResolvedValueOnce(mockDeletedCompany)  // first check
+        .mockResolvedValueOnce(mockDeletedCompany) // first check
         .mockResolvedValueOnce({ ...mockCompany, isActive: true }); // findOne after restore
       mockPrismaService.company.update.mockResolvedValue({});
 
@@ -460,13 +489,17 @@ describe('CompaniesService', () => {
     it('should throw NotFoundException if company not found', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(null);
 
-      await expect(service.restore('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.restore('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ConflictException if company is already active', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany); // isActive: true
 
-      await expect(service.restore('company-id')).rejects.toThrow(ConflictException);
+      await expect(service.restore('company-id')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -481,7 +514,9 @@ describe('CompaniesService', () => {
     };
 
     it('should permanently delete a soft-deleted company', async () => {
-      mockPrismaService.company.findUnique.mockResolvedValue(mockDeletedCompany);
+      mockPrismaService.company.findUnique.mockResolvedValue(
+        mockDeletedCompany,
+      );
       mockPrismaService.company.delete.mockResolvedValue({});
 
       const result = await service.permanentDelete('company-id');
@@ -495,13 +530,17 @@ describe('CompaniesService', () => {
     it('should throw NotFoundException if company not found', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(null);
 
-      await expect(service.permanentDelete('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.permanentDelete('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ConflictException if company is still active', async () => {
       mockPrismaService.company.findUnique.mockResolvedValue(mockCompany); // isActive: true
 
-      await expect(service.permanentDelete('company-id')).rejects.toThrow(ConflictException);
+      await expect(service.permanentDelete('company-id')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 });

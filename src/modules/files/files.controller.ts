@@ -1,32 +1,32 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    MaxFileSizeValidator,
-    Param,
-    ParseFilePipe,
-    Patch,
-    Post,
-    Query,
-    UploadedFile,
-    UploadedFiles,
-    UseGuards,
-    UseInterceptors,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
-    ApiBadRequestResponse,
-    ApiBearerAuth,
-    ApiBody,
-    ApiConsumes,
-    ApiForbiddenResponse,
-    ApiNotFoundResponse,
-    ApiOperation,
-    ApiParam,
-    ApiQuery,
-    ApiResponse,
-    ApiTags,
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser, SystemRoles } from '../../common/decorators';
@@ -46,7 +46,8 @@ export class FilesController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Upload a single file',
-    description: 'Upload a file with optional messageId, documentId, or globalDepartmentId. Empty strings will be converted to null.'
+    description:
+      'Upload a file with optional messageId, documentId, or globalDepartmentId. Empty strings will be converted to null.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -126,7 +127,8 @@ export class FilesController {
     schema: {
       example: {
         statusCode: 404,
-        message: 'Message with ID abc-123 not found. Please create the message first or upload without messageId.',
+        message:
+          'Message with ID abc-123 not found. Please create the message first or upload without messageId.',
         error: 'Not Found',
       },
     },
@@ -150,7 +152,8 @@ export class FilesController {
   @UseInterceptors(FilesInterceptor('files', 10))
   @ApiOperation({
     summary: 'Upload multiple files (max 10)',
-    description: 'Upload up to 10 files at once. All files will be attached to the same message/document/department.'
+    description:
+      'Upload up to 10 files at once. All files will be attached to the same message/document/department.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -257,7 +260,13 @@ export class FilesController {
   })
   @ApiNotFoundResponse({
     description: 'File not found or deleted (non-admin users)',
-    schema: { example: { statusCode: 404, message: 'Fayl topilmadi', error: 'Not Found' } },
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Fayl topilmadi',
+        error: 'Not Found',
+      },
+    },
   })
   async findOne(
     @Param('id') id: string,
@@ -269,10 +278,32 @@ export class FilesController {
 
   @Get('department/:departmentId')
   @ApiOperation({ summary: 'Get files by department with pagination' })
-  @ApiParam({ name: 'departmentId', description: 'Global Department ID', example: 'dept-uuid' })
-  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20, description: 'Items per page (default: 20)' })
-  @ApiQuery({ name: 'includeDeleted', required: false, type: Boolean, example: false, description: 'Include deleted files (admin only)' })
+  @ApiParam({
+    name: 'departmentId',
+    description: 'Global Department ID',
+    example: 'dept-uuid',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    example: 1,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    example: 20,
+    description: 'Items per page (default: 20)',
+  })
+  @ApiQuery({
+    name: 'includeDeleted',
+    required: false,
+    type: Boolean,
+    example: false,
+    description: 'Include deleted files (admin only)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Paginated list of files in the department',
@@ -313,7 +344,8 @@ export class FilesController {
   @Delete(':id')
   @ApiOperation({
     summary: 'Delete file (soft delete)',
-    description: 'Soft delete a file. Only file uploader or admin can delete. File is not removed from storage.'
+    description:
+      'Soft delete a file. Only file uploader or admin can delete. File is not removed from storage.',
   })
   @ApiParam({ name: 'id', description: 'File ID', example: 'cuid-file-id' })
   @ApiResponse({
@@ -327,7 +359,7 @@ export class FilesController {
     schema: {
       example: {
         statusCode: 403,
-        message: 'Ushbu faylni o\'chirish huquqi yo\'q',
+        message: "Ushbu faylni o'chirish huquqi yo'q",
         error: 'Forbidden',
       },
     },
@@ -344,11 +376,29 @@ export class FilesController {
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Get deleted files (Admin only)',
-    description: 'Get paginated list of soft-deleted files. Only FIN_DIRECTOR and FIN_ADMIN can view deleted files.'
+    description:
+      'Get paginated list of soft-deleted files. Only FIN_DIRECTOR and FIN_ADMIN can view deleted files.',
   })
-  @ApiQuery({ name: 'globalDepartmentId', required: false, description: 'Filter by department', example: 'dept-uuid' })
-  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20, description: 'Items per page' })
+  @ApiQuery({
+    name: 'globalDepartmentId',
+    required: false,
+    description: 'Filter by department',
+    example: 'dept-uuid',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    example: 1,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    example: 20,
+    description: 'Items per page',
+  })
   @ApiResponse({
     status: 200,
     description: 'Paginated list of deleted files',
@@ -391,7 +441,8 @@ export class FilesController {
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Restore deleted file (Admin only)',
-    description: 'Restore a soft-deleted file. Only FIN_DIRECTOR and FIN_ADMIN can restore files.'
+    description:
+      'Restore a soft-deleted file. Only FIN_DIRECTOR and FIN_ADMIN can restore files.',
   })
   @ApiParam({ name: 'id', description: 'File ID', example: 'cuid-file-id' })
   @ApiResponse({
@@ -402,7 +453,13 @@ export class FilesController {
   @ApiNotFoundResponse({ description: 'File not found' })
   @ApiBadRequestResponse({
     description: 'File is not deleted',
-    schema: { example: { statusCode: 400, message: "Fayl o'chirilmagan", error: 'Bad Request' } },
+    schema: {
+      example: {
+        statusCode: 400,
+        message: "Fayl o'chirilmagan",
+        error: 'Bad Request',
+      },
+    },
   })
   @ApiForbiddenResponse({ description: 'Only admin can restore files' })
   async restore(
@@ -417,7 +474,8 @@ export class FilesController {
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Permanently delete file (Admin only)',
-    description: 'Permanently delete a file from both database and storage. This action cannot be undone. Only FIN_DIRECTOR and FIN_ADMIN can perform this action.'
+    description:
+      'Permanently delete a file from both database and storage. This action cannot be undone. Only FIN_DIRECTOR and FIN_ADMIN can perform this action.',
   })
   @ApiParam({ name: 'id', description: 'File ID', example: 'cuid-file-id' })
   @ApiResponse({
@@ -426,7 +484,9 @@ export class FilesController {
     schema: { example: { message: "Fayl butunlay o'chirildi" } },
   })
   @ApiNotFoundResponse({ description: 'File not found' })
-  @ApiForbiddenResponse({ description: 'Only admin can permanently delete files' })
+  @ApiForbiddenResponse({
+    description: 'Only admin can permanently delete files',
+  })
   async permanentDelete(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -438,10 +498,19 @@ export class FilesController {
   @Patch(':fileId/attach/:messageId')
   @ApiOperation({
     summary: 'Attach file to message after upload',
-    description: 'Attach a previously uploaded file to a message. User must own both the file and the message.'
+    description:
+      'Attach a previously uploaded file to a message. User must own both the file and the message.',
   })
-  @ApiParam({ name: 'fileId', description: 'File ID to attach', example: 'cuid-file-id' })
-  @ApiParam({ name: 'messageId', description: 'Message ID to attach to', example: 'cuid-message-id' })
+  @ApiParam({
+    name: 'fileId',
+    description: 'File ID to attach',
+    example: 'cuid-file-id',
+  })
+  @ApiParam({
+    name: 'messageId',
+    description: 'Message ID to attach to',
+    example: 'cuid-message-id',
+  })
   @ApiResponse({
     status: 200,
     description: 'File successfully attached to message',
@@ -473,14 +542,20 @@ export class FilesController {
   })
   @ApiNotFoundResponse({
     description: 'File or message not found',
-    schema: { example: { statusCode: 404, message: 'Fayl topilmadi', error: 'Not Found' } },
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Fayl topilmadi',
+        error: 'Not Found',
+      },
+    },
   })
   @ApiForbiddenResponse({
     description: 'User does not own the file or message',
     schema: {
       example: {
         statusCode: 403,
-        message: 'Siz faqat o\'zingiz yuklagan fayllarni biriktira olasiz',
+        message: "Siz faqat o'zingiz yuklagan fayllarni biriktira olasiz",
         error: 'Forbidden',
       },
     },
@@ -496,9 +571,14 @@ export class FilesController {
   @Patch('attach-multiple/:messageId')
   @ApiOperation({
     summary: 'Attach multiple files to message',
-    description: 'Attach multiple previously uploaded files to a single message. User must own all files and the message.'
+    description:
+      'Attach multiple previously uploaded files to a single message. User must own all files and the message.',
   })
-  @ApiParam({ name: 'messageId', description: 'Message ID to attach files to', example: 'cuid-message-id' })
+  @ApiParam({
+    name: 'messageId',
+    description: 'Message ID to attach files to',
+    example: 'cuid-message-id',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -537,12 +617,18 @@ export class FilesController {
     },
   })
   @ApiNotFoundResponse({ description: 'File or message not found' })
-  @ApiForbiddenResponse({ description: 'User does not own one or more files or the message' })
+  @ApiForbiddenResponse({
+    description: 'User does not own one or more files or the message',
+  })
   async attachMultipleToMessage(
     @Param('messageId') messageId: string,
     @Body('fileIds') fileIds: string[],
     @CurrentUser('id') userId: string,
   ) {
-    return this.filesService.attachMultipleToMessage(fileIds, messageId, userId);
+    return this.filesService.attachMultipleToMessage(
+      fileIds,
+      messageId,
+      userId,
+    );
   }
 }

@@ -1,37 +1,37 @@
 import {
-    BadRequestException,
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    Patch,
-    Post,
-    Query,
-    UploadedFiles,
-    UseGuards,
-    UseInterceptors,
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
-    ApiBearerAuth,
-    ApiBody,
-    ApiConsumes,
-    ApiOperation,
-    ApiQuery,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser, SystemRoles } from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
-    AssignMembershipDto,
-    CreateClientUserDto,
-    CreateSystemUserDto,
-    UpdateMembershipDto,
-    UpdateUserDto,
+  AssignMembershipDto,
+  CreateClientUserDto,
+  CreateSystemUserDto,
+  UpdateMembershipDto,
+  UpdateUserDto,
 } from './dto';
 import { UsersService } from './users.service';
 
@@ -55,7 +55,10 @@ export class UsersController {
     ]),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create a 1FIN system user (employee/admin/director) with passport' })
+  @ApiOperation({
+    summary:
+      'Create a 1FIN system user (employee/admin/director) with passport',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -65,7 +68,8 @@ export class UsersController {
         password: {
           type: 'string',
           example: 'SecurePass123',
-          description: 'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
+          description:
+            'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
         },
         name: { type: 'string', example: 'Ali Valiyev' },
         phone: { type: 'string', example: '+998901234567' },
@@ -84,7 +88,7 @@ export class UsersController {
           type: 'array',
           items: { type: 'string', format: 'binary' },
           maxItems: 5,
-          description: 'Qo\'shimcha hujjatlar (optional, max 5 ta)',
+          description: "Qo'shimcha hujjatlar (optional, max 5 ta)",
         },
       },
     },
@@ -154,7 +158,8 @@ export class UsersController {
         password: {
           type: 'string',
           example: 'SecurePass123',
-          description: 'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
+          description:
+            'Password (optional, defaults to env DEFAULT_USER_PASSWORD)',
         },
         name: { type: 'string', example: 'Bobur Toshmatov' },
         phone: { type: 'string', example: '+998901234567' },
@@ -173,7 +178,7 @@ export class UsersController {
           type: 'array',
           items: { type: 'string', format: 'binary' },
           maxItems: 5,
-          description: 'Qo\'shimcha hujjatlar (optional, max 5 ta)',
+          description: "Qo'shimcha hujjatlar (optional, max 5 ta)",
         },
       },
     },
@@ -229,8 +234,14 @@ export class UsersController {
   // ─────────────────────────────────────────────
 
   @Get()
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
-  @ApiOperation({ summary: 'Get all users (paginated, filterable by role visibility)' })
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
+  @ApiOperation({
+    summary: 'Get all users (paginated, filterable by role visibility)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -244,7 +255,8 @@ export class UsersController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Paginated list of users (filtered by requesting user role visibility)',
+    description:
+      'Paginated list of users (filtered by requesting user role visibility)',
     schema: {
       example: {
         data: [
@@ -288,8 +300,14 @@ export class UsersController {
   }
 
   @Get(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
-  @ApiOperation({ summary: 'Get a user by ID (includes memberships and documents)' })
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
+  @ApiOperation({
+    summary: 'Get a user by ID (includes memberships and documents)',
+  })
   @ApiResponse({
     status: 200,
     description: 'User with memberships and documents',
@@ -310,7 +328,13 @@ export class UsersController {
             isActive: true,
             company: { id: 'cuid-company-id', name: 'Example LLC' },
             allowedDepartments: [
-              { globalDepartment: { id: 'cuid-dept-id', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+              {
+                globalDepartment: {
+                  id: 'cuid-dept-id',
+                  name: 'Buxgalteriya',
+                  slug: 'buxgalteriya',
+                },
+              },
             ],
           },
         ],
@@ -334,7 +358,10 @@ export class UsersController {
 
   @Patch(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Update user info (name, phone, avatar, isActive, notificationsEnabled)' })
+  @ApiOperation({
+    summary:
+      'Update user info (name, phone, avatar, isActive, notificationsEnabled)',
+  })
   @ApiResponse({
     status: 200,
     description: 'User updated',
@@ -372,7 +399,9 @@ export class UsersController {
 
   @Post(':id/memberships')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Assign user to a company with role & department access' })
+  @ApiOperation({
+    summary: 'Assign user to a company with role & department access',
+  })
   @ApiResponse({
     status: 201,
     description: 'Membership created',
@@ -383,7 +412,13 @@ export class UsersController {
         isActive: true,
         company: { id: 'cuid-company-id', name: 'Example LLC' },
         allowedDepartments: [
-          { globalDepartment: { id: 'cuid-dept-id', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          {
+            globalDepartment: {
+              id: 'cuid-dept-id',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
         ],
       },
     },
@@ -408,7 +443,13 @@ export class UsersController {
         rank: 2,
         isActive: true,
         allowedDepartments: [
-          { globalDepartment: { id: 'cuid-dept-id', name: 'Buxgalteriya', slug: 'buxgalteriya' } },
+          {
+            globalDepartment: {
+              id: 'cuid-dept-id',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
         ],
       },
     },

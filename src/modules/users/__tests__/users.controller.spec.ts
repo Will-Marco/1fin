@@ -109,9 +109,9 @@ describe('UsersController', () => {
     });
 
     it('should throw BadRequestException if no files provided', async () => {
-      await expect(
-        controller.createSystemUser(dto, {} as any),
-      ).rejects.toThrow(BadRequestException);
+      await expect(controller.createSystemUser(dto, {} as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -221,7 +221,10 @@ describe('UsersController', () => {
   describe('update', () => {
     it('should update user info', async () => {
       const dto = { name: 'Updated Name' };
-      mockUsersService.update.mockResolvedValue({ ...mockUser, name: 'Updated Name' });
+      mockUsersService.update.mockResolvedValue({
+        ...mockUser,
+        name: 'Updated Name',
+      });
 
       const result = await controller.update('user-id', dto);
 
@@ -287,10 +290,16 @@ describe('UsersController', () => {
         message: "Membership o'chirildi",
       });
 
-      const result = await controller.removeMembership('user-id', 'membership-id');
+      const result = await controller.removeMembership(
+        'user-id',
+        'membership-id',
+      );
 
       expect(result.message).toBeDefined();
-      expect(service.removeMembership).toHaveBeenCalledWith('user-id', 'membership-id');
+      expect(service.removeMembership).toHaveBeenCalledWith(
+        'user-id',
+        'membership-id',
+      );
     });
   });
 });

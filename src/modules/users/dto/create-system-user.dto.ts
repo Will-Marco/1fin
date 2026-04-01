@@ -1,11 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-    IsEnum,
-    IsNotEmpty,
-    IsOptional,
-    IsString,
-    Matches,
-    MinLength,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
 } from 'class-validator';
 import { SystemRole } from '../../../../generated/prisma/client';
 
@@ -45,7 +45,8 @@ export class CreateSystemUserDto {
   @ApiProperty({
     enum: SystemRole,
     example: SystemRole.FIN_EMPLOYEE,
-    description: 'Role for 1FIN system user (FIN_DIRECTOR, FIN_ADMIN, FIN_EMPLOYEE)',
+    description:
+      'Role for 1FIN system user (FIN_DIRECTOR, FIN_ADMIN, FIN_EMPLOYEE)',
   })
   @IsEnum(SystemRole)
   @IsNotEmpty()

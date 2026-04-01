@@ -1,7 +1,7 @@
 import {
-    ConflictException,
-    Injectable,
-    NotFoundException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
@@ -43,7 +43,9 @@ export class CompaniesService {
       skippedUserIds = requestedUserIds.filter((id) => !foundUserIds.has(id));
     }
 
-    const validMembers = requestedMembers.filter((m) => foundUserIds.has(m.userId));
+    const validMembers = requestedMembers.filter((m) =>
+      foundUserIds.has(m.userId),
+    );
 
     // ── Pre-fetch all active global departments ──────────────────────────
     const globalDepts = await this.prisma.globalDepartment.findMany({
@@ -223,7 +225,7 @@ export class CompaniesService {
       data: { isActive: false },
     });
 
-    return { message: 'Kompaniya o\'chirildi' };
+    return { message: "Kompaniya o'chirildi" };
   }
 
   async updateLogo(id: string, logoPath: string) {
@@ -267,7 +269,9 @@ export class CompaniesService {
     await this.findOne(companyId);
 
     const config = await this.prisma.companyDepartmentConfig.findUnique({
-      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+      where: {
+        companyId_globalDepartmentId: { companyId, globalDepartmentId },
+      },
     });
 
     if (!config) {
@@ -283,7 +287,9 @@ export class CompaniesService {
     }
 
     return this.prisma.companyDepartmentConfig.update({
-      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+      where: {
+        companyId_globalDepartmentId: { companyId, globalDepartmentId },
+      },
       data: { isEnabled: true },
       select: {
         id: true,
@@ -300,7 +306,9 @@ export class CompaniesService {
     await this.findOne(companyId);
 
     const config = await this.prisma.companyDepartmentConfig.findUnique({
-      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+      where: {
+        companyId_globalDepartmentId: { companyId, globalDepartmentId },
+      },
     });
 
     if (!config) {
@@ -308,7 +316,9 @@ export class CompaniesService {
     }
 
     return this.prisma.companyDepartmentConfig.update({
-      where: { companyId_globalDepartmentId: { companyId, globalDepartmentId } },
+      where: {
+        companyId_globalDepartmentId: { companyId, globalDepartmentId },
+      },
       data: { isEnabled: false },
       select: {
         id: true,
@@ -439,7 +449,7 @@ export class CompaniesService {
 
     if (company.isActive) {
       throw new ConflictException(
-        'Faqat o\'chirilgan kompaniyalarni butunlay o\'chirish mumkin',
+        "Faqat o'chirilgan kompaniyalarni butunlay o'chirish mumkin",
       );
     }
 
@@ -447,6 +457,6 @@ export class CompaniesService {
       where: { id },
     });
 
-    return { message: 'Kompaniya butunlay o\'chirildi' };
+    return { message: "Kompaniya butunlay o'chirildi" };
   }
 }

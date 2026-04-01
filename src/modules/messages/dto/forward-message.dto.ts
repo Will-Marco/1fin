@@ -18,7 +18,7 @@ export class ForwardMessageDto {
   @IsNotEmpty()
   companyId: string;
 
-  @ApiPropertyOptional({ example: 'Muhim hujjat, ko\'rib chiqing' })
+  @ApiPropertyOptional({ example: "Muhim hujjat, ko'rib chiqing" })
   @IsString()
   @IsOptional()
   note?: string;

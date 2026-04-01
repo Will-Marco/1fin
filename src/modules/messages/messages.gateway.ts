@@ -37,8 +37,9 @@ export class MessagesGateway
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
-      const token = client.handshake.auth?.token ||
-                    client.handshake.headers?.authorization?.split(' ')[1];
+      const token =
+        client.handshake.auth?.token ||
+        client.handshake.headers?.authorization?.split(' ')[1];
 
       if (!token) {
         client.disconnect();
@@ -52,7 +53,9 @@ export class MessagesGateway
       client.userId = payload.sub;
       client.userRole = payload.systemRole;
 
-      console.log(`Client connected: ${client.id}, User: ${client.userId}, Role: ${client.userRole}`);
+      console.log(
+        `Client connected: ${client.id}, User: ${client.userId}, Role: ${client.userRole}`,
+      );
     } catch (error) {
       console.log('Authentication failed:', error.message);
       client.disconnect();
@@ -91,7 +94,7 @@ export class MessagesGateway
     }
 
     if (!hasAccess) {
-      client.emit('error', { message: 'Ushbu bo\'limga kirish huquqi yo\'q' });
+      client.emit('error', { message: "Ushbu bo'limga kirish huquqi yo'q" });
       return;
     }
 
@@ -146,7 +149,12 @@ export class MessagesGateway
     });
   }
 
-  emitToRoom(companyId: string, globalDepartmentId: string, event: string, payload: any) {
+  emitToRoom(
+    companyId: string,
+    globalDepartmentId: string,
+    event: string,
+    payload: any,
+  ) {
     const room = `company:${companyId}:dept:${globalDepartmentId}`;
     this.server.to(room).emit(event, payload);
   }

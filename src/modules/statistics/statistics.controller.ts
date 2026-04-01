@@ -1,4 +1,10 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBadRequestResponse,
@@ -74,7 +80,7 @@ export class StatisticsController {
     },
   })
   @ApiBadRequestResponse({
-    description: 'Noto\'g\'ri so\'rov parametrlari',
+    description: "Noto'g'ri so'rov parametrlari",
     schema: {
       example: {
         statusCode: 400,
@@ -98,7 +104,7 @@ export class StatisticsController {
         const activeMembership = user.memberships?.find((m) => m.isActive);
         if (!activeMembership) {
           throw new BadRequestException(
-            'Siz hech qanday kompaniyaga bog\'lanmagansiz',
+            "Siz hech qanday kompaniyaga bog'lanmagansiz",
           );
         }
         dto.companyId = activeMembership.companyId;
@@ -109,7 +115,7 @@ export class StatisticsController {
         );
         if (!hasAccess) {
           throw new BadRequestException(
-            'Siz ushbu kompaniya statistikasini ko\'rish huquqiga ega emassiz',
+            "Siz ushbu kompaniya statistikasini ko'rish huquqiga ega emassiz",
           );
         }
       }

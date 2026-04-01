@@ -216,14 +216,12 @@ describe('AuthController (e2e)', () => {
 
       accessToken = loginResponse.body.data.accessToken;
 
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/login')
-        .send({
-          username: testUsername,
-          password: testPassword,
-          deviceName: 'Device 2',
-          deviceType: 'mobile',
-        });
+      await request(app.getHttpServer()).post('/api/v1/auth/login').send({
+        username: testUsername,
+        password: testPassword,
+        deviceName: 'Device 2',
+        deviceType: 'mobile',
+      });
     });
 
     it('should return all user sessions', async () => {
@@ -282,14 +280,12 @@ describe('AuthController (e2e)', () => {
 
     it('should remove oldest session when 4th device logs in', async () => {
       const login = (deviceName: string, deviceType: string) =>
-        request(app.getHttpServer())
-          .post('/api/v1/auth/login')
-          .send({
-            username: testUsername,
-            password: testPassword,
-            deviceName,
-            deviceType,
-          });
+        request(app.getHttpServer()).post('/api/v1/auth/login').send({
+          username: testUsername,
+          password: testPassword,
+          deviceName,
+          deviceType,
+        });
 
       await login('Device 1', 'desktop');
       await login('Device 2', 'mobile');

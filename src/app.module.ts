@@ -2,13 +2,13 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import {
-    appConfig,
-    databaseConfig,
-    jwtConfig,
-    onesignalConfig,
-    rabbitmqConfig,
-    redisConfig,
-    s3Config,
+  appConfig,
+  databaseConfig,
+  jwtConfig,
+  onesignalConfig,
+  rabbitmqConfig,
+  redisConfig,
+  s3Config,
 } from './config';
 import { DatabaseModule } from './database/database.module';
 import { JobsModule } from './jobs/jobs.module';

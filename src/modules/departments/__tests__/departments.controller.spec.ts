@@ -80,11 +80,16 @@ describe('DepartmentsController (GlobalDepartment)', () => {
 
   describe('update', () => {
     it('should update a department', async () => {
-      mockDeptService.update.mockResolvedValue({ ...mockDept, name: 'Updated' });
+      mockDeptService.update.mockResolvedValue({
+        ...mockDept,
+        name: 'Updated',
+      });
 
       const result = await controller.update('dept-id', { name: 'Updated' });
 
-      expect(service.update).toHaveBeenCalledWith('dept-id', { name: 'Updated' });
+      expect(service.update).toHaveBeenCalledWith('dept-id', {
+        name: 'Updated',
+      });
     });
   });
 

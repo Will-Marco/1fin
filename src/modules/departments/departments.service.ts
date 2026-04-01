@@ -1,8 +1,8 @@
 import {
-    ConflictException,
-    Injectable,
-    NotFoundException,
-    BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemRole } from '../../../generated/prisma/client';
@@ -105,7 +105,9 @@ export class DepartmentsService {
         where: { slug: dto.slug },
       });
       if (existing && existing.id !== id) {
-        throw new ConflictException('Bu slug bilan department allaqachon mavjud');
+        throw new ConflictException(
+          'Bu slug bilan department allaqachon mavjud',
+        );
       }
       updateData.slug = dto.slug;
     }
@@ -140,7 +142,7 @@ export class DepartmentsService {
       data: { isActive: false },
     });
 
-    return { message: 'Global department o\'chirildi' };
+    return { message: "Global department o'chirildi" };
   }
 
   // ─────────────────────────────────────────────
@@ -178,7 +180,9 @@ export class DepartmentsService {
       },
     });
 
-    return membership?.allowedDepartments.map((ad) => ad.globalDepartment) ?? [];
+    return (
+      membership?.allowedDepartments.map((ad) => ad.globalDepartment) ?? []
+    );
   }
 
   /**
@@ -195,7 +199,9 @@ export class DepartmentsService {
       where: { userId, companyId },
       select: { globalDepartmentId: true, lastReadAt: true },
     });
-    const readMap = new Map(userReads.map((r) => [r.globalDepartmentId, r.lastReadAt]));
+    const readMap = new Map(
+      userReads.map((r) => [r.globalDepartmentId, r.lastReadAt]),
+    );
 
     return Promise.all(
       departments.map(async (dept) => {
@@ -222,22 +228,41 @@ export class DepartmentsService {
    * Get unread message summary for all departments in a single company.
    * FIN_* users see all departments, CLIENT_* users see only their allowed departments.
    */
-  async getUnreadSummary(userId: string, companyId: string, userSystemRole: SystemRole) {
+  async getUnreadSummary(
+    userId: string,
+    companyId: string,
+    userSystemRole: SystemRole,
+  ) {
     if (!companyId) {
       throw new BadRequestException('companyId majburiy');
     }
 
     const isFINUser = (
-      [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
+      [
+        SystemRole.FIN_DIRECTOR,
+        SystemRole.FIN_ADMIN,
+        SystemRole.FIN_EMPLOYEE,
+      ] as SystemRole[]
     ).includes(userSystemRole);
 
-    const departments = await this.getDepartmentsForUser(userId, companyId, isFINUser);
+    const departments = await this.getDepartmentsForUser(
+      userId,
+      companyId,
+      isFINUser,
+    );
     if (!isFINUser && departments.length === 0) {
       return { departments: [], totalUnread: 0 };
     }
 
-    const departmentResults = await this.countUnreadForDepartments(userId, companyId, departments);
-    const totalUnread = departmentResults.reduce((sum, d) => sum + d.unreadCount, 0);
+    const departmentResults = await this.countUnreadForDepartments(
+      userId,
+      companyId,
+      departments,
+    );
+    const totalUnread = departmentResults.reduce(
+      (sum, d) => sum + d.unreadCount,
+      0,
+    );
 
     return { departments: departmentResults, totalUnread };
   }
@@ -247,9 +272,16 @@ export class DepartmentsService {
    * Returns per-company breakdown with per-department counts and grand total.
    * Designed to be called once to power a global unread badge on the frontend.
    */
-  async getAllCompaniesUnreadSummary(userId: string, userSystemRole: SystemRole) {
+  async getAllCompaniesUnreadSummary(
+    userId: string,
+    userSystemRole: SystemRole,
+  ) {
     const isFINUser = (
-      [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
+      [
+        SystemRole.FIN_DIRECTOR,
+        SystemRole.FIN_ADMIN,
+        SystemRole.FIN_EMPLOYEE,
+      ] as SystemRole[]
     ).includes(userSystemRole);
 
     // 1. Fetch all active company memberships for this user
@@ -263,9 +295,20 @@ export class DepartmentsService {
     // 2. For each company — resolve departments + count unreads in parallel
     const companyResults = await Promise.all(
       memberships.map(async ({ company }) => {
-        const departments = await this.getDepartmentsForUser(userId, company.id, isFINUser);
-        const departmentResults = await this.countUnreadForDepartments(userId, company.id, departments);
-        const totalUnread = departmentResults.reduce((sum, d) => sum + d.unreadCount, 0);
+        const departments = await this.getDepartmentsForUser(
+          userId,
+          company.id,
+          isFINUser,
+        );
+        const departmentResults = await this.countUnreadForDepartments(
+          userId,
+          company.id,
+          departments,
+        );
+        const totalUnread = departmentResults.reduce(
+          (sum, d) => sum + d.unreadCount,
+          0,
+        );
 
         return {
           companyId: company.id,
@@ -276,7 +319,10 @@ export class DepartmentsService {
       }),
     );
 
-    const grandTotalUnread = companyResults.reduce((sum, c) => sum + c.totalUnread, 0);
+    const grandTotalUnread = companyResults.reduce(
+      (sum, c) => sum + c.totalUnread,
+      0,
+    );
 
     return { companies: companyResults, grandTotalUnread };
   }
@@ -284,7 +330,11 @@ export class DepartmentsService {
   /**
    * Mark a specific department as read for the current user.
    */
-  async markDepartmentAsRead(userId: string, companyId: string, departmentId: string) {
+  async markDepartmentAsRead(
+    userId: string,
+    companyId: string,
+    departmentId: string,
+  ) {
     if (!companyId || !departmentId) {
       throw new BadRequestException('companyId va departmentId majburiy');
     }
@@ -295,7 +345,7 @@ export class DepartmentsService {
     });
 
     if (!dept) {
-      throw new NotFoundException('Bo\'lim topilmadi');
+      throw new NotFoundException("Bo'lim topilmadi");
     }
 
     // Upsert the read record
@@ -318,26 +368,38 @@ export class DepartmentsService {
       },
     });
 
-    return { message: 'Bo\'lim o\'qilgan deb belgilandi' };
+    return { message: "Bo'lim o'qilgan deb belgilandi" };
   }
 
   /**
    * Mark all departments as read for the current user in a company.
    */
-  async markAllAsRead(userId: string, companyId: string, userSystemRole: SystemRole) {
+  async markAllAsRead(
+    userId: string,
+    companyId: string,
+    userSystemRole: SystemRole,
+  ) {
     if (!companyId) {
       throw new BadRequestException('companyId majburiy');
     }
 
     const isFINUser = (
-      [SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE] as SystemRole[]
+      [
+        SystemRole.FIN_DIRECTOR,
+        SystemRole.FIN_ADMIN,
+        SystemRole.FIN_EMPLOYEE,
+      ] as SystemRole[]
     ).includes(userSystemRole);
 
-    const departments = await this.getDepartmentsForUser(userId, companyId, isFINUser);
+    const departments = await this.getDepartmentsForUser(
+      userId,
+      companyId,
+      isFINUser,
+    );
     const departmentIds = departments.map((d) => d.id);
 
     if (departmentIds.length === 0) {
-      return { message: 'Barcha bo\'limlar o\'qilgan deb belgilandi', count: 0 };
+      return { message: "Barcha bo'limlar o'qilgan deb belgilandi", count: 0 };
     }
 
     const now = new Date();
@@ -365,7 +427,7 @@ export class DepartmentsService {
     );
 
     return {
-      message: 'Barcha bo\'limlar o\'qilgan deb belgilandi',
+      message: "Barcha bo'limlar o'qilgan deb belgilandi",
       count: departmentIds.length,
     };
   }

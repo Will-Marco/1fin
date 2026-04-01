@@ -58,7 +58,7 @@ export class DocumentPermissionGuard implements CanActivate {
 
     // Check if document is in PENDING status
     if (document.status !== DocumentStatus.PENDING) {
-      throw new ForbiddenException('Bu hujjat allaqachon ko\'rib chiqilgan');
+      throw new ForbiddenException("Bu hujjat allaqachon ko'rib chiqilgan");
     }
 
     // Check Bank Oplata special rule - no accept/reject
@@ -91,13 +91,15 @@ export class DocumentPermissionGuard implements CanActivate {
     });
 
     if (!membership || !membership.isActive) {
-      throw new ForbiddenException('Siz bu kompaniyaga kirish huquqiga ega emassiz');
+      throw new ForbiddenException(
+        'Siz bu kompaniyaga kirish huquqiga ega emassiz',
+      );
     }
 
     // CLIENT_FOUNDER cannot accept/reject (monitoring only)
     if (user.systemRole === SystemRole.CLIENT_FOUNDER) {
       throw new ForbiddenException(
-        'Asoschilarda hujjatlarni tasdiqlash/rad etish huquqi yo\'q',
+        "Asoschilarda hujjatlarni tasdiqlash/rad etish huquqi yo'q",
       );
     }
 
@@ -106,7 +108,7 @@ export class DocumentPermissionGuard implements CanActivate {
       user.systemRole !== SystemRole.CLIENT_DIRECTOR &&
       user.systemRole !== SystemRole.CLIENT_EMPLOYEE
     ) {
-      throw new ForbiddenException('Sizda ushbu amalni bajarish huquqi yo\'q');
+      throw new ForbiddenException("Sizda ushbu amalni bajarish huquqi yo'q");
     }
 
     // Check Xatlar special rule - clients can only Accept ("Tanishdim"), no Reject

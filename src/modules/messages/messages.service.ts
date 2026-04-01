@@ -1,24 +1,39 @@
 import {
-    BadRequestException,
-    ForbiddenException,
-    Inject,
-    Injectable,
-    NotFoundException,
-    Optional,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { FileType, MessageStatus, MessageType, SystemRole } from '../../../generated/prisma/client';
+import {
+  FileType,
+  MessageStatus,
+  MessageType,
+  SystemRole,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { MessageProducer } from '../../queues/producers';
 import {
-    CreateMessageWithFilesDto,
-    ForwardMessageDto,
-    UpdateMessageDto,
+  CreateMessageWithFilesDto,
+  ForwardMessageDto,
+  UpdateMessageDto,
 } from './dto';
 import { LETTERS_DEPARTMENT_SLUG } from '../../common/constants';
-import { STORAGE_PROVIDER, StorageProvider, UploadedFile } from '../files/storage/storage.interface';
+import {
+  STORAGE_PROVIDER,
+  StorageProvider,
+  UploadedFile,
+} from '../files/storage/storage.interface';
 
 const ALLOWED_MIME_TYPES = {
-  IMAGE: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+  IMAGE: [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+  ],
   DOCUMENT: [
     'application/pdf',
     'application/msword',
@@ -30,7 +45,14 @@ const ALLOWED_MIME_TYPES = {
     'text/plain',
     'text/csv',
   ],
-  VOICE: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/aac'],
+  VOICE: [
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+    'audio/webm',
+    'audio/mp4',
+    'audio/aac',
+  ],
 };
 
 const FILE_SIZE_LIMITS = {
@@ -62,6 +84,12 @@ const REPLY_TO_SELECT = {
       fileType: true,
       originalName: true,
       mimeType: true,
+      document: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
     },
     take: 3, // Faqat birinchi 3 ta fayl (preview uchun)
   },
@@ -107,7 +135,7 @@ export class MessagesService {
     });
 
     if (!membership) {
-      throw new ForbiddenException('Sizda ushbu bo\'limga kirish huquqi yo\'q');
+      throw new ForbiddenException("Sizda ushbu bo'limga kirish huquqi yo'q");
     }
 
     return true;
@@ -121,7 +149,12 @@ export class MessagesService {
     page = 1,
     limit = 50,
   ) {
-    await this.checkAccess(companyId, globalDepartmentId, userId, userSystemRole);
+    await this.checkAccess(
+      companyId,
+      globalDepartmentId,
+      userId,
+      userSystemRole,
+    );
 
     const skip = (page - 1) * limit;
 
@@ -142,7 +175,13 @@ export class MessagesService {
         orderBy: { createdAt: 'desc' },
         include: {
           sender: {
-            select: { id: true, username: true, name: true, avatar: true, systemRole: true },
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              avatar: true,
+              systemRole: true,
+            },
           },
           replyTo: {
             select: REPLY_TO_SELECT,
@@ -150,7 +189,19 @@ export class MessagesService {
           deletedByUser: {
             select: { id: true, name: true, username: true, systemRole: true },
           },
-          files: true,
+          files: {
+            include: {
+              document: {
+                select: {
+                  id: true,
+                  status: true,
+                  rejectionReason: true,
+                  approvedAt: true,
+                  approvedBy: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
           _count: { select: { edits: true } },
         },
       }),
@@ -168,12 +219,22 @@ export class MessagesService {
     };
   }
 
-  async findOne(messageId: string, userId: string, userSystemRole: SystemRole | null) {
+  async findOne(
+    messageId: string,
+    userId: string,
+    userSystemRole: SystemRole | null,
+  ) {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
       include: {
         sender: {
-          select: { id: true, username: true, name: true, avatar: true, systemRole: true },
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            avatar: true,
+            systemRole: true,
+          },
         },
         replyTo: {
           select: REPLY_TO_SELECT,
@@ -181,7 +242,19 @@ export class MessagesService {
         deletedByUser: {
           select: { id: true, name: true, username: true, systemRole: true },
         },
-        files: true,
+        files: {
+          include: {
+            document: {
+              select: {
+                id: true,
+                status: true,
+                rejectionReason: true,
+                approvedAt: true,
+                approvedBy: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -189,7 +262,12 @@ export class MessagesService {
       throw new NotFoundException('Xabar topilmadi');
     }
 
-    await this.checkAccess(message.companyId, message.globalDepartmentId, userId, userSystemRole);
+    await this.checkAccess(
+      message.companyId,
+      message.globalDepartmentId,
+      userId,
+      userSystemRole,
+    );
 
     return this.formatMessage(message, userSystemRole);
   }
@@ -206,10 +284,16 @@ export class MessagesService {
 
     if (!message) throw new NotFoundException('Xabar topilmadi');
     if (message.senderId !== userId) {
-      throw new ForbiddenException('Faqat o\'zingizning xabaringizni tahrirlashingiz mumkin');
+      throw new ForbiddenException(
+        "Faqat o'zingizning xabaringizni tahrirlashingiz mumkin",
+      );
     }
-    if (message.isDeleted) throw new BadRequestException('O\'chirilgan xabarni tahrirlab bo\'lmaydi');
-    if (message.type !== 'TEXT') throw new BadRequestException('Faqat matnli xabarlarni tahrirlash mumkin');
+    if (message.isDeleted)
+      throw new BadRequestException("O'chirilgan xabarni tahrirlab bo'lmaydi");
+    if (message.type !== 'TEXT')
+      throw new BadRequestException(
+        'Faqat matnli xabarlarni tahrirlash mumkin',
+      );
 
     // Save history
     await this.prisma.messageEdit.create({
@@ -235,14 +319,18 @@ export class MessagesService {
     return this.findOne(messageId, userId, userSystemRole);
   }
 
-  async remove(messageId: string, userId: string, userSystemRole: SystemRole | null) {
+  async remove(
+    messageId: string,
+    userId: string,
+    userSystemRole: SystemRole | null,
+  ) {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
     });
 
     if (!message) throw new NotFoundException('Xabar topilmadi');
     if (message.senderId !== userId && !userSystemRole) {
-      throw new ForbiddenException('Xabarni o\'chirish huquqi yo\'q');
+      throw new ForbiddenException("Xabarni o'chirish huquqi yo'q");
     }
 
     await this.prisma.message.update({
@@ -265,7 +353,7 @@ export class MessagesService {
       } as any);
     }
 
-    return { message: 'Xabar o\'chirildi' };
+    return { message: "Xabar o'chirildi" };
   }
 
   /**
@@ -320,16 +408,18 @@ export class MessagesService {
 
     // 3. Check if this message itself was forwarded - find root original sender
     let rootOriginalMessage = originalMessage;
-    if (originalMessage.forwardedAsNew && originalMessage.forwardedAsNew.length > 0) {
+    if (
+      originalMessage.forwardedAsNew &&
+      originalMessage.forwardedAsNew.length > 0
+    ) {
       // This message was forwarded, get the root original
-      rootOriginalMessage = originalMessage.forwardedAsNew[0].originalMessage as any;
+      rootOriginalMessage = originalMessage.forwardedAsNew[0]
+        .originalMessage as any;
     }
 
     // 4. Verify same company
     if (originalMessage.companyId !== dto.companyId) {
-      throw new BadRequestException(
-        'Forward faqat bir company ichida mumkin',
-      );
+      throw new BadRequestException('Forward faqat bir company ichida mumkin');
     }
 
     // 5. Verify target department exists and enabled for company
@@ -422,7 +512,7 @@ export class MessagesService {
     if (message.isDeleted && !userSystemRole) {
       return {
         ...message,
-        content: 'Bu xabar o\'chirilgan',
+        content: "Bu xabar o'chirilgan",
       };
     }
     return message;
@@ -448,10 +538,17 @@ export class MessagesService {
 
     // Fayl yoki content majburiy
     if (!files?.length && !dto.content?.trim()) {
-      throw new BadRequestException('Kamida bitta fayl yoki matn bo\'lishi kerak');
+      throw new BadRequestException(
+        "Kamida bitta fayl yoki matn bo'lishi kerak",
+      );
     }
 
-    await this.checkAccess(dto.companyId, dto.globalDepartmentId, userId, userSystemRole);
+    await this.checkAccess(
+      dto.companyId,
+      dto.globalDepartmentId,
+      userId,
+      userSystemRole,
+    );
 
     // Xatlar special rule
     const department = await this.prisma.globalDepartment.findUnique({
@@ -467,7 +564,11 @@ export class MessagesService {
     // Reply validation
     if (dto.replyToId) {
       const replyToMessage = await this.prisma.message.findFirst({
-        where: { id: dto.replyToId, companyId: dto.companyId, isDeleted: false },
+        where: {
+          id: dto.replyToId,
+          companyId: dto.companyId,
+          isDeleted: false,
+        },
       });
       if (!replyToMessage) {
         throw new NotFoundException('Reply qilinayotgan xabar topilmadi');
@@ -481,7 +582,11 @@ export class MessagesService {
     }
 
     // Fayllarni storage'ga yuklash (transaction'dan tashqarida)
-    const uploadedFiles: { file: Express.Multer.File; uploaded: UploadedFile; fileType: FileType }[] = [];
+    const uploadedFiles: {
+      file: Express.Multer.File;
+      uploaded: UploadedFile;
+      fileType: FileType;
+    }[] = [];
 
     try {
       for (const file of files || []) {
@@ -533,12 +638,30 @@ export class MessagesService {
           where: { id: message.id },
           include: {
             sender: {
-              select: { id: true, username: true, name: true, avatar: true, systemRole: true },
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                avatar: true,
+                systemRole: true,
+              },
             },
             replyTo: {
               select: REPLY_TO_SELECT,
             },
-            files: true,
+            files: {
+              include: {
+                document: {
+                  select: {
+                    id: true,
+                    status: true,
+                    rejectionReason: true,
+                    approvedAt: true,
+                    approvedBy: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
           },
         });
       });
@@ -591,7 +714,8 @@ export class MessagesService {
 
   private getFileType(mimeType: string): FileType {
     if (ALLOWED_MIME_TYPES.IMAGE.includes(mimeType)) return FileType.IMAGE;
-    if (ALLOWED_MIME_TYPES.DOCUMENT.includes(mimeType)) return FileType.DOCUMENT;
+    if (ALLOWED_MIME_TYPES.DOCUMENT.includes(mimeType))
+      return FileType.DOCUMENT;
     if (ALLOWED_MIME_TYPES.VOICE.includes(mimeType)) return FileType.VOICE;
     return FileType.OTHER;
   }
@@ -600,16 +724,22 @@ export class MessagesService {
     const maxSize = FILE_SIZE_LIMITS[fileType];
     if (size > maxSize) {
       const maxMB = maxSize / (1024 * 1024);
-      throw new BadRequestException(`Fayl hajmi ${maxMB}MB dan oshmasligi kerak`);
+      throw new BadRequestException(
+        `Fayl hajmi ${maxMB}MB dan oshmasligi kerak`,
+      );
     }
   }
 
   private getFolderName(fileType: FileType): string {
     switch (fileType) {
-      case FileType.IMAGE: return 'images';
-      case FileType.DOCUMENT: return 'documents';
-      case FileType.VOICE: return 'voice';
-      default: return 'other';
+      case FileType.IMAGE:
+        return 'images';
+      case FileType.DOCUMENT:
+        return 'documents';
+      case FileType.VOICE:
+        return 'voice';
+      default:
+        return 'other';
     }
   }
 
@@ -620,7 +750,10 @@ export class MessagesService {
     if (!files?.length) return MessageType.TEXT;
 
     // Voice file mavjud bo'lsa
-    if (dto.voiceDuration && files.some((f) => ALLOWED_MIME_TYPES.VOICE.includes(f.mimetype))) {
+    if (
+      dto.voiceDuration &&
+      files.some((f) => ALLOWED_MIME_TYPES.VOICE.includes(f.mimetype))
+    ) {
       return MessageType.VOICE;
     }
 

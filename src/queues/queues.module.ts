@@ -6,10 +6,7 @@ import { MessagesModule } from '../modules/messages/messages.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 
 @Module({
-  imports: [
-    forwardRef(() => MessagesModule),
-    NotificationsModule,
-  ],
+  imports: [forwardRef(() => MessagesModule), NotificationsModule],
   providers: [
     RabbitMQService,
     // Producers
@@ -19,10 +16,6 @@ import { NotificationsModule } from '../modules/notifications/notifications.modu
     MessageConsumer,
     NotificationConsumer,
   ],
-  exports: [
-    RabbitMQService,
-    MessageProducer,
-    NotificationProducer,
-  ],
+  exports: [RabbitMQService, MessageProducer, NotificationProducer],
 })
 export class QueuesModule {}

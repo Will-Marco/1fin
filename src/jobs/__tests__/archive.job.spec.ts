@@ -42,7 +42,9 @@ describe('ArchiveJob', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      mockArchiveService.archiveOldData.mockRejectedValue(new Error('Test error'));
+      mockArchiveService.archiveOldData.mockRejectedValue(
+        new Error('Test error'),
+      );
       await expect(job.handleArchive()).resolves.not.toThrow();
     });
   });

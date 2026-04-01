@@ -1,9 +1,9 @@
 import {
-    BadRequestException,
-    ForbiddenException,
-    Inject,
-    Injectable,
-    NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { FileType, SystemRole } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -87,11 +87,7 @@ export class FilesService {
   /**
    * Faylni yuklash
    */
-  async upload(
-    file: Express.Multer.File,
-    dto: UploadFileDto,
-    userId: string,
-  ) {
+  async upload(file: Express.Multer.File, dto: UploadFileDto, userId: string) {
     // Clean up empty strings to null/undefined for proper validation
     const cleanedDto = {
       ...dto,
@@ -283,7 +279,7 @@ export class FilesService {
 
     // Faqat yuklagan yoki admin o'chirishi mumkin
     if (file.uploadedBy !== userId && !this.isAdmin(systemRole)) {
-      throw new ForbiddenException('Ushbu faylni o\'chirish huquqi yo\'q');
+      throw new ForbiddenException("Ushbu faylni o'chirish huquqi yo'q");
     }
 
     await this.prisma.file.update({
@@ -295,7 +291,7 @@ export class FilesService {
       },
     });
 
-    return { message: 'Fayl o\'chirildi' };
+    return { message: "Fayl o'chirildi" };
   }
 
   /**
@@ -309,7 +305,7 @@ export class FilesService {
     limit: number = 20,
   ) {
     if (!this.isAdmin(systemRole)) {
-      throw new ForbiddenException('Faqat admin ko\'rishi mumkin');
+      throw new ForbiddenException("Faqat admin ko'rishi mumkin");
     }
 
     const skip = (page - 1) * limit;
@@ -363,7 +359,7 @@ export class FilesService {
     }
 
     if (!file.isDeleted) {
-      throw new BadRequestException('Fayl o\'chirilmagan');
+      throw new BadRequestException("Fayl o'chirilmagan");
     }
 
     await this.prisma.file.update({
@@ -381,9 +377,13 @@ export class FilesService {
   /**
    * Faylni butunlay o'chirish (admin only)
    */
-  async permanentDelete(id: string, userId: string, systemRole: SystemRole | null) {
+  async permanentDelete(
+    id: string,
+    userId: string,
+    systemRole: SystemRole | null,
+  ) {
     if (!this.isAdmin(systemRole)) {
-      throw new ForbiddenException('Faqat admin o\'chirishi mumkin');
+      throw new ForbiddenException("Faqat admin o'chirishi mumkin");
     }
 
     const file = await this.prisma.file.findUnique({ where: { id } });
@@ -398,17 +398,13 @@ export class FilesService {
     // DB dan o'chirish
     await this.prisma.file.delete({ where: { id } });
 
-    return { message: 'Fayl butunlay o\'chirildi' };
+    return { message: "Fayl butunlay o'chirildi" };
   }
 
   /**
    * Faylni xabarga biriktirish (attach file to message after upload)
    */
-  async attachToMessage(
-    fileId: string,
-    messageId: string,
-    userId: string,
-  ) {
+  async attachToMessage(fileId: string, messageId: string, userId: string) {
     // Check if file exists
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file) {
@@ -417,7 +413,9 @@ export class FilesService {
 
     // Verify the user owns the file
     if (file.uploadedBy !== userId) {
-      throw new ForbiddenException('Siz faqat o\'zingiz yuklagan fayllarni biriktira olasiz');
+      throw new ForbiddenException(
+        "Siz faqat o'zingiz yuklagan fayllarni biriktira olasiz",
+      );
     }
 
     // Check if message exists
@@ -431,7 +429,9 @@ export class FilesService {
 
     // Verify the user owns the message
     if (message.senderId !== userId) {
-      throw new ForbiddenException('Siz faqat o\'zingizning xabaringizga fayl biriktira olasiz');
+      throw new ForbiddenException(
+        "Siz faqat o'zingizning xabaringizga fayl biriktira olasiz",
+      );
     }
 
     // Update file to attach it to message

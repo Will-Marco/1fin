@@ -4,7 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MessageStatus, MessageType, SystemRole } from '../../../../generated/prisma/client';
+import {
+  MessageStatus,
+  MessageType,
+  SystemRole,
+} from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { MessageProducer } from '../../../queues/producers';
 import { MessagesService } from '../messages.service';
@@ -92,7 +96,9 @@ describe('MessagesService', () => {
 
     it('should create a message for a 1FIN staff user', async () => {
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
-      mockPrismaService.message.findUnique.mockResolvedValue(mockMessageWithFiles);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockMessageWithFiles,
+      );
 
       const dto = {
         companyId: 'company-1',
@@ -100,7 +106,12 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      const result = await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, []);
+      const result = await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [],
+      );
 
       expect(result).toBeDefined();
       expect(mockPrismaService.message.create).toHaveBeenCalled();
@@ -108,9 +119,13 @@ describe('MessagesService', () => {
     });
 
     it('should create a message for a client user with valid membership', async () => {
-      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({ id: 'mem-1' });
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
-      mockPrismaService.message.findUnique.mockResolvedValue(mockMessageWithFiles);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockMessageWithFiles,
+      );
 
       const dto = {
         companyId: 'company-1',
@@ -121,7 +136,9 @@ describe('MessagesService', () => {
       const result = await service.createWithFiles('user-1', null, dto, []);
 
       expect(result).toBeDefined();
-      expect(mockPrismaService.userCompanyMembership.findFirst).toHaveBeenCalled();
+      expect(
+        mockPrismaService.userCompanyMembership.findFirst,
+      ).toHaveBeenCalled();
     });
 
     it('should throw ForbiddenException if client user has no membership', async () => {
@@ -133,13 +150,15 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      await expect(service.createWithFiles('user-1', null, dto, [])).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.createWithFiles('user-1', null, dto, []),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw ForbiddenException if client user tries to send to Xatlar department', async () => {
-      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({ id: 'mem-1' });
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
       mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
         id: 'dept-letters',
         slug: LETTERS_DEPARTMENT_SLUG,
@@ -151,9 +170,9 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      await expect(service.createWithFiles('user-client', null, dto, [])).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.createWithFiles('user-client', null, dto, []),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should create a message if 1FIN user tries to send to Xatlar department', async () => {
@@ -162,7 +181,9 @@ describe('MessagesService', () => {
         slug: LETTERS_DEPARTMENT_SLUG,
       });
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
-      mockPrismaService.message.findUnique.mockResolvedValue(mockMessageWithFiles);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockMessageWithFiles,
+      );
 
       const dto = {
         companyId: 'company-1',
@@ -170,7 +191,12 @@ describe('MessagesService', () => {
         content: 'Hello',
       };
 
-      const result = await service.createWithFiles('user-admin', SystemRole.FIN_ADMIN, dto, []);
+      const result = await service.createWithFiles(
+        'user-admin',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [],
+      );
 
       expect(result).toBeDefined();
       expect(mockPrismaService.message.create).toHaveBeenCalled();
@@ -183,9 +209,9 @@ describe('MessagesService', () => {
         content: '',
       };
 
-      await expect(service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [])).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, []),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should create message with files and rollback on failure', async () => {
@@ -216,7 +242,12 @@ describe('MessagesService', () => {
         content: 'With file',
       };
 
-      const result = await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [mockFile]);
+      const result = await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [mockFile],
+      );
 
       expect(result).toBeDefined();
       expect(mockStorageProvider.upload).toHaveBeenCalled();
@@ -247,7 +278,9 @@ describe('MessagesService', () => {
 
   describe('update', () => {
     it('should update message content if sender', async () => {
-      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({ id: 'mem-1' });
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
       mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
       mockPrismaService.message.update.mockResolvedValue({
         ...mockMessage,
@@ -255,7 +288,12 @@ describe('MessagesService', () => {
         isEdited: true,
       });
 
-      const result = await service.update('msg-1', { content: 'Updated' }, 'user-1', null);
+      const result = await service.update(
+        'msg-1',
+        { content: 'Updated' },
+        'user-1',
+        null,
+      );
 
       expect(mockPrismaService.message.update).toHaveBeenCalled();
       expect(mockPrismaService.messageEdit.create).toHaveBeenCalled();
@@ -333,7 +371,9 @@ describe('MessagesService', () => {
     };
 
     it('should successfully forward message (FIN_EMPLOYEE)', async () => {
-      mockPrismaService.message.findUnique.mockResolvedValue(mockOriginalMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockOriginalMessage,
+      );
       mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
         isEnabled: true,
       });
@@ -364,7 +404,12 @@ describe('MessagesService', () => {
 
     it('should throw ForbiddenException if user is CLIENT_*', async () => {
       await expect(
-        service.forwardMessage('msg-1', forwardDto, 'user-1', SystemRole.CLIENT_EMPLOYEE),
+        service.forwardMessage(
+          'msg-1',
+          forwardDto,
+          'user-1',
+          SystemRole.CLIENT_EMPLOYEE,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -413,7 +458,12 @@ describe('MessagesService', () => {
       mockPrismaService.message.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.forwardMessage('invalid-id', forwardDto, 'user-2', SystemRole.FIN_ADMIN),
+        service.forwardMessage(
+          'invalid-id',
+          forwardDto,
+          'user-2',
+          SystemRole.FIN_ADMIN,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -423,30 +473,53 @@ describe('MessagesService', () => {
         companyId: 'company-999', // Different company
       };
 
-      mockPrismaService.message.findUnique.mockResolvedValue(differentCompanyMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        differentCompanyMessage,
+      );
 
       await expect(
-        service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_DIRECTOR),
+        service.forwardMessage(
+          'msg-1',
+          forwardDto,
+          'user-2',
+          SystemRole.FIN_DIRECTOR,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if target department not enabled', async () => {
-      mockPrismaService.message.findUnique.mockResolvedValue(mockOriginalMessage);
-      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(null); // Department not enabled
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockOriginalMessage,
+      );
+      mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue(
+        null,
+      ); // Department not enabled
 
       await expect(
-        service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_EMPLOYEE),
+        service.forwardMessage(
+          'msg-1',
+          forwardDto,
+          'user-2',
+          SystemRole.FIN_EMPLOYEE,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if department exists but disabled', async () => {
-      mockPrismaService.message.findUnique.mockResolvedValue(mockOriginalMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockOriginalMessage,
+      );
       mockPrismaService.companyDepartmentConfig.findUnique.mockResolvedValue({
         isEnabled: false, // Disabled
       });
 
       await expect(
-        service.forwardMessage('msg-1', forwardDto, 'user-2', SystemRole.FIN_ADMIN),
+        service.forwardMessage(
+          'msg-1',
+          forwardDto,
+          'user-2',
+          SystemRole.FIN_ADMIN,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -502,18 +575,35 @@ describe('MessagesService', () => {
           username: 'file.sender',
         },
         files: [
-          { id: 'file-1', fileType: 'IMAGE', originalName: 'photo.jpg', mimeType: 'image/jpeg' },
-          { id: 'file-2', fileType: 'DOCUMENT', originalName: 'doc.pdf', mimeType: 'application/pdf' },
+          {
+            id: 'file-1',
+            fileType: 'IMAGE',
+            originalName: 'photo.jpg',
+            mimeType: 'image/jpeg',
+          },
+          {
+            id: 'file-2',
+            fileType: 'DOCUMENT',
+            originalName: 'doc.pdf',
+            mimeType: 'application/pdf',
+          },
         ],
         _count: { files: 3 },
       },
     };
 
     it('should include replyTo with type and sender info for TEXT message', async () => {
-      mockPrismaService.message.findMany.mockResolvedValue([mockMessageWithReply]);
+      mockPrismaService.message.findMany.mockResolvedValue([
+        mockMessageWithReply,
+      ]);
       mockPrismaService.message.count.mockResolvedValue(1);
 
-      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.data[0].replyTo).toBeDefined();
       expect(result.data[0].replyTo.type).toBe(MessageType.TEXT);
@@ -525,7 +615,12 @@ describe('MessagesService', () => {
       mockPrismaService.message.findMany.mockResolvedValue([mockVoiceReply]);
       mockPrismaService.message.count.mockResolvedValue(1);
 
-      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.data[0].replyTo.type).toBe(MessageType.VOICE);
       expect(result.data[0].replyTo.voiceDuration).toBe(45);
@@ -535,7 +630,12 @@ describe('MessagesService', () => {
       mockPrismaService.message.findMany.mockResolvedValue([mockFileReply]);
       mockPrismaService.message.count.mockResolvedValue(1);
 
-      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.data[0].replyTo.type).toBe(MessageType.FILE);
       expect(result.data[0].replyTo.files).toHaveLength(2);
@@ -550,10 +650,15 @@ describe('MessagesService', () => {
         replyTo: mockMessageWithReply.replyTo,
         files: [],
       };
-      mockPrismaService.message.findFirst.mockResolvedValue({ id: 'reply-msg-id' });
+      mockPrismaService.message.findFirst.mockResolvedValue({
+        id: 'reply-msg-id',
+      });
       mockPrismaService.message.create.mockResolvedValue(createdMessage);
       mockPrismaService.message.findUnique.mockResolvedValue(createdMessage);
-      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-1', slug: 'dept-1' });
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+        slug: 'dept-1',
+      });
 
       const dto = {
         companyId: 'company-1',
@@ -562,7 +667,12 @@ describe('MessagesService', () => {
         replyToId: 'reply-msg-id',
       };
 
-      const result = await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, []);
+      const result = await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [],
+      );
 
       expect(result?.replyTo).toBeDefined();
       expect(result?.replyTo).not.toBeNull();
@@ -586,21 +696,36 @@ describe('MessagesService', () => {
     };
 
     it('should include deletedByUser info for deleted messages (admin view)', async () => {
-      mockPrismaService.message.findMany.mockResolvedValue([mockDeletedMessage]);
+      mockPrismaService.message.findMany.mockResolvedValue([
+        mockDeletedMessage,
+      ]);
       mockPrismaService.message.count.mockResolvedValue(1);
 
-      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.data[0].isDeleted).toBe(true);
       expect(result.data[0].deletedByUser).toBeDefined();
       expect(result.data[0].deletedByUser.name).toBe('Admin User');
-      expect(result.data[0].deletedByUser.systemRole).toBe(SystemRole.FIN_ADMIN);
+      expect(result.data[0].deletedByUser.systemRole).toBe(
+        SystemRole.FIN_ADMIN,
+      );
     });
 
     it('should include deletedByUser with username for findOne', async () => {
-      mockPrismaService.message.findUnique.mockResolvedValue(mockDeletedMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockDeletedMessage,
+      );
 
-      const result = await service.findOne('msg-1', 'admin-1', SystemRole.FIN_ADMIN);
+      const result = await service.findOne(
+        'msg-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result.deletedByUser).toBeDefined();
       expect(result.deletedByUser.username).toBe('admin.user');
@@ -616,12 +741,21 @@ describe('MessagesService', () => {
           systemRole: SystemRole.FIN_DIRECTOR,
         },
       };
-      mockPrismaService.message.findMany.mockResolvedValue([directorDeletedMessage]);
+      mockPrismaService.message.findMany.mockResolvedValue([
+        directorDeletedMessage,
+      ]);
       mockPrismaService.message.count.mockResolvedValue(1);
 
-      const result = await service.findAll('company-1', 'dept-1', 'admin-1', SystemRole.FIN_ADMIN);
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
 
-      expect(result.data[0].deletedByUser.systemRole).toBe(SystemRole.FIN_DIRECTOR);
+      expect(result.data[0].deletedByUser.systemRole).toBe(
+        SystemRole.FIN_DIRECTOR,
+      );
     });
   });
 });

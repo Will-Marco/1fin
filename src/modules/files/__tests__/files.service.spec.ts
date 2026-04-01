@@ -1,7 +1,4 @@
-import {
-    BadRequestException,
-    NotFoundException
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FileType, SystemRole } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
@@ -80,7 +77,9 @@ describe('FilesService', () => {
 
     it('should upload a file successfully', async () => {
       // Mock validations
-      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-id' });
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-id',
+      });
 
       mockStorageProvider.upload.mockResolvedValue({
         originalName: 'test.jpg',
@@ -92,23 +91,31 @@ describe('FilesService', () => {
       mockPrismaService.file.create.mockResolvedValue(mockFile);
       mockStorageProvider.getUrl.mockReturnValue('http://url');
 
-      const result = await service.upload(mockMulterFile, { globalDepartmentId: 'dept-id' }, 'user-id');
+      const result = await service.upload(
+        mockMulterFile,
+        { globalDepartmentId: 'dept-id' },
+        'user-id',
+      );
 
       expect(result.id).toBe('file-id');
-      expect(mockPrismaService.globalDepartment.findUnique).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.globalDepartment.findUnique,
+      ).toHaveBeenCalledWith({
         where: { id: 'dept-id' },
         select: { id: true },
       });
       expect(mockPrismaService.file.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ globalDepartmentId: 'dept-id' }),
-        })
+        }),
       );
     });
 
     it('should throw error for oversized file', async () => {
       // Mock validations to pass
-      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-id' });
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-id',
+      });
 
       const largeFile = { ...mockMulterFile, size: 50 * 1024 * 1024 };
       await expect(
@@ -119,7 +126,9 @@ describe('FilesService', () => {
     // FILE_SIZE_LIMITS tests for each type
     describe('file size limits per type', () => {
       beforeEach(() => {
-        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({ id: 'dept-id' });
+        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+          id: 'dept-id',
+        });
       });
 
       it('should reject IMAGE files larger than 5MB', async () => {
@@ -130,7 +139,11 @@ describe('FilesService', () => {
         };
 
         await expect(
-          service.upload(imageFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+          service.upload(
+            imageFile as any,
+            { globalDepartmentId: 'dept-id' },
+            'user-id',
+          ),
         ).rejects.toThrow(BadRequestException);
       });
 
@@ -148,10 +161,17 @@ describe('FilesService', () => {
           size: 5 * 1024 * 1024,
           mimeType: 'image/jpeg',
         });
-        mockPrismaService.file.create.mockResolvedValue({ ...mockFile, fileType: FileType.IMAGE });
+        mockPrismaService.file.create.mockResolvedValue({
+          ...mockFile,
+          fileType: FileType.IMAGE,
+        });
         mockStorageProvider.getUrl.mockReturnValue('http://url');
 
-        const result = await service.upload(imageFile as any, { globalDepartmentId: 'dept-id' }, 'user-id');
+        const result = await service.upload(
+          imageFile as any,
+          { globalDepartmentId: 'dept-id' },
+          'user-id',
+        );
         expect(result).toBeDefined();
       });
 
@@ -163,7 +183,11 @@ describe('FilesService', () => {
         };
 
         await expect(
-          service.upload(docFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+          service.upload(
+            docFile as any,
+            { globalDepartmentId: 'dept-id' },
+            'user-id',
+          ),
         ).rejects.toThrow(BadRequestException);
       });
 
@@ -181,10 +205,17 @@ describe('FilesService', () => {
           size: 15 * 1024 * 1024,
           mimeType: 'application/pdf',
         });
-        mockPrismaService.file.create.mockResolvedValue({ ...mockFile, fileType: FileType.DOCUMENT });
+        mockPrismaService.file.create.mockResolvedValue({
+          ...mockFile,
+          fileType: FileType.DOCUMENT,
+        });
         mockStorageProvider.getUrl.mockReturnValue('http://url');
 
-        const result = await service.upload(docFile as any, { globalDepartmentId: 'dept-id' }, 'user-id');
+        const result = await service.upload(
+          docFile as any,
+          { globalDepartmentId: 'dept-id' },
+          'user-id',
+        );
         expect(result).toBeDefined();
       });
 
@@ -196,7 +227,11 @@ describe('FilesService', () => {
         };
 
         await expect(
-          service.upload(voiceFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+          service.upload(
+            voiceFile as any,
+            { globalDepartmentId: 'dept-id' },
+            'user-id',
+          ),
         ).rejects.toThrow(BadRequestException);
       });
 
@@ -214,10 +249,17 @@ describe('FilesService', () => {
           size: 5 * 1024 * 1024,
           mimeType: 'audio/mpeg',
         });
-        mockPrismaService.file.create.mockResolvedValue({ ...mockFile, fileType: FileType.VOICE });
+        mockPrismaService.file.create.mockResolvedValue({
+          ...mockFile,
+          fileType: FileType.VOICE,
+        });
         mockStorageProvider.getUrl.mockReturnValue('http://url');
 
-        const result = await service.upload(voiceFile as any, { globalDepartmentId: 'dept-id' }, 'user-id');
+        const result = await service.upload(
+          voiceFile as any,
+          { globalDepartmentId: 'dept-id' },
+          'user-id',
+        );
         expect(result).toBeDefined();
       });
 
@@ -229,7 +271,11 @@ describe('FilesService', () => {
         };
 
         await expect(
-          service.upload(otherFile as any, { globalDepartmentId: 'dept-id' }, 'user-id'),
+          service.upload(
+            otherFile as any,
+            { globalDepartmentId: 'dept-id' },
+            'user-id',
+          ),
         ).rejects.toThrow(BadRequestException);
       });
     });
@@ -247,16 +293,26 @@ describe('FilesService', () => {
     });
 
     it('should hide deleted files from non-admin', async () => {
-      mockPrismaService.file.findUnique.mockResolvedValue({ ...mockFile, isDeleted: true });
-      await expect(
-        service.findOne('file-id', 'user-id', null),
-      ).rejects.toThrow(NotFoundException);
+      mockPrismaService.file.findUnique.mockResolvedValue({
+        ...mockFile,
+        isDeleted: true,
+      });
+      await expect(service.findOne('file-id', 'user-id', null)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should show deleted files to fin-admin', async () => {
-      mockPrismaService.file.findUnique.mockResolvedValue({ ...mockFile, isDeleted: true });
+      mockPrismaService.file.findUnique.mockResolvedValue({
+        ...mockFile,
+        isDeleted: true,
+      });
       mockStorageProvider.getUrl.mockReturnValue('http://url');
-      const result = await service.findOne('file-id', 'user-id', SystemRole.FIN_ADMIN);
+      const result = await service.findOne(
+        'file-id',
+        'user-id',
+        SystemRole.FIN_ADMIN,
+      );
       expect(result.id).toBe('file-id');
     });
   });
@@ -273,7 +329,7 @@ describe('FilesService', () => {
       expect(mockPrismaService.file.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ globalDepartmentId: 'dept-1' }),
-        })
+        }),
       );
     });
   });
@@ -288,7 +344,7 @@ describe('FilesService', () => {
       expect(mockPrismaService.file.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ isDeleted: true }),
-        })
+        }),
       );
     });
   });
@@ -303,14 +359,18 @@ describe('FilesService', () => {
       mockPrismaService.file.update.mockResolvedValue(updatedFile);
       mockStorageProvider.getUrl.mockReturnValue('http://url');
 
-      const result = await service.attachToMessage('file-id', 'msg-id', 'user-id');
+      const result = await service.attachToMessage(
+        'file-id',
+        'msg-id',
+        'user-id',
+      );
 
       expect(result.messageId).toBe('msg-id');
       expect(mockPrismaService.file.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'file-id' },
           data: { messageId: 'msg-id' },
-        })
+        }),
       );
     });
 
@@ -340,7 +400,7 @@ describe('FilesService', () => {
         service.upload(
           { mimetype: 'image/jpeg', size: 1024 } as any,
           { messageId: 'nonexistent-msg-id' },
-          'user-id'
+          'user-id',
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -352,7 +412,7 @@ describe('FilesService', () => {
         service.upload(
           { mimetype: 'image/jpeg', size: 1024 } as any,
           { documentId: 'nonexistent-doc-id' },
-          'user-id'
+          'user-id',
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -364,7 +424,7 @@ describe('FilesService', () => {
         service.upload(
           { mimetype: 'image/jpeg', size: 1024 } as any,
           { globalDepartmentId: 'nonexistent-dept-id' },
-          'user-id'
+          'user-id',
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -378,13 +438,16 @@ describe('FilesService', () => {
         size: 1024,
         mimeType: 'image/jpeg',
       });
-      mockPrismaService.file.create.mockResolvedValue({ ...mockFile, messageId: 'msg-id' });
+      mockPrismaService.file.create.mockResolvedValue({
+        ...mockFile,
+        messageId: 'msg-id',
+      });
       mockStorageProvider.getUrl.mockReturnValue('http://url');
 
       const result = await service.upload(
         { mimetype: 'image/jpeg', size: 1024, originalname: 'test.jpg' } as any,
         { messageId: 'msg-id' },
-        'user-id'
+        'user-id',
       );
 
       expect(result.messageId).toBe('msg-id');

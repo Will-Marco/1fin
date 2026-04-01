@@ -22,7 +22,9 @@ export class NotificationConsumer implements OnModuleInit {
 
   private async startConsuming() {
     if (!this.rabbitMQService.isReady()) {
-      this.logger.warn('RabbitMQ not ready, notification consumers not started');
+      this.logger.warn(
+        'RabbitMQ not ready, notification consumers not started',
+      );
       return;
     }
 
@@ -49,8 +51,13 @@ export class NotificationConsumer implements OnModuleInit {
     await this.rabbitMQService.consume(
       QUEUES.DOCUMENT_REMINDER,
       async (message) => {
-        const { userIds, documentName, documentNumber, companyId, departmentId } =
-          message;
+        const {
+          userIds,
+          documentName,
+          documentNumber,
+          companyId,
+          departmentId,
+        } = message;
 
         const title = 'Hujjat tasdiqlash kutilmoqda';
         const body = `"${documentName}" (${documentNumber}) hujjati tasdiqlashni kutmoqda`;
@@ -109,7 +116,10 @@ export class NotificationConsumer implements OnModuleInit {
     try {
       await this.oneSignalService.sendPush({ userId, title, body, data });
     } catch (error) {
-      this.logger.error(`Failed to send push notification to ${userId}:`, error);
+      this.logger.error(
+        `Failed to send push notification to ${userId}:`,
+        error,
+      );
     }
   }
 }

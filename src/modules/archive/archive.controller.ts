@@ -1,9 +1,9 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
-    ApiBearerAuth,
-    ApiOperation,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
 import { SystemRoles } from '../../common/decorators';
@@ -11,9 +11,9 @@ import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { ArchiveService } from './archive.service';
 import {
-    SearchDocumentsArchiveDto,
-    SearchFilesArchiveDto,
-    SearchMessagesArchiveDto,
+  SearchDocumentsArchiveDto,
+  SearchFilesArchiveDto,
+  SearchMessagesArchiveDto,
 } from './dto';
 
 @ApiTags('Archive')
@@ -82,7 +82,9 @@ export class ArchiveController {
 
   @Post('run')
   @SystemRoles(SystemRole.FIN_DIRECTOR)
-  @ApiOperation({ summary: 'Manually trigger archive process (FIN_DIRECTOR only)' })
+  @ApiOperation({
+    summary: 'Manually trigger archive process (FIN_DIRECTOR only)',
+  })
   @ApiResponse({ status: 200, description: 'Archive result' })
   async runArchive() {
     const archiveResult = await this.archiveService.archiveOldData();

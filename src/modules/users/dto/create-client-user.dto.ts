@@ -1,11 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-    IsEnum,
-    IsNotEmpty,
-    IsOptional,
-    IsString,
-    Matches,
-    MinLength,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
 } from 'class-validator';
 import { SystemRole } from '../../../../generated/prisma/client';
 

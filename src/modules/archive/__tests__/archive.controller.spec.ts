@@ -17,9 +17,7 @@ describe('ArchiveController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ArchiveController],
-      providers: [
-        { provide: ArchiveService, useValue: mockArchiveService },
-      ],
+      providers: [{ provide: ArchiveService, useValue: mockArchiveService }],
     }).compile();
 
     controller = module.get<ArchiveController>(ArchiveController);
@@ -44,7 +42,7 @@ describe('ArchiveController', () => {
 
       expect(result).toEqual(mockResult);
       expect(mockArchiveService.searchMessages).toHaveBeenCalledWith(
-        expect.objectContaining({ globalDepartmentId: 'd1' })
+        expect.objectContaining({ globalDepartmentId: 'd1' }),
       );
     });
   });

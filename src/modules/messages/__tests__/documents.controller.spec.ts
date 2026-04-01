@@ -57,9 +57,19 @@ describe('DocumentsController', () => {
 
   describe('findAll', () => {
     it('should return paginated documents', async () => {
-      mockDocumentsService.findAll.mockResolvedValue({ data: [mockDocument], meta: {} });
+      mockDocumentsService.findAll.mockResolvedValue({
+        data: [mockDocument],
+        meta: {},
+      });
 
-      const result = await controller.findAll('company-1', 'dept-1', undefined, undefined, '1', '20');
+      const result = await controller.findAll(
+        'company-1',
+        'dept-1',
+        undefined,
+        undefined,
+        '1',
+        '20',
+      );
 
       expect(result.data).toHaveLength(1);
       expect(service.findAll).toHaveBeenCalledWith(1, 20, {
@@ -73,7 +83,10 @@ describe('DocumentsController', () => {
 
   describe('approve', () => {
     it('should approve a document', async () => {
-      mockDocumentsService.approve.mockResolvedValue({ ...mockDocument, status: DocumentStatus.ACCEPTED });
+      mockDocumentsService.approve.mockResolvedValue({
+        ...mockDocument,
+        status: DocumentStatus.ACCEPTED,
+      });
 
       const result = await controller.approve('doc-1', 'admin-1');
 
@@ -84,12 +97,21 @@ describe('DocumentsController', () => {
 
   describe('reject', () => {
     it('should reject a document', async () => {
-      mockDocumentsService.reject.mockResolvedValue({ ...mockDocument, status: DocumentStatus.REJECTED });
+      mockDocumentsService.reject.mockResolvedValue({
+        ...mockDocument,
+        status: DocumentStatus.REJECTED,
+      });
 
-      const result = await controller.reject('doc-1', { reason: 'Invalid' }, 'admin-1');
+      const result = await controller.reject(
+        'doc-1',
+        { reason: 'Invalid' },
+        'admin-1',
+      );
 
       expect(result.status).toBe(DocumentStatus.REJECTED);
-      expect(service.reject).toHaveBeenCalledWith('doc-1', 'admin-1', { reason: 'Invalid' });
+      expect(service.reject).toHaveBeenCalledWith('doc-1', 'admin-1', {
+        reason: 'Invalid',
+      });
     });
   });
 });

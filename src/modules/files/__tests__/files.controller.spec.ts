@@ -71,7 +71,11 @@ describe('FilesController', () => {
       const result = await controller.findOne('file-id', 'user-id', null);
 
       expect(result).toEqual(mockFile);
-      expect(mockFilesService.findOne).toHaveBeenCalledWith('file-id', 'user-id', null);
+      expect(mockFilesService.findOne).toHaveBeenCalledWith(
+        'file-id',
+        'user-id',
+        null,
+      );
     });
   });
 
@@ -79,11 +83,23 @@ describe('FilesController', () => {
     it('should return paginated files', async () => {
       mockFilesService.findByDepartment.mockResolvedValue({ data: [mockFile] });
 
-      const result = await controller.findByDepartment('dept-1', '1', '20', 'false', 'u1', null);
+      const result = await controller.findByDepartment(
+        'dept-1',
+        '1',
+        '20',
+        'false',
+        'u1',
+        null,
+      );
 
       expect(result.data).toHaveLength(1);
       expect(mockFilesService.findByDepartment).toHaveBeenCalledWith(
-        'dept-1', 'u1', null, 1, 20, false
+        'dept-1',
+        'u1',
+        null,
+        1,
+        20,
+        false,
       );
     });
   });

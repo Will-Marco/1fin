@@ -49,7 +49,9 @@ describe('StatisticsController', () => {
       };
       const expectedResult = { documents: { total: 10 } };
 
-      mockStatisticsService.getStatistics.mockResolvedValue(expectedResult as any);
+      mockStatisticsService.getStatistics.mockResolvedValue(
+        expectedResult as any,
+      );
 
       const result = await controller.getStatistics(dto, user);
 
@@ -66,7 +68,9 @@ describe('StatisticsController', () => {
       };
       const expectedResult = { documents: { total: 5 } };
 
-      mockStatisticsService.getStatistics.mockResolvedValue(expectedResult as any);
+      mockStatisticsService.getStatistics.mockResolvedValue(
+        expectedResult as any,
+      );
 
       const result = await controller.getStatistics(dto, user);
 
@@ -77,7 +81,10 @@ describe('StatisticsController', () => {
     });
 
     it('should allow client to access their own company', async () => {
-      const dto = { period: StatisticsPeriod.MONTHLY, companyId: 'user_company_1' };
+      const dto = {
+        period: StatisticsPeriod.MONTHLY,
+        companyId: 'user_company_1',
+      };
       const user = {
         id: 'client-user-id',
         systemRole: SystemRole.CLIENT_DIRECTOR,
@@ -85,7 +92,9 @@ describe('StatisticsController', () => {
       };
       const expectedResult = { documents: { total: 5 } };
 
-      mockStatisticsService.getStatistics.mockResolvedValue(expectedResult as any);
+      mockStatisticsService.getStatistics.mockResolvedValue(
+        expectedResult as any,
+      );
 
       const result = await controller.getStatistics(dto, user);
 
@@ -107,7 +116,10 @@ describe('StatisticsController', () => {
     });
 
     it('should throw error for client accessing other company', async () => {
-      const dto = { period: StatisticsPeriod.MONTHLY, companyId: 'other_company' };
+      const dto = {
+        period: StatisticsPeriod.MONTHLY,
+        companyId: 'other_company',
+      };
       const user = {
         id: 'client-user-id',
         systemRole: SystemRole.CLIENT_DIRECTOR,

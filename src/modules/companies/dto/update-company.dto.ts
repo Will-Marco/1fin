@@ -7,7 +7,7 @@ export class UpdateCompanyDto {
   @IsOptional()
   name?: string;
 
-  @ApiPropertyOptional({ example: 'IT xizmatlari va dasturiy ta\'minot' })
+  @ApiPropertyOptional({ example: "IT xizmatlari va dasturiy ta'minot" })
   @IsString()
   @IsOptional()
   description?: string;
@@ -28,14 +28,21 @@ export class UpdateCompanyDto {
   address?: string;
 
   @ApiPropertyOptional({
-    example: { bank: 'Example Bank', account: '20208000000000000001', mfo: '00000' },
+    example: {
+      bank: 'Example Bank',
+      account: '20208000000000000001',
+      mfo: '00000',
+    },
   })
   @IsObject()
   @IsOptional()
   requisites?: Record<string, any>;
 
   @ApiPropertyOptional({
-    example: { additionalBank: 'Second Bank', additionalAccount: '20208000000000000002' },
+    example: {
+      additionalBank: 'Second Bank',
+      additionalAccount: '20208000000000000002',
+    },
   })
   @IsObject()
   @IsOptional()

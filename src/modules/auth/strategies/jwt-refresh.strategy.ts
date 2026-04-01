@@ -6,7 +6,10 @@ import { Request } from 'express';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @Injectable()
-export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+export class JwtRefreshStrategy extends PassportStrategy(
+  Strategy,
+  'jwt-refresh',
+) {
   constructor(configService: ConfigService) {
     const secretOrKey = configService.get<string>('jwt.refreshSecret');
     if (!secretOrKey) {

@@ -37,12 +37,18 @@ export class CreateMessageDto {
   @IsOptional()
   type?: MessageType = MessageType.TEXT;
 
-  @ApiPropertyOptional({ example: 'message-uuid', description: 'Reply qilish uchun xabar ID' })
+  @ApiPropertyOptional({
+    example: 'message-uuid',
+    description: 'Reply qilish uchun xabar ID',
+  })
   @IsString()
   @IsOptional()
   replyToId?: string;
 
-  @ApiPropertyOptional({ example: 120, description: 'Ovozli xabar davomiyligi (sekundlarda)' })
+  @ApiPropertyOptional({
+    example: 120,
+    description: 'Ovozli xabar davomiyligi (sekundlarda)',
+  })
   @IsInt()
   @Min(1)
   @Max(300) // 5 daqiqa

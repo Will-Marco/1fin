@@ -26,7 +26,12 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshTokenDto, ChangePasswordDto, UpdateProfileDto } from './dto';
+import {
+  LoginDto,
+  RefreshTokenDto,
+  ChangePasswordDto,
+  UpdateProfileDto,
+} from './dto';
 import { JwtAuthGuard, JwtRefreshGuard } from './guards';
 import { CurrentUser } from '../../common/decorators';
 
@@ -81,10 +86,7 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
-  async refresh(
-    @Body() dto: RefreshTokenDto,
-    @CurrentUser() user: any,
-  ) {
+  async refresh(@Body() dto: RefreshTokenDto, @CurrentUser() user: any) {
     return this.authService.refreshTokens(
       user.sub,
       user.sessionId,
@@ -246,7 +248,8 @@ export class AuthController {
       storage: diskStorage({
         destination: './uploads/avatars',
         filename: (_req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
           cb(null, uniqueSuffix + extname(file.originalname));
         },
       }),
@@ -264,6 +267,9 @@ export class AuthController {
     )
     file: Express.Multer.File,
   ) {
-    return this.authService.updateAvatar(userId, `/uploads/avatars/${file.filename}`);
+    return this.authService.updateAvatar(
+      userId,
+      `/uploads/avatars/${file.filename}`,
+    );
   }
 }

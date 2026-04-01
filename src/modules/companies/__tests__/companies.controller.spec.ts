@@ -98,7 +98,9 @@ describe('CompaniesController', () => {
 
       const result = await controller.update('company-id', { name: 'Updated' });
 
-      expect(service.update).toHaveBeenCalledWith('company-id', { name: 'Updated' });
+      expect(service.update).toHaveBeenCalledWith('company-id', {
+        name: 'Updated',
+      });
     });
   });
 
@@ -132,7 +134,10 @@ describe('CompaniesController', () => {
       const result = await controller.enableDepartment('company-id', 'dept-id');
 
       expect(result.isEnabled).toBe(true);
-      expect(service.enableDepartment).toHaveBeenCalledWith('company-id', 'dept-id');
+      expect(service.enableDepartment).toHaveBeenCalledWith(
+        'company-id',
+        'dept-id',
+      );
     });
   });
 
@@ -141,7 +146,10 @@ describe('CompaniesController', () => {
       const config = { id: 'cfg-id', isEnabled: false, globalDepartment: {} };
       mockCompaniesService.disableDepartment.mockResolvedValue(config);
 
-      const result = await controller.disableDepartment('company-id', 'dept-id');
+      const result = await controller.disableDepartment(
+        'company-id',
+        'dept-id',
+      );
 
       expect(result.isEnabled).toBe(false);
     });
@@ -190,7 +198,10 @@ describe('CompaniesController', () => {
     });
 
     it('should handle search parameter', async () => {
-      const paginated = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+      const paginated = {
+        data: [],
+        meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+      };
       mockCompaniesService.findAllDeleted.mockResolvedValue(paginated);
 
       await controller.findAllDeleted('1', '20', 'Tech');

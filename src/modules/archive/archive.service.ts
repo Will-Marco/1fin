@@ -159,7 +159,9 @@ export class ArchiveService {
 
           for (const file of doc.files) {
             // Agar fayl xabar orqali arxivlanmagan bo'lsa (orphan file check)
-            const exists = await tx.fileArchive.findUnique({ where: { id: file.id } });
+            const exists = await tx.fileArchive.findUnique({
+              where: { id: file.id },
+            });
             if (!exists) {
               await tx.fileArchive.create({
                 data: {
@@ -188,7 +190,9 @@ export class ArchiveService {
 
         const docIds = documentsToArchive.map((d) => d.id);
         await tx.file.deleteMany({ where: { documentId: { in: docIds } } });
-        await tx.documentActionLog.deleteMany({ where: { documentId: { in: docIds } } });
+        await tx.documentActionLog.deleteMany({
+          where: { documentId: { in: docIds } },
+        });
         await tx.document.deleteMany({ where: { id: { in: docIds } } });
       });
     }
@@ -248,7 +252,16 @@ export class ArchiveService {
    * Arxivlangan xabarlarni qidirish
    */
   async searchMessages(params: SearchArchiveParams) {
-    const { globalDepartmentId, companyId, senderId, content, startDate, endDate, page = 1, limit = 20 } = params;
+    const {
+      globalDepartmentId,
+      companyId,
+      senderId,
+      content,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = params;
     const where: Prisma.MessageArchiveWhereInput = {};
 
     if (globalDepartmentId) where.globalDepartmentId = globalDepartmentId;
@@ -282,11 +295,19 @@ export class ArchiveService {
    * Arxivlangan fayllarni qidirish
    */
   async searchFiles(params: SearchArchiveParams & { fileName?: string }) {
-    const { globalDepartmentId, fileName, startDate, endDate, page = 1, limit = 20 } = params;
+    const {
+      globalDepartmentId,
+      fileName,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = params;
     const where: Prisma.FileArchiveWhereInput = {};
 
     if (globalDepartmentId) where.globalDepartmentId = globalDepartmentId;
-    if (fileName) where.originalName = { contains: fileName, mode: 'insensitive' };
+    if (fileName)
+      where.originalName = { contains: fileName, mode: 'insensitive' };
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -313,14 +334,30 @@ export class ArchiveService {
   /**
    * Arxivlangan hujjatlarni qidirish
    */
-  async searchDocuments(params: SearchArchiveParams & { documentNumber?: string; documentName?: string }) {
-    const { globalDepartmentId, companyId, documentNumber, documentName, startDate, endDate, page = 1, limit = 20 } = params;
+  async searchDocuments(
+    params: SearchArchiveParams & {
+      documentNumber?: string;
+      documentName?: string;
+    },
+  ) {
+    const {
+      globalDepartmentId,
+      companyId,
+      documentNumber,
+      documentName,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = params;
     const where: Prisma.DocumentArchiveWhereInput = {};
 
     if (globalDepartmentId) where.globalDepartmentId = globalDepartmentId;
     if (companyId) where.companyId = companyId;
-    if (documentNumber) where.documentNumber = { contains: documentNumber, mode: 'insensitive' };
-    if (documentName) where.documentName = { contains: documentName, mode: 'insensitive' };
+    if (documentNumber)
+      where.documentNumber = { contains: documentNumber, mode: 'insensitive' };
+    if (documentName)
+      where.documentName = { contains: documentName, mode: 'insensitive' };
 
     if (startDate || endDate) {
       where.createdAt = {};

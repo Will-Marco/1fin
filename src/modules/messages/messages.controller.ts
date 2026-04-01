@@ -1,25 +1,25 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    Patch,
-    Post,
-    Query,
-    UploadedFiles,
-    UseGuards,
-    UseInterceptors,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import {
-    ApiBearerAuth,
-    ApiBody,
-    ApiConsumes,
-    ApiOperation,
-    ApiQuery,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { SystemRole } from '../../../generated/prisma/client';
@@ -27,9 +27,9 @@ import { CurrentUser, SystemRoles } from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
-    CreateMessageWithFilesDto,
-    ForwardMessageDto,
-    UpdateMessageDto,
+  CreateMessageWithFilesDto,
+  ForwardMessageDto,
+  UpdateMessageDto,
 } from './dto';
 import { MessagesService } from './messages.service';
 
@@ -51,7 +51,7 @@ export class MessagesController {
     summary: 'Send a message with optional files (atomic transaction)',
     description:
       'Xabar va fayllarni bitta atomic operatsiyada yuboradi. ' +
-      'Agar biror qadam xato bo\'lsa, hammasi rollback qilinadi.',
+      "Agar biror qadam xato bo'lsa, hammasi rollback qilinadi.",
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -75,7 +75,7 @@ export class MessagesController {
         content: {
           type: 'string',
           example: 'Salom, hammaga!',
-          description: 'Xabar matni (ixtiyoriy agar fayl mavjud bo\'lsa)',
+          description: "Xabar matni (ixtiyoriy agar fayl mavjud bo'lsa)",
         },
         replyToId: {
           type: 'string',
@@ -118,11 +118,18 @@ export class MessagesController {
     @CurrentUser('id') userId: string,
     @CurrentUser('systemRole') systemRole: SystemRole | null,
   ) {
-    return this.messagesService.createWithFiles(userId, systemRole, dto, files || []);
+    return this.messagesService.createWithFiles(
+      userId,
+      systemRole,
+      dto,
+      files || [],
+    );
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get messages (filtered by company and department)' })
+  @ApiOperation({
+    summary: 'Get messages (filtered by company and department)',
+  })
   @ApiQuery({ name: 'companyId', required: true })
   @ApiQuery({ name: 'globalDepartmentId', required: true })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -266,7 +273,11 @@ export class MessagesController {
     @CurrentUser('id') userId: string,
     @CurrentUser('systemRole') systemRole: SystemRole,
   ) {
-    return this.messagesService.forwardMessage(messageId, dto, userId, systemRole);
+    return this.messagesService.forwardMessage(
+      messageId,
+      dto,
+      userId,
+      systemRole,
+    );
   }
-
-  }
+}

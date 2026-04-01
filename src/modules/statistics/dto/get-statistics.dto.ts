@@ -18,7 +18,7 @@ export class GetStatisticsDto {
   companyId?: string;
 
   @ApiPropertyOptional({
-    description: 'Bo\'lim ID (ixtiyoriy)',
+    description: "Bo'lim ID (ixtiyoriy)",
     example: 'cuid-department-id',
   })
   @IsOptional()
@@ -40,7 +40,7 @@ export class GetStatisticsDto {
   })
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'from sanasi YYYY-MM-DD formatida bo\'lishi kerak',
+    message: "from sanasi YYYY-MM-DD formatida bo'lishi kerak",
   })
   from?: string;
 
@@ -50,7 +50,7 @@ export class GetStatisticsDto {
   })
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'to sanasi YYYY-MM-DD formatida bo\'lishi kerak',
+    message: "to sanasi YYYY-MM-DD formatida bo'lishi kerak",
   })
   to?: string;
 }

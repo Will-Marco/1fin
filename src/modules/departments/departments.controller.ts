@@ -1,20 +1,20 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    Patch,
-    Post,
-    Query,
-    UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-    ApiBearerAuth,
-    ApiOperation,
-    ApiQuery,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser, SystemRoles } from '../../common/decorators';
@@ -52,7 +52,11 @@ export class DepartmentsController {
   }
 
   @Get()
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get all global departments' })
   @ApiQuery({
     name: 'includeInactive',
@@ -65,8 +69,22 @@ export class DepartmentsController {
     description: 'List of global departments',
     schema: {
       example: [
-        { id: 'cuid', name: 'Buxgalteriya', slug: 'buxgalteriya', isActive: true, createdAt: '2024-02-24T10:00:00.000Z', _count: { companyConfigs: 5 } },
-        { id: 'cuid', name: 'Yuridik', slug: 'yuridik', isActive: true, createdAt: '2024-02-24T10:00:00.000Z', _count: { companyConfigs: 3 } },
+        {
+          id: 'cuid',
+          name: 'Buxgalteriya',
+          slug: 'buxgalteriya',
+          isActive: true,
+          createdAt: '2024-02-24T10:00:00.000Z',
+          _count: { companyConfigs: 5 },
+        },
+        {
+          id: 'cuid',
+          name: 'Yuridik',
+          slug: 'yuridik',
+          isActive: true,
+          createdAt: '2024-02-24T10:00:00.000Z',
+          _count: { companyConfigs: 3 },
+        },
       ],
     },
   })
@@ -88,7 +106,8 @@ export class DepartmentsController {
     SystemRole.CLIENT_EMPLOYEE,
   )
   @ApiOperation({
-    summary: 'Get unread message counts across ALL companies the current user belongs to',
+    summary:
+      'Get unread message counts across ALL companies the current user belongs to',
     description:
       'Returns per-company and per-department unread counts in a single request. ' +
       'Designed to power a global unread badge on the frontend without N separate requests.',
@@ -104,8 +123,18 @@ export class DepartmentsController {
             companyName: 'Alfa LLC',
             totalUnread: 12,
             departments: [
-              { departmentId: 'cuid', departmentName: 'Buxgalteriya', departmentSlug: 'buxgalteriya', unreadCount: 7 },
-              { departmentId: 'cuid', departmentName: 'Yuridik', departmentSlug: 'yuridik', unreadCount: 5 },
+              {
+                departmentId: 'cuid',
+                departmentName: 'Buxgalteriya',
+                departmentSlug: 'buxgalteriya',
+                unreadCount: 7,
+              },
+              {
+                departmentId: 'cuid',
+                departmentName: 'Yuridik',
+                departmentSlug: 'yuridik',
+                unreadCount: 5,
+              },
             ],
           },
           {
@@ -113,7 +142,12 @@ export class DepartmentsController {
             companyName: 'Beta Corp',
             totalUnread: 3,
             departments: [
-              { departmentId: 'cuid', departmentName: 'Buxgalteriya', departmentSlug: 'buxgalteriya', unreadCount: 3 },
+              {
+                departmentId: 'cuid',
+                departmentName: 'Buxgalteriya',
+                departmentSlug: 'buxgalteriya',
+                unreadCount: 3,
+              },
             ],
           },
         ],
@@ -125,7 +159,10 @@ export class DepartmentsController {
     @CurrentUser('id') userId: string,
     @CurrentUser('systemRole') systemRole: SystemRole,
   ) {
-    return this.departmentsService.getAllCompaniesUnreadSummary(userId, systemRole);
+    return this.departmentsService.getAllCompaniesUnreadSummary(
+      userId,
+      systemRole,
+    );
   }
 
   @Get('unread-summary/:companyId')
@@ -137,15 +174,28 @@ export class DepartmentsController {
     SystemRole.CLIENT_DIRECTOR,
     SystemRole.CLIENT_EMPLOYEE,
   )
-  @ApiOperation({ summary: 'Get unread message counts for all departments in a single company' })
+  @ApiOperation({
+    summary:
+      'Get unread message counts for all departments in a single company',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns unread count per department and total',
     schema: {
       example: {
         departments: [
-          { departmentId: 'cuid', departmentName: 'Buxgalteriya', departmentSlug: 'buxgalteriya', unreadCount: 5 },
-          { departmentId: 'cuid', departmentName: 'Yuridik', departmentSlug: 'yuridik', unreadCount: 0 },
+          {
+            departmentId: 'cuid',
+            departmentName: 'Buxgalteriya',
+            departmentSlug: 'buxgalteriya',
+            unreadCount: 5,
+          },
+          {
+            departmentId: 'cuid',
+            departmentName: 'Yuridik',
+            departmentSlug: 'yuridik',
+            unreadCount: 0,
+          },
         ],
         totalUnread: 5,
       },
@@ -156,7 +206,11 @@ export class DepartmentsController {
     @CurrentUser('id') userId: string,
     @CurrentUser('systemRole') systemRole: SystemRole,
   ) {
-    return this.departmentsService.getUnreadSummary(userId, companyId, systemRole);
+    return this.departmentsService.getUnreadSummary(
+      userId,
+      companyId,
+      systemRole,
+    );
   }
 
   @Post('mark-all-read/:companyId')
@@ -172,7 +226,12 @@ export class DepartmentsController {
   @ApiResponse({
     status: 200,
     description: 'All departments marked as read',
-    schema: { example: { message: "Barcha bo'limlar o'qilgan deb belgilandi", count: 5 } },
+    schema: {
+      example: {
+        message: "Barcha bo'limlar o'qilgan deb belgilandi",
+        count: 5,
+      },
+    },
   })
   async markAllAsRead(
     @Param('companyId') companyId: string,
@@ -187,7 +246,11 @@ export class DepartmentsController {
   // ─────────────────────────────────────────────
 
   @Get(':id')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN, SystemRole.FIN_EMPLOYEE)
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.FIN_EMPLOYEE,
+  )
   @ApiOperation({ summary: 'Get a global department by ID' })
   @ApiResponse({
     status: 200,
@@ -211,7 +274,9 @@ export class DepartmentsController {
 
   @Patch(':id')
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Update a global department (name, slug, or isActive)' })
+  @ApiOperation({
+    summary: 'Update a global department (name, slug, or isActive)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Department updated',
@@ -264,6 +329,10 @@ export class DepartmentsController {
     @Param('companyId') companyId: string,
     @CurrentUser('id') userId: string,
   ) {
-    return this.departmentsService.markDepartmentAsRead(userId, companyId, departmentId);
+    return this.departmentsService.markDepartmentAsRead(
+      userId,
+      companyId,
+      departmentId,
+    );
   }
 }
