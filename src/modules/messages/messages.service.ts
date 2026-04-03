@@ -7,6 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  DocumentStatus,
   FileType,
   MessageStatus,
   MessageType,
@@ -19,7 +20,11 @@ import {
   ForwardMessageDto,
   UpdateMessageDto,
 } from './dto';
-import { LETTERS_DEPARTMENT_SLUG } from '../../common/constants';
+import {
+  BANK_PAYMENT_DEPARTMENT_SLUG,
+  DOCUMENT_EXPIRATION_DAYS,
+  LETTERS_DEPARTMENT_SLUG,
+} from '../../common/constants';
 import {
   STORAGE_PROVIDER,
   StorageProvider,
@@ -88,6 +93,8 @@ const REPLY_TO_SELECT = {
         select: {
           id: true,
           status: true,
+          documentNumber: true,
+          documentName: true,
         },
       },
     },
@@ -195,6 +202,8 @@ export class MessagesService {
                 select: {
                   id: true,
                   status: true,
+                  documentNumber: true,
+                  documentName: true,
                   rejectionReason: true,
                   approvedAt: true,
                   approvedBy: { select: { id: true, name: true } },
@@ -248,6 +257,8 @@ export class MessagesService {
               select: {
                 id: true,
                 status: true,
+                documentNumber: true,
+                documentName: true,
                 rejectionReason: true,
                 approvedAt: true,
                 approvedBy: { select: { id: true, name: true } },
@@ -599,7 +610,15 @@ export class MessagesService {
       // Message type aniqlash
       const messageType = this.determineMessageType(dto, files);
 
-      // Transaction: message + files yaratish
+      // Document yaratish kerakmi?
+      const shouldCreateDocument =
+        userSystemRole !== null && // 1FIN xodimi
+        department?.slug !== BANK_PAYMENT_DEPARTMENT_SLUG && // Bank Oplata emas
+        uploadedFiles.some(
+          (f) => f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
+        ); // Hujjat tipidagi fayllar bor
+
+      // Transaction: message + files + document yaratish
       const result = await this.prisma.$transaction(async (tx) => {
         // 1. Message yaratish
         const message = await tx.message.create({
@@ -615,13 +634,60 @@ export class MessagesService {
           },
         });
 
-        // 2. File records yaratish
+        // 2. Document yaratish (agar kerak bo'lsa)
+        let document: { id: string } | null = null;
+        if (shouldCreateDocument) {
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + DOCUMENT_EXPIRATION_DAYS);
+
+          // Document raqamini generatsiya qilish (MSG-YYYYMMDD-XXXX)
+          const today = new Date();
+          const datePrefix = today.toISOString().slice(0, 10).replace(/-/g, '');
+          const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const documentNumber = `MSG-${datePrefix}-${randomSuffix}`;
+
+          document = await tx.document.create({
+            data: {
+              globalDepartmentId: dto.globalDepartmentId,
+              companyId: dto.companyId,
+              documentName: dto.content?.substring(0, 100) || 'Hujjat',
+              documentNumber,
+              status: DocumentStatus.PENDING,
+              createdById: userId,
+              expiresAt,
+            },
+            select: { id: true },
+          });
+
+          // Document action log
+          await tx.documentActionLog.create({
+            data: {
+              documentId: document.id,
+              userId,
+              action: 'CREATED',
+              details: {
+                messageId: message.id,
+                filesCount: uploadedFiles.filter(
+                  (f) => f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
+                ).length,
+              },
+            },
+          });
+        }
+
+        // 3. File records yaratish
         if (uploadedFiles.length > 0) {
           await tx.file.createMany({
             data: uploadedFiles.map(({ uploaded, fileType }) => ({
               uploadedBy: userId,
               globalDepartmentId: dto.globalDepartmentId,
               messageId: message.id,
+              // Document fayllarini Document'ga bog'lash
+              documentId:
+                document &&
+                (fileType === FileType.DOCUMENT || fileType === FileType.OTHER)
+                  ? document.id
+                  : null,
               originalName: uploaded.originalName,
               fileName: uploaded.fileName,
               fileSize: uploaded.size,
@@ -633,7 +699,7 @@ export class MessagesService {
           });
         }
 
-        // 3. Full message olish
+        // 4. Full message olish
         return tx.message.findUnique({
           where: { id: message.id },
           include: {
@@ -655,6 +721,8 @@ export class MessagesService {
                   select: {
                     id: true,
                     status: true,
+                    documentNumber: true,
+                    documentName: true,
                     rejectionReason: true,
                     approvedAt: true,
                     approvedBy: { select: { id: true, name: true } },

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  DocumentStatus,
   MessageStatus,
   MessageType,
   SystemRole,
@@ -12,7 +13,10 @@ import {
 import { PrismaService } from '../../../database/prisma.service';
 import { MessageProducer } from '../../../queues/producers';
 import { MessagesService } from '../messages.service';
-import { LETTERS_DEPARTMENT_SLUG } from '../../../common/constants';
+import {
+  BANK_PAYMENT_DEPARTMENT_SLUG,
+  LETTERS_DEPARTMENT_SLUG,
+} from '../../../common/constants';
 import { STORAGE_PROVIDER } from '../../files/storage/storage.interface';
 
 describe('MessagesService', () => {
@@ -57,6 +61,12 @@ describe('MessagesService', () => {
     },
     file: {
       createMany: jest.fn(),
+    },
+    document: {
+      create: jest.fn(),
+    },
+    documentActionLog: {
+      create: jest.fn(),
     },
     $transaction: jest.fn((callback) => callback(mockPrismaService)),
   };
@@ -223,6 +233,10 @@ describe('MessagesService', () => {
         buffer: Buffer.from('test'),
       } as Express.Multer.File;
 
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+        slug: 'dogovor',
+      });
       mockStorageProvider.upload.mockResolvedValue({
         originalName: 'test.pdf',
         fileName: 'uuid-test.pdf',
@@ -231,9 +245,17 @@ describe('MessagesService', () => {
         mimeType: 'application/pdf',
       });
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
       mockPrismaService.message.findUnique.mockResolvedValue({
         ...mockMessageWithFiles,
-        files: [{ id: 'file-1', path: 'documents/uuid-test.pdf' }],
+        files: [
+          {
+            id: 'file-1',
+            path: 'documents/uuid-test.pdf',
+            document: { id: 'doc-1' },
+          },
+        ],
       });
 
       const dto = {
@@ -252,6 +274,258 @@ describe('MessagesService', () => {
       expect(result).toBeDefined();
       expect(mockStorageProvider.upload).toHaveBeenCalled();
       expect(mockPrismaService.file.createMany).toHaveBeenCalled();
+    });
+
+    it('should auto-create Document when 1FIN user sends DOCUMENT file', async () => {
+      const mockPdfFile = {
+        fieldname: 'files',
+        originalname: 'shartnoma.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+        slug: 'dogovor', // Not bank-payment
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'shartnoma.pdf',
+        fileName: 'uuid-shartnoma.pdf',
+        path: 'documents/uuid-shartnoma.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        files: [
+          {
+            id: 'file-1',
+            path: 'documents/uuid-shartnoma.pdf',
+            document: { id: 'doc-1', status: DocumentStatus.PENDING },
+          },
+        ],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: 'Shartnomani ko\'ring',
+      };
+
+      await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_EMPLOYEE, // 1FIN user
+        dto,
+        [mockPdfFile],
+      );
+
+      expect(mockPrismaService.document.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: DocumentStatus.PENDING,
+            companyId: 'company-1',
+            globalDepartmentId: 'dept-1',
+          }),
+        }),
+      );
+      expect(mockPrismaService.documentActionLog.create).toHaveBeenCalled();
+    });
+
+    it('should NOT create Document when 1FIN user sends IMAGE file', async () => {
+      const mockImageFile = {
+        fieldname: 'files',
+        originalname: 'photo.jpg',
+        mimetype: 'image/jpeg',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+        slug: 'dogovor',
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'photo.jpg',
+        fileName: 'uuid-photo.jpg',
+        path: 'images/uuid-photo.jpg',
+        size: 1024,
+        mimeType: 'image/jpeg',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        files: [{ id: 'file-1', path: 'images/uuid-photo.jpg', document: null }],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: 'Rasm',
+      };
+
+      await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [mockImageFile],
+      );
+
+      expect(mockPrismaService.document.create).not.toHaveBeenCalled();
+    });
+
+    it('should NOT create Document when Client user sends DOCUMENT file', async () => {
+      const mockPdfFile = {
+        fieldname: 'files',
+        originalname: 'javob.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+        slug: 'dogovor',
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'javob.pdf',
+        fileName: 'uuid-javob.pdf',
+        path: 'documents/uuid-javob.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        files: [{ id: 'file-1', path: 'documents/uuid-javob.pdf', document: null }],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: 'Javob fayli',
+      };
+
+      await service.createWithFiles(
+        'client-user',
+        null, // Client user (no systemRole)
+        dto,
+        [mockPdfFile],
+      );
+
+      expect(mockPrismaService.document.create).not.toHaveBeenCalled();
+    });
+
+    it('should NOT create Document when sending to Bank Oplata department', async () => {
+      const mockPdfFile = {
+        fieldname: 'files',
+        originalname: 'payment.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-bank',
+        slug: BANK_PAYMENT_DEPARTMENT_SLUG, // Bank Oplata
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'payment.pdf',
+        fileName: 'uuid-payment.pdf',
+        path: 'documents/uuid-payment.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        files: [{ id: 'file-1', path: 'documents/uuid-payment.pdf', document: null }],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-bank',
+        content: 'To\'lov hujjati',
+      };
+
+      await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_ADMIN, // 1FIN user
+        dto,
+        [mockPdfFile],
+      );
+
+      expect(mockPrismaService.document.create).not.toHaveBeenCalled();
+    });
+
+    it('should create ONE Document for multiple DOCUMENT files in same message', async () => {
+      const mockPdfFile1 = {
+        fieldname: 'files',
+        originalname: 'shartnoma.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test1'),
+      } as Express.Multer.File;
+
+      const mockPdfFile2 = {
+        fieldname: 'files',
+        originalname: 'ilova.docx',
+        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        size: 2048,
+        buffer: Buffer.from('test2'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+        slug: 'dogovor',
+      });
+      mockStorageProvider.upload
+        .mockResolvedValueOnce({
+          originalName: 'shartnoma.pdf',
+          fileName: 'uuid-shartnoma.pdf',
+          path: 'documents/uuid-shartnoma.pdf',
+          size: 1024,
+          mimeType: 'application/pdf',
+        })
+        .mockResolvedValueOnce({
+          originalName: 'ilova.docx',
+          fileName: 'uuid-ilova.docx',
+          path: 'documents/uuid-ilova.docx',
+          size: 2048,
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        files: [
+          { id: 'file-1', document: { id: 'doc-1', status: DocumentStatus.PENDING } },
+          { id: 'file-2', document: { id: 'doc-1', status: DocumentStatus.PENDING } },
+        ],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-1',
+        content: 'Shartnoma va ilova',
+      };
+
+      await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [mockPdfFile1, mockPdfFile2],
+      );
+
+      // Document should be created only ONCE
+      expect(mockPrismaService.document.create).toHaveBeenCalledTimes(1);
     });
   });
 
