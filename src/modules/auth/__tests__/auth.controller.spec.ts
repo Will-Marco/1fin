@@ -13,6 +13,7 @@ describe('AuthController', () => {
     logout: jest.fn(),
     logoutAll: jest.fn(),
     getSessions: jest.fn(),
+    getProfile: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -148,18 +149,41 @@ describe('AuthController', () => {
   });
 
   describe('getProfile', () => {
-    it('should return current user profile', async () => {
-      const mockUser = {
+    it('should return current user profile with memberships', async () => {
+      const expectedResult = {
         id: 'user-id',
         username: 'admin01',
         name: 'Admin User',
         systemRole: SystemRole.FIN_ADMIN,
         sessionId: 'session-id',
+        memberships: [
+          {
+            id: 'membership-id',
+            rank: 1,
+            isActive: true,
+            company: { id: 'company-id', name: 'Example LLC' },
+            allowedDepartments: [
+              {
+                globalDepartment: {
+                  id: 'dept-id',
+                  name: 'Buxgalteriya',
+                  slug: 'buxgalteriya',
+                },
+              },
+            ],
+          },
+        ],
       };
 
-      const result = await controller.getProfile(mockUser);
+      mockAuthService.getProfile.mockResolvedValue(expectedResult);
 
-      expect(result).toEqual(mockUser);
+      const result = await controller.getProfile('user-id', 'session-id');
+
+      expect(result).toEqual(expectedResult);
+      expect(authService.getProfile).toHaveBeenCalledWith(
+        'user-id',
+        'session-id',
+      );
     });
   });
 });

@@ -266,6 +266,82 @@ describe('AuthService', () => {
     });
   });
 
+  describe('getProfile', () => {
+    const mockUserWithMemberships = {
+      id: 'user-id',
+      username: 'admin01',
+      name: 'Admin User',
+      phone: '+998901234567',
+      avatar: null,
+      systemRole: SystemRole.FIN_ADMIN,
+      notificationsEnabled: true,
+      isActive: true,
+      mustChangePassword: false,
+      memberships: [
+        {
+          id: 'membership-id',
+          rank: 1,
+          isActive: true,
+          company: { id: 'company-id', name: 'Example LLC' },
+          allowedDepartments: [
+            {
+              globalDepartment: {
+                id: 'dept-id',
+                name: 'Buxgalteriya',
+                slug: 'buxgalteriya',
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    it('should return user profile with memberships', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        mockUserWithMemberships,
+      );
+
+      const result = await service.getProfile('user-id', 'session-id');
+
+      expect(result.id).toBe('user-id');
+      expect(result.username).toBe('admin01');
+      expect(result.sessionId).toBe('session-id');
+      expect(result.memberships).toHaveLength(1);
+      expect(result.memberships[0].company.name).toBe('Example LLC');
+      expect(
+        result.memberships[0].allowedDepartments[0].globalDepartment.slug,
+      ).toBe('buxgalteriya');
+    });
+
+    it('should throw UnauthorizedException if user not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getProfile('invalid-id', 'session-id'),
+      ).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.getProfile('invalid-id', 'session-id'),
+      ).rejects.toThrow('User not found');
+    });
+
+    it('should only include active memberships', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        mockUserWithMemberships,
+      );
+
+      await service.getProfile('user-id', 'session-id');
+
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-id' },
+        select: expect.objectContaining({
+          memberships: expect.objectContaining({
+            where: { isActive: true },
+          }),
+        }),
+      });
+    });
+  });
+
   describe('session limit (max 3 devices)', () => {
     it('should remove oldest session when limit exceeded', async () => {
       const loginDto = {

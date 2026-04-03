@@ -160,10 +160,10 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiOperation({ summary: 'Get current user profile with memberships' })
   @ApiResponse({
     status: 200,
-    description: 'Current user profile',
+    description: 'Current user profile with company memberships',
     schema: {
       example: {
         id: 'cuid-user-id',
@@ -174,12 +174,33 @@ export class AuthController {
         systemRole: 'FIN_DIRECTOR',
         notificationsEnabled: true,
         isActive: true,
+        mustChangePassword: false,
         sessionId: 'cuid-session-id',
+        memberships: [
+          {
+            id: 'cuid-membership-id',
+            rank: 1,
+            isActive: true,
+            company: { id: 'cuid-company-id', name: 'Example LLC' },
+            allowedDepartments: [
+              {
+                globalDepartment: {
+                  id: 'cuid-dept-id',
+                  name: 'Buxgalteriya',
+                  slug: 'buxgalteriya',
+                },
+              },
+            ],
+          },
+        ],
       },
     },
   })
-  async getProfile(@CurrentUser() user: any) {
-    return user;
+  async getProfile(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('sessionId') sessionId: string,
+  ) {
+    return this.authService.getProfile(userId, sessionId);
   }
 
   @Patch('change-password')

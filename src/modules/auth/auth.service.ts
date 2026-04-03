@@ -209,6 +209,57 @@ export class AuthService {
     });
   }
 
+  async getProfile(userId: string, sessionId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        phone: true,
+        avatar: true,
+        systemRole: true,
+        notificationsEnabled: true,
+        isActive: true,
+        mustChangePassword: true,
+        memberships: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            rank: true,
+            isActive: true,
+            company: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            allowedDepartments: {
+              select: {
+                globalDepartment: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return {
+      ...user,
+      sessionId,
+    };
+  }
+
   private async createSession(
     userId: string,
     systemRole: SystemRole | null,
