@@ -160,10 +160,10 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile with memberships' })
+  @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({
     status: 200,
-    description: 'Current user profile with company memberships',
+    description: 'Current user profile',
     schema: {
       example: {
         id: 'cuid-user-id',
@@ -176,23 +176,6 @@ export class AuthController {
         isActive: true,
         mustChangePassword: false,
         sessionId: 'cuid-session-id',
-        memberships: [
-          {
-            id: 'cuid-membership-id',
-            rank: 1,
-            isActive: true,
-            company: { id: 'cuid-company-id', name: 'Example LLC' },
-            allowedDepartments: [
-              {
-                globalDepartment: {
-                  id: 'cuid-dept-id',
-                  name: 'Buxgalteriya',
-                  slug: 'buxgalteriya',
-                },
-              },
-            ],
-          },
-        ],
       },
     },
   })

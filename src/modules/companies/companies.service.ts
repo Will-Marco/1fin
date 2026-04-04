@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { SystemRole } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
 
@@ -110,9 +111,25 @@ export class CompaniesService {
     return { ...companyData, skippedUserIds };
   }
 
-  async findAll(page = 1, limit = 20, search?: string) {
+  async findAll(
+    userId: string,
+    systemRole: SystemRole | null,
+    page = 1,
+    limit = 20,
+    search?: string,
+  ) {
     const skip = (page - 1) * limit;
     const where: any = { isActive: true };
+
+    // Client user (systemRole === null) → faqat membership'dagi kompaniyalar
+    if (!systemRole) {
+      where.memberships = {
+        some: {
+          userId,
+          isActive: true,
+        },
+      };
+    }
 
     if (search) {
       where.OR = [

@@ -160,12 +160,12 @@ export class CompaniesController {
   }
 
   @Get()
-  @SystemRoles(
-    SystemRole.FIN_DIRECTOR,
-    SystemRole.FIN_ADMIN,
-    SystemRole.FIN_EMPLOYEE,
-  )
-  @ApiOperation({ summary: 'Get all companies (paginated)' })
+  @ApiOperation({
+    summary: 'Get companies (1FIN: all, Client: only own companies)',
+    description:
+      "1FIN xodimlari barcha kompaniyalarni ko'radi. " +
+      "Client foydalanuvchilar faqat o'zlari a'zo bo'lgan kompaniyalarni ko'radi.",
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -191,11 +191,15 @@ export class CompaniesController {
     },
   })
   async findAll(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
   ) {
     return this.companiesService.findAll(
+      userId,
+      systemRole,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       search,

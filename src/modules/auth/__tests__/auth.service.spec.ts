@@ -267,7 +267,7 @@ describe('AuthService', () => {
   });
 
   describe('getProfile', () => {
-    const mockUserWithMemberships = {
+    const mockUserProfile = {
       id: 'user-id',
       username: 'admin01',
       name: 'Admin User',
@@ -277,40 +277,18 @@ describe('AuthService', () => {
       notificationsEnabled: true,
       isActive: true,
       mustChangePassword: false,
-      memberships: [
-        {
-          id: 'membership-id',
-          rank: 1,
-          isActive: true,
-          company: { id: 'company-id', name: 'Example LLC' },
-          allowedDepartments: [
-            {
-              globalDepartment: {
-                id: 'dept-id',
-                name: 'Buxgalteriya',
-                slug: 'buxgalteriya',
-              },
-            },
-          ],
-        },
-      ],
     };
 
-    it('should return user profile with memberships', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(
-        mockUserWithMemberships,
-      );
+    it('should return user profile with sessionId', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUserProfile);
 
       const result = await service.getProfile('user-id', 'session-id');
 
       expect(result.id).toBe('user-id');
       expect(result.username).toBe('admin01');
       expect(result.sessionId).toBe('session-id');
-      expect(result.memberships).toHaveLength(1);
-      expect(result.memberships[0].company.name).toBe('Example LLC');
-      expect(
-        result.memberships[0].allowedDepartments[0].globalDepartment.slug,
-      ).toBe('buxgalteriya');
+      expect(result.systemRole).toBe(SystemRole.FIN_ADMIN);
+      expect(result.notificationsEnabled).toBe(true);
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
@@ -322,23 +300,6 @@ describe('AuthService', () => {
       await expect(
         service.getProfile('invalid-id', 'session-id'),
       ).rejects.toThrow('User not found');
-    });
-
-    it('should only include active memberships', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(
-        mockUserWithMemberships,
-      );
-
-      await service.getProfile('user-id', 'session-id');
-
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 'user-id' },
-        select: expect.objectContaining({
-          memberships: expect.objectContaining({
-            where: { isActive: true },
-          }),
-        }),
-      });
     });
   });
 

@@ -222,31 +222,6 @@ export class AuthService {
         notificationsEnabled: true,
         isActive: true,
         mustChangePassword: true,
-        memberships: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            rank: true,
-            isActive: true,
-            company: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            allowedDepartments: {
-              select: {
-                globalDepartment: {
-                  select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                  },
-                },
-              },
-            },
-          },
-        },
       },
     });
 

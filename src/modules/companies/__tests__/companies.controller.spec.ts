@@ -65,17 +65,54 @@ describe('CompaniesController', () => {
   });
 
   describe('findAll', () => {
-    it('should return paginated companies', async () => {
+    it('should return all companies for 1FIN user', async () => {
       const paginated = {
         data: [mockCompany],
         meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
       };
       mockCompaniesService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll('1', '20', undefined);
+      const result = await controller.findAll(
+        'user-id',
+        SystemRole.FIN_ADMIN,
+        '1',
+        '20',
+        undefined,
+      );
 
       expect(result).toEqual(paginated);
-      expect(service.findAll).toHaveBeenCalledWith(1, 20, undefined);
+      expect(service.findAll).toHaveBeenCalledWith(
+        'user-id',
+        SystemRole.FIN_ADMIN,
+        1,
+        20,
+        undefined,
+      );
+    });
+
+    it('should return membership companies for Client user', async () => {
+      const paginated = {
+        data: [mockCompany],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      };
+      mockCompaniesService.findAll.mockResolvedValue(paginated);
+
+      const result = await controller.findAll(
+        'client-user-id',
+        null, // Client user
+        '1',
+        '20',
+        undefined,
+      );
+
+      expect(result).toEqual(paginated);
+      expect(service.findAll).toHaveBeenCalledWith(
+        'client-user-id',
+        null,
+        1,
+        20,
+        undefined,
+      );
     });
   });
 

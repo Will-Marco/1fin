@@ -215,25 +215,81 @@ describe('CompaniesService', () => {
   // ─────────────────────────────────────────────
 
   describe('findAll', () => {
-    it('should return paginated companies', async () => {
+    it('should return all companies for 1FIN user', async () => {
       mockPrismaService.company.findMany.mockResolvedValue([mockCompany]);
       mockPrismaService.company.count.mockResolvedValue(1);
 
-      const result = await service.findAll(1, 20);
+      const result = await service.findAll(
+        'user-id',
+        SystemRole.FIN_ADMIN, // 1FIN user
+        1,
+        20,
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);
+      // Should NOT filter by membership
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { isActive: true },
+        }),
+      );
     });
 
-    it('should filter by search term', async () => {
+    it('should return only membership companies for Client user', async () => {
+      mockPrismaService.company.findMany.mockResolvedValue([mockCompany]);
+      mockPrismaService.company.count.mockResolvedValue(1);
+
+      const result = await service.findAll(
+        'client-user-id',
+        null, // Client user (no systemRole)
+        1,
+        20,
+      );
+
+      expect(result.data).toHaveLength(1);
+      // Should filter by membership
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: true,
+            memberships: {
+              some: {
+                userId: 'client-user-id',
+                isActive: true,
+              },
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by search term for 1FIN user', async () => {
       mockPrismaService.company.findMany.mockResolvedValue([]);
       mockPrismaService.company.count.mockResolvedValue(0);
 
-      await service.findAll(1, 20, 'Tech');
+      await service.findAll('user-id', SystemRole.FIN_ADMIN, 1, 20, 'Tech');
 
       expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ OR: expect.any(Array) }),
+        }),
+      );
+    });
+
+    it('should filter by search term for Client user with membership filter', async () => {
+      mockPrismaService.company.findMany.mockResolvedValue([]);
+      mockPrismaService.company.count.mockResolvedValue(0);
+
+      await service.findAll('client-user-id', null, 1, 20, 'Tech');
+
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: true,
+            memberships: expect.any(Object),
+            OR: expect.any(Array),
+          }),
         }),
       );
     });
