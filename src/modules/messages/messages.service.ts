@@ -23,6 +23,7 @@ import {
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
   DOCUMENT_EXPIRATION_DAYS,
+  is1FinStaff,
   LETTERS_DEPARTMENT_SLUG,
 } from '../../common/constants';
 import {
@@ -125,7 +126,7 @@ export class MessagesService {
     userSystemRole?: SystemRole | null,
   ) {
     // 1FIN staff (FIN_DIRECTOR, FIN_ADMIN, FIN_EMPLOYEE) have global access
-    if (userSystemRole) {
+    if (is1FinStaff(userSystemRole)) {
       return true;
     }
 
@@ -170,7 +171,8 @@ export class MessagesService {
       companyId,
       globalDepartmentId,
     };
-    if (!userSystemRole) {
+    // Only 1FIN staff can see deleted messages
+    if (!is1FinStaff(userSystemRole)) {
       where.isDeleted = false;
     }
 
@@ -615,7 +617,8 @@ export class MessagesService {
         userSystemRole !== null && // 1FIN xodimi
         department?.slug !== BANK_PAYMENT_DEPARTMENT_SLUG && // Bank Oplata emas
         uploadedFiles.some(
-          (f) => f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
+          (f) =>
+            f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
         ); // Hujjat tipidagi fayllar bor
 
       // Transaction: message + files + document yaratish
@@ -643,7 +646,10 @@ export class MessagesService {
           // Document raqamini generatsiya qilish (MSG-YYYYMMDD-XXXX)
           const today = new Date();
           const datePrefix = today.toISOString().slice(0, 10).replace(/-/g, '');
-          const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const randomSuffix = Math.random()
+            .toString(36)
+            .substring(2, 6)
+            .toUpperCase();
           const documentNumber = `MSG-${datePrefix}-${randomSuffix}`;
 
           document = await tx.document.create({
@@ -668,7 +674,9 @@ export class MessagesService {
               details: {
                 messageId: message.id,
                 filesCount: uploadedFiles.filter(
-                  (f) => f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
+                  (f) =>
+                    f.fileType === FileType.DOCUMENT ||
+                    f.fileType === FileType.OTHER,
                 ).length,
               },
             },

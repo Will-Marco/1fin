@@ -327,15 +327,15 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Get(':id/departments')
-  @SystemRoles(
-    SystemRole.FIN_DIRECTOR,
-    SystemRole.FIN_ADMIN,
-    SystemRole.FIN_EMPLOYEE,
-  )
-  @ApiOperation({ summary: 'Get all department configs for a company' })
+  @ApiOperation({
+    summary: 'Get departments for a company (filtered by user access)',
+    description:
+      '1FIN users see all enabled departments. ' +
+      'Client users see only departments they have access to via membership.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'List of department configs',
+    description: 'List of departments the user can access',
     schema: {
       example: [
         {
@@ -347,16 +347,15 @@ export class CompaniesController {
             slug: 'buxgalteriya',
           },
         },
-        {
-          id: 'cuid',
-          isEnabled: false,
-          globalDepartment: { id: 'cuid', name: 'Yuridik', slug: 'yuridik' },
-        },
       ],
     },
   })
-  async getDepartmentConfigs(@Param('id') id: string) {
-    return this.companiesService.getDepartmentConfigs(id);
+  async getDepartmentConfigs(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
+  ) {
+    return this.companiesService.getDepartmentConfigs(id, userId, systemRole);
   }
 
   @Post(':id/departments/:deptId/enable')

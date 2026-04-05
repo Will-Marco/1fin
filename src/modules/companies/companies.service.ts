@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SystemRole } from '../../../generated/prisma/client';
+import { is1FinStaff } from '../../common/constants';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
 
@@ -120,9 +121,11 @@ export class CompaniesService {
   ) {
     const skip = (page - 1) * limit;
     const where: any = { isActive: true };
+    const isFin = is1FinStaff(systemRole);
 
-    // Client user (systemRole === null) → faqat membership'dagi kompaniyalar
-    if (!systemRole) {
+    // Client users (CLIENT_* roles) → only companies they have membership in
+    // 1FIN staff (FIN_* roles) → all companies
+    if (!isFin) {
       where.memberships = {
         some: {
           userId,
@@ -138,6 +141,40 @@ export class CompaniesService {
       ];
     }
 
+    // For 1FIN users: standard query with _count
+    if (isFin) {
+      const [companies, total] = await Promise.all([
+        this.prisma.company.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            inn: true,
+            logo: true,
+            address: true,
+            isActive: true,
+            createdAt: true,
+            _count: {
+              select: {
+                memberships: { where: { isActive: true } },
+                departmentConfigs: { where: { isEnabled: true } },
+              },
+            },
+          },
+        }),
+        this.prisma.company.count({ where }),
+      ]);
+
+      return {
+        data: companies,
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
+    }
+
+    // For Client users: get companies with their allowed department count
     const [companies, total] = await Promise.all([
       this.prisma.company.findMany({
         where,
@@ -152,10 +189,12 @@ export class CompaniesService {
           address: true,
           isActive: true,
           createdAt: true,
-          _count: {
+          memberships: {
+            where: { userId, isActive: true },
             select: {
-              memberships: { where: { isActive: true } },
-              departmentConfigs: { where: { isEnabled: true } },
+              _count: {
+                select: { allowedDepartments: true },
+              },
             },
           },
         },
@@ -163,14 +202,29 @@ export class CompaniesService {
       this.prisma.company.count({ where }),
     ]);
 
+    // Transform to match 1FIN response format
+    const data = companies.map((company) => {
+      const membership = company.memberships[0];
+      const departmentCount = membership?._count?.allowedDepartments ?? 0;
+
+      return {
+        id: company.id,
+        name: company.name,
+        inn: company.inn,
+        logo: company.logo,
+        address: company.address,
+        isActive: company.isActive,
+        createdAt: company.createdAt,
+        _count: {
+          memberships: 1, // Client always has 1 membership per company
+          departmentConfigs: departmentCount,
+        },
+      };
+    });
+
     return {
-      data: companies,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -261,22 +315,56 @@ export class CompaniesService {
   // ─────────────────────────────────────────────
 
   /**
-   * Get all department configs for a company (enabled + disabled).
+   * Get department configs for a company filtered by user access.
+   * - 1FIN users: all enabled departments
+   * - Client users: only departments they have access to via membership
    */
-  async getDepartmentConfigs(companyId: string) {
+  async getDepartmentConfigs(
+    companyId: string,
+    userId: string,
+    systemRole: SystemRole | null,
+  ) {
     await this.findOne(companyId);
 
-    return this.prisma.companyDepartmentConfig.findMany({
-      where: { companyId },
-      orderBy: { createdAt: 'asc' },
+    // 1FIN users see all enabled departments
+    if (is1FinStaff(systemRole)) {
+      return this.prisma.companyDepartmentConfig.findMany({
+        where: { companyId, isEnabled: true },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          isEnabled: true,
+          globalDepartment: {
+            select: { id: true, name: true, slug: true },
+          },
+        },
+      });
+    }
+
+    // Client users: get departments from their membership access
+    const membership = await this.prisma.userCompanyMembership.findUnique({
+      where: { userId_companyId: { userId, companyId } },
       select: {
-        id: true,
-        isEnabled: true,
-        globalDepartment: {
-          select: { id: true, name: true, slug: true },
+        allowedDepartments: {
+          select: {
+            globalDepartment: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
         },
       },
     });
+
+    if (!membership) {
+      return [];
+    }
+
+    // Return in same format as 1FIN response
+    return membership.allowedDepartments.map((ad) => ({
+      id: ad.globalDepartment.id,
+      isEnabled: true,
+      globalDepartment: ad.globalDepartment,
+    }));
   }
 
   /**

@@ -237,17 +237,22 @@ describe('CompaniesService', () => {
     });
 
     it('should return only membership companies for Client user', async () => {
-      mockPrismaService.company.findMany.mockResolvedValue([mockCompany]);
+      const clientCompany = {
+        ...mockCompany,
+        memberships: [{ _count: { allowedDepartments: 3 } }],
+      };
+      mockPrismaService.company.findMany.mockResolvedValue([clientCompany]);
       mockPrismaService.company.count.mockResolvedValue(1);
 
       const result = await service.findAll(
         'client-user-id',
-        null, // Client user (no systemRole)
+        SystemRole.CLIENT_DIRECTOR, // Client user
         1,
         20,
       );
 
       expect(result.data).toHaveLength(1);
+      expect(result.data[0]._count.departmentConfigs).toBe(3);
       // Should filter by membership
       expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

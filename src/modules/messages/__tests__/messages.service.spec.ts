@@ -313,7 +313,7 @@ describe('MessagesService', () => {
       const dto = {
         companyId: 'company-1',
         globalDepartmentId: 'dept-1',
-        content: 'Shartnomani ko\'ring',
+        content: "Shartnomani ko'ring",
       };
 
       await service.createWithFiles(
@@ -358,7 +358,9 @@ describe('MessagesService', () => {
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
       mockPrismaService.message.findUnique.mockResolvedValue({
         ...mockMessageWithFiles,
-        files: [{ id: 'file-1', path: 'images/uuid-photo.jpg', document: null }],
+        files: [
+          { id: 'file-1', path: 'images/uuid-photo.jpg', document: null },
+        ],
       });
 
       const dto = {
@@ -367,12 +369,9 @@ describe('MessagesService', () => {
         content: 'Rasm',
       };
 
-      await service.createWithFiles(
-        'user-1',
-        SystemRole.FIN_ADMIN,
-        dto,
-        [mockImageFile],
-      );
+      await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [
+        mockImageFile,
+      ]);
 
       expect(mockPrismaService.document.create).not.toHaveBeenCalled();
     });
@@ -403,7 +402,9 @@ describe('MessagesService', () => {
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
       mockPrismaService.message.findUnique.mockResolvedValue({
         ...mockMessageWithFiles,
-        files: [{ id: 'file-1', path: 'documents/uuid-javob.pdf', document: null }],
+        files: [
+          { id: 'file-1', path: 'documents/uuid-javob.pdf', document: null },
+        ],
       });
 
       const dto = {
@@ -445,13 +446,15 @@ describe('MessagesService', () => {
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
       mockPrismaService.message.findUnique.mockResolvedValue({
         ...mockMessageWithFiles,
-        files: [{ id: 'file-1', path: 'documents/uuid-payment.pdf', document: null }],
+        files: [
+          { id: 'file-1', path: 'documents/uuid-payment.pdf', document: null },
+        ],
       });
 
       const dto = {
         companyId: 'company-1',
         globalDepartmentId: 'dept-bank',
-        content: 'To\'lov hujjati',
+        content: "To'lov hujjati",
       };
 
       await service.createWithFiles(
@@ -476,7 +479,8 @@ describe('MessagesService', () => {
       const mockPdfFile2 = {
         fieldname: 'files',
         originalname: 'ilova.docx',
-        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        mimetype:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         size: 2048,
         buffer: Buffer.from('test2'),
       } as Express.Multer.File;
@@ -498,7 +502,8 @@ describe('MessagesService', () => {
           fileName: 'uuid-ilova.docx',
           path: 'documents/uuid-ilova.docx',
           size: 2048,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
       mockPrismaService.message.create.mockResolvedValue(mockMessage);
       mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
@@ -506,8 +511,14 @@ describe('MessagesService', () => {
       mockPrismaService.message.findUnique.mockResolvedValue({
         ...mockMessageWithFiles,
         files: [
-          { id: 'file-1', document: { id: 'doc-1', status: DocumentStatus.PENDING } },
-          { id: 'file-2', document: { id: 'doc-1', status: DocumentStatus.PENDING } },
+          {
+            id: 'file-1',
+            document: { id: 'doc-1', status: DocumentStatus.PENDING },
+          },
+          {
+            id: 'file-2',
+            document: { id: 'doc-1', status: DocumentStatus.PENDING },
+          },
         ],
       });
 
@@ -517,12 +528,10 @@ describe('MessagesService', () => {
         content: 'Shartnoma va ilova',
       };
 
-      await service.createWithFiles(
-        'user-1',
-        SystemRole.FIN_ADMIN,
-        dto,
-        [mockPdfFile1, mockPdfFile2],
-      );
+      await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [
+        mockPdfFile1,
+        mockPdfFile2,
+      ]);
 
       // Document should be created only ONCE
       expect(mockPrismaService.document.create).toHaveBeenCalledTimes(1);

@@ -297,7 +297,7 @@ export class AuthService {
       sessionId,
     };
 
-    // Only include systemRole if user is 1FIN employee
+    // Include systemRole in payload if user has one (FIN_* or CLIENT_* roles)
     if (systemRole) {
       payload.systemRole = systemRole;
     }

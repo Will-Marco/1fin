@@ -157,9 +157,17 @@ describe('CompaniesController', () => {
     it('should return department configs', async () => {
       mockCompaniesService.getDepartmentConfigs.mockResolvedValue([]);
 
-      const result = await controller.getDepartmentConfigs('company-id');
+      const result = await controller.getDepartmentConfigs(
+        'company-id',
+        'user-id',
+        SystemRole.FIN_ADMIN,
+      );
 
-      expect(service.getDepartmentConfigs).toHaveBeenCalledWith('company-id');
+      expect(service.getDepartmentConfigs).toHaveBeenCalledWith(
+        'company-id',
+        'user-id',
+        SystemRole.FIN_ADMIN,
+      );
     });
   });
 
