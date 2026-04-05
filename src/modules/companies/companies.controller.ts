@@ -207,12 +207,12 @@ export class CompaniesController {
   }
 
   @Get(':id')
-  @SystemRoles(
-    SystemRole.FIN_DIRECTOR,
-    SystemRole.FIN_ADMIN,
-    SystemRole.FIN_EMPLOYEE,
-  )
-  @ApiOperation({ summary: 'Get company by ID (with department configs)' })
+  @ApiOperation({
+    summary: 'Get company by ID',
+    description:
+      '1FIN users can access any company. ' +
+      'Client users can only access companies they have membership in.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Company details',
@@ -226,24 +226,18 @@ export class CompaniesController {
         requisites: { bank: 'NBU', mfo: '00123' },
         requisites2: null,
         isActive: true,
-        departmentConfigs: [
-          {
-            id: 'cuid',
-            isEnabled: true,
-            globalDepartment: {
-              id: 'cuid',
-              name: 'Buxgalteriya',
-              slug: 'buxgalteriya',
-            },
-          },
-        ],
         _count: { memberships: 5 },
       },
     },
   })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  async findOne(@Param('id') id: string) {
-    return this.companiesService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('systemRole') systemRole: SystemRole | null,
+  ) {
+    return this.companiesService.findOne(id, userId, systemRole);
   }
 
   @Patch(':id')

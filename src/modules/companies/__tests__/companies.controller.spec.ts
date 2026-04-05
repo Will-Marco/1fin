@@ -120,9 +120,18 @@ describe('CompaniesController', () => {
     it('should return a company', async () => {
       mockCompaniesService.findOne.mockResolvedValue(mockCompany);
 
-      const result = await controller.findOne('company-id');
+      const result = await controller.findOne(
+        'company-id',
+        'user-id',
+        SystemRole.FIN_ADMIN,
+      );
 
       expect(result).toEqual(mockCompany);
+      expect(service.findOne).toHaveBeenCalledWith(
+        'company-id',
+        'user-id',
+        SystemRole.FIN_ADMIN,
+      );
     });
   });
 

@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -228,7 +229,11 @@ export class CompaniesService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(
+    id: string,
+    userId?: string,
+    systemRole?: SystemRole | null,
+  ) {
     const company = await this.prisma.company.findUnique({
       where: { id },
       select: {
@@ -263,6 +268,17 @@ export class CompaniesService {
 
     if (!company || !company.isActive) {
       throw new NotFoundException('Kompaniya topilmadi');
+    }
+
+    // Check access for client users (when userId is provided)
+    if (userId && !is1FinStaff(systemRole)) {
+      const membership = await this.prisma.userCompanyMembership.findUnique({
+        where: { userId_companyId: { userId, companyId: id } },
+      });
+
+      if (!membership || !membership.isActive) {
+        throw new ForbiddenException('Sizda bu kompaniyaga kirish huquqi yo\'q');
+      }
     }
 
     return company;
