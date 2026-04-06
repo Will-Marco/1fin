@@ -248,16 +248,6 @@ export class CompaniesService {
         createdById: true,
         createdAt: true,
         updatedAt: true,
-        departmentConfigs: {
-          orderBy: { createdAt: 'asc' },
-          select: {
-            id: true,
-            isEnabled: true,
-            globalDepartment: {
-              select: { id: true, name: true, slug: true, isActive: true },
-            },
-          },
-        },
         _count: {
           select: {
             memberships: { where: { isActive: true } },
