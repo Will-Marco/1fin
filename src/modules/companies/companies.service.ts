@@ -330,7 +330,8 @@ export class CompaniesService {
     userId: string,
     systemRole: SystemRole | null,
   ) {
-    await this.findOne(companyId);
+    // Check company exists and user has access
+    await this.findOne(companyId, userId, systemRole);
 
     // 1FIN users see all enabled departments
     if (is1FinStaff(systemRole)) {
