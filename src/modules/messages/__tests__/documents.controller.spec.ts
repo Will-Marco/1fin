@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentStatus } from '../../../../generated/prisma/client';
+import { PrismaService } from '../../../database/prisma.service';
 import { DocumentsController } from '../documents.controller';
 import { DocumentsService } from '../documents.service';
 
@@ -30,6 +31,7 @@ describe('DocumentsController', () => {
       controllers: [DocumentsController],
       providers: [
         { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: PrismaService, useValue: {} },
       ],
     }).compile();
 

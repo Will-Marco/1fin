@@ -17,7 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { DocumentStatus, SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser, SystemRoles } from '../../common/decorators';
-import { SystemRoleGuard } from '../../common/guards';
+import { DocumentPermissionGuard, SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto, RejectDocumentDto } from './dto';
@@ -85,17 +85,31 @@ export class DocumentsController {
   }
 
   @Patch(':id/approve')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Approve a document (ACCEPTED status)' })
+  @UseGuards(DocumentPermissionGuard)
+  @ApiOperation({
+    summary: 'Approve a document (ACCEPTED status)',
+    description:
+      'FIN_* and CLIENT_DIRECTOR/CLIENT_EMPLOYEE can approve. ' +
+      'CLIENT_FOUNDER cannot (monitoring only). ' +
+      'Bank Oplata documents cannot be approved/rejected.',
+  })
   @ApiResponse({ status: 200, description: 'Document approved' })
+  @ApiResponse({ status: 403, description: 'No permission' })
   async approve(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.documentsService.approve(id, userId);
   }
 
   @Patch(':id/reject')
-  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
-  @ApiOperation({ summary: 'Reject a document (REJECTED status)' })
+  @UseGuards(DocumentPermissionGuard)
+  @ApiOperation({
+    summary: 'Reject a document (REJECTED status)',
+    description:
+      'FIN_* and CLIENT_DIRECTOR/CLIENT_EMPLOYEE can reject. ' +
+      'CLIENT_FOUNDER cannot. ' +
+      'Xatlar department: clients cannot reject (only approve/Tanishdim).',
+  })
   @ApiResponse({ status: 200, description: 'Document rejected' })
+  @ApiResponse({ status: 403, description: 'No permission' })
   async reject(
     @Param('id') id: string,
     @Body() dto: RejectDocumentDto,
