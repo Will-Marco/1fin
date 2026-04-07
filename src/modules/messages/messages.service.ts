@@ -758,12 +758,18 @@ export class MessagesService {
             username: result.sender.username,
             name: result.sender.name,
             avatar: result.sender.avatar || undefined,
+            systemRole: result.sender.systemRole,
           },
+          replyTo: result.replyTo,
           files: result.files?.map((f) => ({
             id: f.id,
             originalName: f.originalName,
+            fileName: f.fileName,
+            fileSize: f.fileSize,
+            mimeType: f.mimeType,
             fileType: f.fileType,
             url: this.storage!.getUrl(f.path),
+            document: f.document,
           })),
         } as any);
       }
