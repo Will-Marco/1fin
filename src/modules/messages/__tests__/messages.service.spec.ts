@@ -61,6 +61,7 @@ describe('MessagesService', () => {
     },
     file: {
       createMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     document: {
       create: jest.fn(),

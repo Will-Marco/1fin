@@ -479,6 +479,7 @@ export class MessagesService {
     });
 
     // 8. Link original files to forwarded message (reference, not copy)
+    let forwardedFiles: any[] = [];
     if (originalMessage.files && originalMessage.files.length > 0) {
       await this.prisma.file.createMany({
         data: originalMessage.files.map((file) => ({
@@ -492,7 +493,26 @@ export class MessagesService {
           fileType: file.fileType,
           path: file.path, // Same path - no copy
           isOutgoing: true,
+          documentId: file.documentId, // Preserve document link
         })),
+      });
+
+      // Fetch created files with document relation
+      forwardedFiles = await this.prisma.file.findMany({
+        where: { messageId: forwardedMessage.id },
+        include: {
+          document: {
+            select: {
+              id: true,
+              status: true,
+              documentNumber: true,
+              documentName: true,
+              rejectionReason: true,
+              approvedAt: true,
+              approvedBy: { select: { id: true, name: true } },
+            },
+          },
+        },
       });
     }
 
@@ -503,9 +523,16 @@ export class MessagesService {
         companyId: dto.companyId,
         globalDepartmentId: dto.toDepartmentId,
         senderId: userId,
+        content: originalMessage.content,
         type: originalMessage.type,
+        createdAt: forwardedMessage.createdAt,
         isForwarded: true,
+        sender: forwardedMessage.sender,
         originalSender: rootOriginalMessage.sender,
+        files: forwardedFiles.map((f) => ({
+          ...f,
+          url: this.storage?.getUrl(f.path),
+        })),
       } as any);
     }
 
@@ -517,7 +544,10 @@ export class MessagesService {
         department: originalMessage.globalDepartment,
       },
       note: dto.note,
-      files: originalMessage.files,
+      files: forwardedFiles.map((f) => ({
+        ...f,
+        url: this.storage?.getUrl(f.path),
+      })),
     };
   }
 
