@@ -193,6 +193,7 @@ export class CompaniesService {
           memberships: {
             where: { userId, isActive: true },
             select: {
+              id: true,
               _count: {
                 select: { allowedDepartments: true },
               },
@@ -216,6 +217,7 @@ export class CompaniesService {
         address: company.address,
         isActive: company.isActive,
         createdAt: company.createdAt,
+        membershipId: membership?.id ?? null,
         _count: {
           memberships: 1, // Client always has 1 membership per company
           departmentConfigs: departmentCount,
