@@ -527,6 +527,7 @@ export class MessagesService {
         type: originalMessage.type,
         createdAt: forwardedMessage.createdAt,
         isForwarded: true,
+        isOutgoing: true, // Forward faqat 1FIN staff qila oladi, doim outgoing
         sender: forwardedMessage.sender,
         originalSender: rootOriginalMessage.sender,
         files: forwardedFiles.map((f) => ({
@@ -651,6 +652,9 @@ export class MessagesService {
             f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
         ); // Hujjat tipidagi fayllar bor
 
+      // isOutgoing: 1FIN staff yuborsa true (chiqim), Client yuborsa false (kirim)
+      const isOutgoing = is1FinStaff(userSystemRole);
+
       // Transaction: message + files + document yaratish
       const result = await this.prisma.$transaction(async (tx) => {
         // 1. Message yaratish
@@ -664,6 +668,7 @@ export class MessagesService {
             voiceDuration: dto.voiceDuration,
             replyToId: dto.replyToId,
             status: MessageStatus.SENT,
+            isOutgoing,
           },
         });
 
@@ -732,7 +737,7 @@ export class MessagesService {
               mimeType: uploaded.mimeType,
               fileType,
               path: uploaded.path,
-              isOutgoing: true,
+              isOutgoing,
             })),
           });
         }
@@ -783,6 +788,7 @@ export class MessagesService {
           type: result.type,
           replyToId: dto.replyToId as any,
           createdAt: result.createdAt,
+          isOutgoing,
           sender: {
             id: result.sender.id,
             username: result.sender.username,
