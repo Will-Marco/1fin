@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -43,4 +44,18 @@ export class CreateMessageWithFilesDto {
   @Max(300)
   @IsOptional()
   voiceDuration?: number;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Chiquvchi xabar (true) yoki kiruvchi (false). Faqat 1FIN xodimlari uchun.',
+  })
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
+  @IsBoolean()
+  @IsOptional()
+  isOutgoing?: boolean;
 }
