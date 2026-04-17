@@ -231,11 +231,7 @@ export class CompaniesService {
     };
   }
 
-  async findOne(
-    id: string,
-    userId?: string,
-    systemRole?: SystemRole | null,
-  ) {
+  async findOne(id: string, userId?: string, systemRole?: SystemRole | null) {
     const company = await this.prisma.company.findUnique({
       where: { id },
       select: {
@@ -269,7 +265,7 @@ export class CompaniesService {
       });
 
       if (!membership || !membership.isActive) {
-        throw new ForbiddenException('Sizda bu kompaniyaga kirish huquqi yo\'q');
+        throw new ForbiddenException("Sizda bu kompaniyaga kirish huquqi yo'q");
       }
     }
 

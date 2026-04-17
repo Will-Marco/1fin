@@ -14,16 +14,14 @@ const prisma = new PrismaClient({ adapter });
 // Default global departments from SRS
 const DEFAULT_GLOBAL_DEPARTMENTS = [
   { name: 'Umumiy chat', slug: 'general-chat' },
-  { name: "Bank to'lovlari", slug: 'bank-payment' }, // Special: no accept/reject
+  { name: 'Xatlar', slug: 'letters' }, // Special: client faqat "Tanishdim" bosadi
+  { name: 'Bank', slug: 'bank-payment' }, // Special: client faqat ko'radi, hech qanday button yo'q
   { name: 'Shartnomalar', slug: 'contract' },
-  { name: 'Hisob-faktura', slug: 'invoice' },
+  { name: 'Hisob fakturalar', slug: 'invoice' },
   { name: 'Ishonchnoma', slug: 'power-of-attorney' },
-  { name: 'Yuk xati (TTN)', slug: 'waybill' },
-  { name: 'Akt sverka', slug: 'reconciliation' },
-  { name: "Kadrlar bo'limi", slug: 'hr' },
-  { name: "Korxona ma'lumotlari", slug: 'company-info' },
-  { name: 'Xatlar', slug: 'letters' },
-  { name: 'Dogovor', slug: 'dogovor' },
+  { name: 'TTN', slug: 'ttn' },
+  { name: 'Solishtirma dalolatnoma', slug: 'reconciliation' },
+  { name: 'HR', slug: 'hr' },
 ];
 
 async function main() {
