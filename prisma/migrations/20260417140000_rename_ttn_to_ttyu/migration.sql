@@ -1,2 +1,2 @@
--- Rename TTN to TTYU
-UPDATE "global_departments" SET "name" = 'TTYU' WHERE "slug" = 'ttn';
+-- Rename TTN to TTYU (name and slug)
+UPDATE "global_departments" SET "name" = 'TTYU', "slug" = 'ttyu' WHERE "slug" = 'ttn';
