@@ -19,7 +19,7 @@ const DEFAULT_GLOBAL_DEPARTMENTS = [
   { name: 'Shartnomalar', slug: 'contract' },
   { name: 'Hisob fakturalar', slug: 'invoice' },
   { name: 'Ishonchnoma', slug: 'power-of-attorney' },
-  { name: 'TTN', slug: 'ttn' },
+  { name: 'TTYU', slug: 'ttn' },
   { name: 'Solishtirma dalolatnoma', slug: 'reconciliation' },
   { name: 'HR', slug: 'hr' },
 ];
