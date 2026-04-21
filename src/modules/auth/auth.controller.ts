@@ -33,7 +33,12 @@ import {
   UpdateProfileDto,
 } from './dto';
 import { JwtAuthGuard, JwtRefreshGuard } from './guards';
-import { CurrentUser } from '../../common/decorators';
+import {
+  CurrentUser,
+  ThrottleAuth,
+  ThrottleRead,
+  ThrottleWrite,
+} from '../../common/decorators';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -41,6 +46,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('login')
+  @ThrottleAuth()
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({
     status: 200,
@@ -73,6 +79,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @ThrottleWrite()
   @UseGuards(JwtRefreshGuard)
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({

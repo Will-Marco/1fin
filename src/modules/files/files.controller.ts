@@ -29,7 +29,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { CurrentUser, SystemRoles } from '../../common/decorators';
+import {
+  CurrentUser,
+  SystemRoles,
+  ThrottleRead,
+  ThrottleUpload,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { UploadFileDto } from './dto/upload-file.dto';
@@ -43,6 +49,7 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Post('upload')
+  @ThrottleUpload()
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Upload a single file',
@@ -149,6 +156,7 @@ export class FilesController {
   }
 
   @Post('upload-multiple')
+  @ThrottleUpload()
   @UseInterceptors(FilesInterceptor('files', 10))
   @ApiOperation({
     summary: 'Upload multiple files (max 10)',
@@ -228,6 +236,7 @@ export class FilesController {
   }
 
   @Get(':id')
+  @ThrottleRead()
   @ApiOperation({ summary: 'Get file by ID' })
   @ApiParam({ name: 'id', description: 'File ID', example: 'cuid-file-id' })
   @ApiResponse({
@@ -277,6 +286,7 @@ export class FilesController {
   }
 
   @Get('department/:departmentId')
+  @ThrottleRead()
   @ApiOperation({ summary: 'Get files by department with pagination' })
   @ApiParam({
     name: 'departmentId',
@@ -342,6 +352,7 @@ export class FilesController {
   }
 
   @Delete(':id')
+  @ThrottleWrite()
   @ApiOperation({
     summary: 'Delete file (soft delete)',
     description:
@@ -373,6 +384,7 @@ export class FilesController {
   }
 
   @Get('admin/deleted')
+  @ThrottleRead()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Get deleted files (Admin only)',
@@ -438,6 +450,7 @@ export class FilesController {
   }
 
   @Patch(':id/restore')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Restore deleted file (Admin only)',
@@ -471,6 +484,7 @@ export class FilesController {
   }
 
   @Delete(':id/permanent')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Permanently delete file (Admin only)',
@@ -496,6 +510,7 @@ export class FilesController {
   }
 
   @Patch(':fileId/attach/:messageId')
+  @ThrottleWrite()
   @ApiOperation({
     summary: 'Attach file to message after upload',
     description:
@@ -569,6 +584,7 @@ export class FilesController {
   }
 
   @Patch('attach-multiple/:messageId')
+  @ThrottleWrite()
   @ApiOperation({
     summary: 'Attach multiple files to message',
     description:

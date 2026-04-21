@@ -16,7 +16,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { DocumentStatus, SystemRole } from '../../../generated/prisma/client';
-import { CurrentUser, SystemRoles } from '../../common/decorators';
+import {
+  CurrentUser,
+  SystemRoles,
+  ThrottleRead,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { DocumentPermissionGuard, SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { DocumentsService } from './documents.service';
@@ -30,6 +35,7 @@ export class DocumentsController {
   constructor(private documentsService: DocumentsService) {}
 
   @Post()
+  @ThrottleWrite()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -45,6 +51,7 @@ export class DocumentsController {
   }
 
   @Get()
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -73,6 +80,7 @@ export class DocumentsController {
   }
 
   @Get(':id')
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -85,6 +93,7 @@ export class DocumentsController {
   }
 
   @Patch(':id/approve')
+  @ThrottleWrite()
   @UseGuards(DocumentPermissionGuard)
   @ApiOperation({
     summary: 'Approve a document (ACCEPTED status)',
@@ -100,6 +109,7 @@ export class DocumentsController {
   }
 
   @Patch(':id/reject')
+  @ThrottleWrite()
   @UseGuards(DocumentPermissionGuard)
   @ApiOperation({
     summary: 'Reject a document (REJECTED status)',

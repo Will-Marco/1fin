@@ -1,6 +1,8 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import {
   appConfig,
   databaseConfig,
@@ -42,6 +44,23 @@ import { QueuesModule } from './queues/queues.module';
       ttl: 300000, // 5 daqiqa (milliseconds)
       max: 100, // maksimum 100 ta element
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000, // 1 sekund
+        limit: 3, // 3 ta so'rov
+      },
+      {
+        name: 'medium',
+        ttl: 10000, // 10 sekund
+        limit: 20, // 20 ta so'rov
+      },
+      {
+        name: 'long',
+        ttl: 60000, // 1 daqiqa
+        limit: 100, // 100 ta so'rov
+      },
+    ]),
     DatabaseModule,
     AuthModule,
     CompaniesModule,
@@ -56,6 +75,11 @@ import { QueuesModule } from './queues/queues.module';
     StatisticsModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

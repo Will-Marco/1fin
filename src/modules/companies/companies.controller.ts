@@ -26,7 +26,13 @@ import {
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SystemRole } from '../../../generated/prisma/client';
-import { CurrentUser, SystemRoles } from '../../common/decorators';
+import {
+  CurrentUser,
+  SystemRoles,
+  ThrottleRead,
+  ThrottleUpload,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { CompaniesService } from './companies.service';
@@ -44,6 +50,7 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Get('admin/deleted')
+  @ThrottleRead()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Get all soft-deleted companies (Admin only)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -83,6 +90,7 @@ export class CompaniesController {
   }
 
   @Patch('admin/:id/restore')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Restore a soft-deleted company (Admin only)' })
   @ApiResponse({
@@ -104,6 +112,7 @@ export class CompaniesController {
   }
 
   @Delete('admin/:id/permanent')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Permanently delete a company (Admin only)' })
   @ApiResponse({
@@ -125,6 +134,7 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Post()
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Create a new company (auto-links all global departments)',
@@ -160,6 +170,7 @@ export class CompaniesController {
   }
 
   @Get()
+  @ThrottleRead()
   @ApiOperation({
     summary: 'Get companies (1FIN: all, Client: only own companies)',
     description:
@@ -207,6 +218,7 @@ export class CompaniesController {
   }
 
   @Get(':id')
+  @ThrottleRead()
   @ApiOperation({
     summary: 'Get company by ID',
     description:
@@ -241,6 +253,7 @@ export class CompaniesController {
   }
 
   @Patch(':id')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Update company info' })
   @ApiResponse({
@@ -260,6 +273,7 @@ export class CompaniesController {
   }
 
   @Delete(':id')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Deactivate company (soft delete)' })
   @ApiResponse({
@@ -272,6 +286,7 @@ export class CompaniesController {
   }
 
   @Patch(':id/logo')
+  @ThrottleUpload()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Upload company logo' })
   @ApiConsumes('multipart/form-data')
@@ -321,6 +336,7 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Get(':id/departments')
+  @ThrottleRead()
   @ApiOperation({
     summary: 'Get departments for a company (filtered by user access)',
     description:
@@ -353,6 +369,7 @@ export class CompaniesController {
   }
 
   @Post(':id/departments/:deptId/enable')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Enable a global department for this company' })
   @ApiResponse({
@@ -378,6 +395,7 @@ export class CompaniesController {
   }
 
   @Post(':id/departments/:deptId/disable')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Disable a global department for this company' })
   @ApiResponse({
@@ -407,6 +425,7 @@ export class CompaniesController {
   // ─────────────────────────────────────────────
 
   @Get(':id/members')
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,

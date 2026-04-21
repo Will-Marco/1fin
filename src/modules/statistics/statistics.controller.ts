@@ -15,6 +15,7 @@ import {
 import { SystemRole } from '../../../generated/prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SystemRoles } from '../../common/decorators/system-roles.decorator';
+import { ThrottleRead } from '../../common/decorators/throttle.decorator';
 import { SystemRoleGuard } from '../../common/guards/system-role.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetStatisticsDto } from './dto/get-statistics.dto';
@@ -34,6 +35,7 @@ export class StatisticsController {
   constructor(private readonly statisticsService: StatisticsService) {}
 
   @Get()
+  @ThrottleRead()
   @ApiOperation({
     summary: 'Tizim va kompaniya statistikasini olish',
     description: `

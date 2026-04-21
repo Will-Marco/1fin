@@ -23,7 +23,13 @@ import {
 } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { SystemRole } from '../../../generated/prisma/client';
-import { CurrentUser, SystemRoles } from '../../common/decorators';
+import {
+  CurrentUser,
+  SystemRoles,
+  ThrottleMessage,
+  ThrottleRead,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
@@ -41,6 +47,7 @@ export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 
   @Post()
+  @ThrottleMessage()
   @UseInterceptors(
     FilesInterceptor('files', 10, {
       storage: memoryStorage(),
@@ -127,6 +134,7 @@ export class MessagesController {
   }
 
   @Get()
+  @ThrottleRead()
   @ApiOperation({
     summary: 'Get messages (filtered by company and department)',
   })
@@ -174,6 +182,7 @@ export class MessagesController {
   }
 
   @Get(':id')
+  @ThrottleRead()
   @ApiOperation({ summary: 'Get a message by ID' })
   @ApiResponse({
     status: 200,
@@ -201,6 +210,7 @@ export class MessagesController {
   }
 
   @Patch(':id')
+  @ThrottleWrite()
   @ApiOperation({ summary: 'Edit a message' })
   @ApiResponse({
     status: 200,
@@ -224,6 +234,7 @@ export class MessagesController {
   }
 
   @Delete(':id')
+  @ThrottleWrite()
   @ApiOperation({ summary: 'Delete a message' })
   @ApiResponse({
     status: 200,
@@ -239,6 +250,7 @@ export class MessagesController {
   }
 
   @Post(':id/forward')
+  @ThrottleWrite()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,

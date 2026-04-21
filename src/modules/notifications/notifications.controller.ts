@@ -16,7 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards';
-import { CurrentUser } from '../../common/decorators';
+import { CurrentUser, ThrottleRead, ThrottleWrite } from '../../common/decorators';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -26,6 +26,7 @@ export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
 
   @Get()
+  @ThrottleRead()
   @ApiOperation({ summary: 'Get all notifications for current user' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -61,6 +62,7 @@ export class NotificationsController {
   }
 
   @Get('unread-count')
+  @ThrottleRead()
   @ApiOperation({ summary: 'Get unread notification count' })
   @ApiResponse({
     status: 200,
@@ -72,6 +74,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
+  @ThrottleWrite()
   @ApiOperation({ summary: 'Mark notification as read' })
   @ApiResponse({
     status: 200,
@@ -89,6 +92,7 @@ export class NotificationsController {
   }
 
   @Patch('read-all')
+  @ThrottleWrite()
   @ApiOperation({ summary: 'Mark all notifications as read' })
   @ApiResponse({
     status: 200,
@@ -105,6 +109,7 @@ export class NotificationsController {
   }
 
   @Delete(':id')
+  @ThrottleWrite()
   @ApiOperation({ summary: 'Delete a notification' })
   @ApiResponse({
     status: 200,
@@ -116,6 +121,7 @@ export class NotificationsController {
   }
 
   @Delete()
+  @ThrottleWrite()
   @ApiOperation({ summary: 'Delete all notifications' })
   @ApiResponse({
     status: 200,

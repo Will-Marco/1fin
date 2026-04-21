@@ -1,6 +1,9 @@
 jest.mock('../../../common/decorators', () => ({
   CurrentUser: () => () => {},
   SystemRoles: () => () => {},
+  ThrottleRead: () => () => {},
+  ThrottleWrite: () => () => {},
+  ThrottleUpload: () => () => {},
 }));
 
 jest.mock('../../../common/guards', () => ({

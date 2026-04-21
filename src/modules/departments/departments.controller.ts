@@ -17,7 +17,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { CurrentUser, SystemRoles } from '../../common/decorators';
+import {
+  CurrentUser,
+  SystemRoles,
+  ThrottleRead,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { DepartmentsService } from './departments.service';
@@ -31,6 +36,7 @@ export class DepartmentsController {
   constructor(private departmentsService: DepartmentsService) {}
 
   @Post()
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Create a new global department' })
   @ApiResponse({
@@ -52,6 +58,7 @@ export class DepartmentsController {
   }
 
   @Get()
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -97,6 +104,7 @@ export class DepartmentsController {
   // ─────────────────────────────────────────────
 
   @Get('unread-summary')
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -166,6 +174,7 @@ export class DepartmentsController {
   }
 
   @Get('unread-summary/:companyId')
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -214,6 +223,7 @@ export class DepartmentsController {
   }
 
   @Post('mark-all-read/:companyId')
+  @ThrottleWrite()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -246,6 +256,7 @@ export class DepartmentsController {
   // ─────────────────────────────────────────────
 
   @Get(':id')
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -273,6 +284,7 @@ export class DepartmentsController {
   }
 
   @Patch(':id')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Update a global department (name, slug, or isActive)',
@@ -298,6 +310,7 @@ export class DepartmentsController {
   }
 
   @Delete(':id')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Deactivate a global department (soft delete)' })
   @ApiResponse({
@@ -310,6 +323,7 @@ export class DepartmentsController {
   }
 
   @Post(':id/mark-read/:companyId')
+  @ThrottleWrite()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,

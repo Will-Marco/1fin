@@ -23,7 +23,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { CurrentUser, SystemRoles } from '../../common/decorators';
+import {
+  CurrentUser,
+  SystemRoles,
+  ThrottleRead,
+  ThrottleUpload,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import {
@@ -47,6 +53,7 @@ export class UsersController {
   // ─────────────────────────────────────────────
 
   @Post('system')
+  @ThrottleUpload()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -140,6 +147,7 @@ export class UsersController {
   }
 
   @Post('client')
+  @ThrottleUpload()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -234,6 +242,7 @@ export class UsersController {
   // ─────────────────────────────────────────────
 
   @Get()
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -300,6 +309,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @ThrottleRead()
   @SystemRoles(
     SystemRole.FIN_DIRECTOR,
     SystemRole.FIN_ADMIN,
@@ -357,6 +367,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary:
@@ -382,6 +393,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Deactivate user (soft delete)' })
   @ApiResponse({
@@ -398,6 +410,7 @@ export class UsersController {
   // ─────────────────────────────────────────────
 
   @Post(':id/memberships')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({
     summary: 'Assign user to a company with role & department access',
@@ -432,6 +445,7 @@ export class UsersController {
   }
 
   @Patch(':id/memberships/:membershipId')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Update membership role and/or department access' })
   @ApiResponse({
@@ -463,6 +477,7 @@ export class UsersController {
   }
 
   @Delete(':id/memberships/:membershipId')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Remove user from a company (deletes membership)' })
   @ApiResponse({

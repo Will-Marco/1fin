@@ -6,7 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { SystemRoles } from '../../common/decorators';
+import { SystemRoles, ThrottleRead, ThrottleWrite } from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { ArchiveService } from './archive.service';
@@ -24,6 +24,7 @@ export class ArchiveController {
   constructor(private readonly archiveService: ArchiveService) {}
 
   @Get('messages')
+  @ThrottleRead()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Search archived messages' })
   @ApiResponse({ status: 200, description: 'Archived messages list' })
@@ -41,6 +42,7 @@ export class ArchiveController {
   }
 
   @Get('files')
+  @ThrottleRead()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Search archived files' })
   @ApiResponse({ status: 200, description: 'Archived files list' })
@@ -56,6 +58,7 @@ export class ArchiveController {
   }
 
   @Get('documents')
+  @ThrottleRead()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Search archived documents' })
   @ApiResponse({ status: 200, description: 'Archived documents list' })
@@ -73,6 +76,7 @@ export class ArchiveController {
   }
 
   @Get('statistics')
+  @ThrottleRead()
   @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
   @ApiOperation({ summary: 'Get archive statistics' })
   @ApiResponse({ status: 200, description: 'Archive statistics' })
@@ -81,6 +85,7 @@ export class ArchiveController {
   }
 
   @Post('run')
+  @ThrottleWrite()
   @SystemRoles(SystemRole.FIN_DIRECTOR)
   @ApiOperation({
     summary: 'Manually trigger archive process (FIN_DIRECTOR only)',
