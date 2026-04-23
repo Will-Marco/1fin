@@ -375,7 +375,7 @@ export class MessagesService {
    */
   async forwardMessage(
     messageId: string,
-    dto: { toDepartmentId: string; companyId: string; note?: string },
+    dto: { toDepartmentId: string; companyId: string; note?: string; isOutgoing?: boolean },
     userId: string,
     userSystemRole: SystemRole,
   ) {
@@ -453,6 +453,9 @@ export class MessagesService {
     }
 
     // 6. Create new message in target department
+    // isOutgoing: frontenddan keladi, default true (forward faqat 1FIN staff qila oladi)
+    const isOutgoing = dto.isOutgoing ?? true;
+
     const forwardedMessage = await this.prisma.message.create({
       data: {
         companyId: dto.companyId,
@@ -461,6 +464,7 @@ export class MessagesService {
         content: originalMessage.content,
         type: originalMessage.type,
         status: MessageStatus.SENT,
+        isOutgoing,
       },
       include: {
         sender: { select: { id: true, name: true, username: true } },
@@ -492,7 +496,7 @@ export class MessagesService {
           mimeType: file.mimeType,
           fileType: file.fileType,
           path: file.path, // Same path - no copy
-          isOutgoing: true,
+          isOutgoing,
           documentId: file.documentId, // Preserve document link
         })),
       });
@@ -527,7 +531,7 @@ export class MessagesService {
         type: originalMessage.type,
         createdAt: forwardedMessage.createdAt,
         isForwarded: true,
-        isOutgoing: true, // Forward faqat 1FIN staff qila oladi, doim outgoing
+        isOutgoing,
         sender: forwardedMessage.sender,
         originalSender: rootOriginalMessage.sender,
         files: forwardedFiles.map((f) => ({
