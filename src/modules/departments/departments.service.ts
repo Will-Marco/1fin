@@ -186,6 +186,35 @@ export class DepartmentsService {
   }
 
   /**
+   * Internal helper: companies visible to a FIN_* user.
+   * FIN staff don't need UserCompanyMembership — they see every company
+   * that has at least one enabled department config.
+   */
+  private async getCompaniesForFinUser(): Promise<
+    { id: string; name: string }[]
+  > {
+    const rows = await this.prisma.companyDepartmentConfig.findMany({
+      where: { isEnabled: true },
+      select: { company: { select: { id: true, name: true } } },
+      distinct: ['companyId'],
+    });
+    return rows.map((r) => r.company);
+  }
+
+  /**
+   * Internal helper: companies visible to a CLIENT_* user — via active memberships.
+   */
+  private async getCompaniesForClientUser(
+    userId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    const memberships = await this.prisma.userCompanyMembership.findMany({
+      where: { userId, isActive: true },
+      select: { company: { select: { id: true, name: true } } },
+    });
+    return memberships.map((m) => m.company);
+  }
+
+  /**
    * Internal helper: unread counts for a list of departments in one company.
    */
   private async countUnreadForDepartments(
@@ -211,6 +240,7 @@ export class DepartmentsService {
             globalDepartmentId: dept.id,
             companyId,
             isDeleted: false,
+            senderId: { not: userId },
             ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
           },
         });
@@ -284,17 +314,17 @@ export class DepartmentsService {
       ] as SystemRole[]
     ).includes(userSystemRole);
 
-    // 1. Fetch all active company memberships for this user
-    const memberships = await this.prisma.userCompanyMembership.findMany({
-      where: { userId, isActive: true },
-      select: {
-        company: { select: { id: true, name: true } },
-      },
-    });
+    // 1. Resolve companies visible to this user.
+    //    FIN_*   → all companies that have at least one enabled department config
+    //              (FIN staff can see all configured companies regardless of membership).
+    //    CLIENT_* → only companies the user has an active membership in.
+    const companies = isFINUser
+      ? await this.getCompaniesForFinUser()
+      : await this.getCompaniesForClientUser(userId);
 
     // 2. For each company — resolve departments + count unreads in parallel
     const companyResults = await Promise.all(
-      memberships.map(async ({ company }) => {
+      companies.map(async (company) => {
         const departments = await this.getDepartmentsForUser(
           userId,
           company.id,

@@ -291,6 +291,30 @@ describe('DepartmentsService (GlobalDepartment)', () => {
       expect(result).toEqual({ departments: [], totalUnread: 0 });
       expect(mockPrismaService.message.count).not.toHaveBeenCalled();
     });
+
+    it("should exclude the user's own messages from the unread count", async () => {
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
+        {
+          globalDepartment: {
+            id: 'dept-1',
+            name: 'Buxgalteriya',
+            slug: 'buxgalteriya',
+          },
+        },
+      ]);
+      mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([]);
+      mockPrismaService.message.count.mockResolvedValue(0);
+
+      await service.getUnreadSummary(userId, companyId, 'FIN_ADMIN' as any);
+
+      expect(mockPrismaService.message.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            senderId: { not: userId },
+          }),
+        }),
+      );
+    });
   });
 
   // ─────────────────────────────────────────────
@@ -300,15 +324,14 @@ describe('DepartmentsService (GlobalDepartment)', () => {
   describe('getAllCompaniesUnreadSummary', () => {
     const userId = 'user-1';
 
-    it('FIN user — should aggregate unread counts across multiple companies', async () => {
-      mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([
-        { company: { id: 'company-1', name: 'Alfa LLC' } },
-        { company: { id: 'company-2', name: 'Beta Corp' } },
-      ]);
-
-      // company-1: 1 department with 4 unreads
-      // company-2: 1 department with 2 unreads
+    it('FIN user — should aggregate unread counts across all configured companies (no membership needed)', async () => {
+      // FIN users resolve companies via CompanyDepartmentConfig (distinct by companyId),
+      // not UserCompanyMembership. Call 1 = companies lookup; Calls 2 & 3 = per-company departments.
       mockPrismaService.companyDepartmentConfig.findMany
+        .mockResolvedValueOnce([
+          { company: { id: 'company-1', name: 'Alfa LLC' } },
+          { company: { id: 'company-2', name: 'Beta Corp' } },
+        ])
         .mockResolvedValueOnce([
           {
             globalDepartment: {
@@ -338,6 +361,20 @@ describe('DepartmentsService (GlobalDepartment)', () => {
         'FIN_ADMIN' as any,
       );
 
+      // FIN path must not hit UserCompanyMembership at all.
+      expect(
+        mockPrismaService.userCompanyMembership.findMany,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockPrismaService.companyDepartmentConfig.findMany,
+      ).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { isEnabled: true },
+          distinct: ['companyId'],
+        }),
+      );
+
       expect(result.grandTotalUnread).toBe(6);
       expect(result.companies).toHaveLength(2);
       expect(result.companies[0]).toMatchObject({
@@ -348,6 +385,20 @@ describe('DepartmentsService (GlobalDepartment)', () => {
         companyName: 'Beta Corp',
         totalUnread: 2,
       });
+    });
+
+    it('FIN user with no configured companies — should return empty result', async () => {
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getAllCompaniesUnreadSummary(
+        userId,
+        'FIN_DIRECTOR' as any,
+      );
+
+      expect(result).toEqual({ companies: [], grandTotalUnread: 0 });
+      expect(mockPrismaService.message.count).not.toHaveBeenCalled();
     });
 
     it('CLIENT user — should show only allowed departments per company', async () => {
