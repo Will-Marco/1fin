@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { RabbitMQService } from '../rabbitmq.service';
 import { QUEUES } from '../constants';
 import { PrismaService } from '../../database/prisma.service';
@@ -12,7 +12,7 @@ export class NotificationConsumer implements OnModuleInit {
   constructor(
     private rabbitMQService: RabbitMQService,
     private prisma: PrismaService,
-    @Optional() private oneSignalService?: OneSignalService,
+    private oneSignalService: OneSignalService,
   ) {}
 
   async onModuleInit() {
@@ -108,11 +108,6 @@ export class NotificationConsumer implements OnModuleInit {
     body: string,
     data?: any,
   ) {
-    if (!this.oneSignalService) {
-      this.logger.debug(`[Push] Would send to ${userId}: ${title}`);
-      return;
-    }
-
     try {
       await this.oneSignalService.sendPush({ userId, title, body, data });
     } catch (error) {

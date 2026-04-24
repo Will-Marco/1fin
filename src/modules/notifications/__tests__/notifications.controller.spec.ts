@@ -24,6 +24,8 @@ describe('NotificationsController', () => {
     markAllAsRead: jest.fn(),
     delete: jest.fn(),
     deleteAll: jest.fn(),
+    registerDeviceToken: jest.fn(),
+    unregisterDeviceToken: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -117,6 +119,49 @@ describe('NotificationsController', () => {
 
       expect(result.message).toBe('All notifications deleted');
       expect(service.deleteAll).toHaveBeenCalledWith('user-id');
+    });
+  });
+
+  describe('registerDevice', () => {
+    it('should forward playerId and platform to the service', async () => {
+      const registered = {
+        id: 'dt-1',
+        playerId: 'player-1',
+        platform: 'WEB',
+        isActive: true,
+        lastSeenAt: new Date(),
+      };
+      mockNotificationsService.registerDeviceToken.mockResolvedValue(
+        registered,
+      );
+
+      const result = await controller.registerDevice('user-id', {
+        playerId: 'player-1',
+        platform: 'WEB' as any,
+      });
+
+      expect(result).toEqual(registered);
+      expect(service.registerDeviceToken).toHaveBeenCalledWith(
+        'user-id',
+        'player-1',
+        'WEB',
+      );
+    });
+  });
+
+  describe('unregisterDevice', () => {
+    it('should forward userId and playerId to the service', async () => {
+      mockNotificationsService.unregisterDeviceToken.mockResolvedValue({
+        unregistered: 1,
+      });
+
+      const result = await controller.unregisterDevice('user-id', 'player-1');
+
+      expect(result).toEqual({ unregistered: 1 });
+      expect(service.unregisterDeviceToken).toHaveBeenCalledWith(
+        'user-id',
+        'player-1',
+      );
     });
   });
 });

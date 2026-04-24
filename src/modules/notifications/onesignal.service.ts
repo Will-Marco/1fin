@@ -37,8 +37,15 @@ export class OneSignalService {
       return false;
     }
 
+    const playerIds = await this.getActivePlayerIds([payload.userId]);
+    if (playerIds.length === 0) {
+      this.logger.debug(
+        `No active device tokens for user ${payload.userId} — skipping push`,
+      );
+      return false;
+    }
+
     try {
-      // OneSignal da user external_user_id orqali identifikatsiya qilinadi
       const response = await fetch(`${this.apiUrl}/notifications`, {
         method: 'POST',
         headers: {
@@ -47,7 +54,7 @@ export class OneSignalService {
         },
         body: JSON.stringify({
           app_id: this.appId,
-          include_external_user_ids: [payload.userId],
+          include_player_ids: playerIds,
           headings: { en: payload.title },
           contents: { en: payload.body },
           data: payload.data || {},
@@ -79,6 +86,14 @@ export class OneSignalService {
       return true;
     }
 
+    const playerIds = await this.getActivePlayerIds(payload.userIds);
+    if (playerIds.length === 0) {
+      this.logger.debug(
+        `No active device tokens for ${payload.userIds.length} users — skipping bulk push`,
+      );
+      return false;
+    }
+
     try {
       const response = await fetch(`${this.apiUrl}/notifications`, {
         method: 'POST',
@@ -88,7 +103,7 @@ export class OneSignalService {
         },
         body: JSON.stringify({
           app_id: this.appId,
-          include_external_user_ids: payload.userIds,
+          include_player_ids: playerIds,
           headings: { en: payload.title },
           contents: { en: payload.body },
           data: payload.data || {},
@@ -103,13 +118,21 @@ export class OneSignalService {
 
       const result = await response.json();
       this.logger.log(
-        `Bulk push sent to ${payload.userIds.length} users: ${result.id}`,
+        `Bulk push sent to ${playerIds.length} devices (${payload.userIds.length} users): ${result.id}`,
       );
       return true;
     } catch (error) {
       this.logger.error(`Failed to send bulk push: ${error.message}`);
       return false;
     }
+  }
+
+  private async getActivePlayerIds(userIds: string[]): Promise<string[]> {
+    const tokens = await this.prisma.deviceToken.findMany({
+      where: { userId: { in: userIds }, isActive: true },
+      select: { playerId: true },
+    });
+    return tokens.map((t) => t.playerId);
   }
 
   async sendToSegment(

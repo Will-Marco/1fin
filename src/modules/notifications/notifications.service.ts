@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { OneSignalService } from './onesignal.service';
+import { DevicePlatform } from '../../../generated/prisma/client';
 
 @Injectable()
 export class NotificationsService {
@@ -8,6 +9,53 @@ export class NotificationsService {
     private prisma: PrismaService,
     private oneSignalService: OneSignalService,
   ) {}
+
+  /**
+   * Register (or re-assign) an OneSignal player ID to the current user.
+   * playerId is globally unique — if it was previously tied to another user
+   * (same physical device, different account), it gets reassigned here.
+   */
+  async registerDeviceToken(
+    userId: string,
+    playerId: string,
+    platform: DevicePlatform,
+  ) {
+    return this.prisma.deviceToken.upsert({
+      where: { playerId },
+      update: {
+        userId,
+        platform,
+        isActive: true,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        userId,
+        playerId,
+        platform,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        playerId: true,
+        platform: true,
+        isActive: true,
+        lastSeenAt: true,
+      },
+    });
+  }
+
+  /**
+   * Deactivate a specific player ID for the current user (e.g. logout on that device).
+   * Scoped to userId to prevent removing a token that has already been
+   * reassigned to someone else on the same physical device.
+   */
+  async unregisterDeviceToken(userId: string, playerId: string) {
+    const result = await this.prisma.deviceToken.updateMany({
+      where: { userId, playerId },
+      data: { isActive: false },
+    });
+    return { unregistered: result.count };
+  }
 
   async create(
     userId: string,

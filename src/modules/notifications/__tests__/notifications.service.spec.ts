@@ -30,6 +30,10 @@ describe('NotificationsService', () => {
       deleteMany: jest.fn(),
       count: jest.fn(),
     },
+    deviceToken: {
+      upsert: jest.fn(),
+      updateMany: jest.fn(),
+    },
   };
 
   const mockOneSignalService = {
@@ -199,6 +203,71 @@ describe('NotificationsService', () => {
       const result = await service.deleteAll('user-id');
 
       expect(result.message).toBe('All notifications deleted');
+    });
+  });
+
+  describe('registerDeviceToken', () => {
+    it('should upsert a device token by playerId and reassign to current user', async () => {
+      const upserted = {
+        id: 'dt-1',
+        playerId: 'player-1',
+        platform: 'WEB',
+        isActive: true,
+        lastSeenAt: new Date(),
+      };
+      mockPrismaService.deviceToken.upsert.mockResolvedValue(upserted);
+
+      const result = await service.registerDeviceToken(
+        'user-id',
+        'player-1',
+        'WEB' as any,
+      );
+
+      expect(result).toEqual(upserted);
+      expect(mockPrismaService.deviceToken.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { playerId: 'player-1' },
+          update: expect.objectContaining({
+            userId: 'user-id',
+            platform: 'WEB',
+            isActive: true,
+          }),
+          create: expect.objectContaining({
+            userId: 'user-id',
+            playerId: 'player-1',
+            platform: 'WEB',
+            isActive: true,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('unregisterDeviceToken', () => {
+    it('should deactivate the token only if it belongs to the current user', async () => {
+      mockPrismaService.deviceToken.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.unregisterDeviceToken(
+        'user-id',
+        'player-1',
+      );
+
+      expect(result).toEqual({ unregistered: 1 });
+      expect(mockPrismaService.deviceToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-id', playerId: 'player-1' },
+        data: { isActive: false },
+      });
+    });
+
+    it('should return 0 when the token does not belong to the user', async () => {
+      mockPrismaService.deviceToken.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.unregisterDeviceToken(
+        'user-id',
+        'player-belonging-to-someone-else',
+      );
+
+      expect(result).toEqual({ unregistered: 0 });
     });
   });
 });

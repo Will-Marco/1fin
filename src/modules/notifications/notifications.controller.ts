@@ -1,7 +1,9 @@
 import {
+  Body,
   Controller,
   Get,
   Patch,
+  Post,
   Delete,
   Param,
   Query,
@@ -17,6 +19,7 @@ import {
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards';
 import { CurrentUser, ThrottleRead, ThrottleWrite } from '../../common/decorators';
+import { RegisterDeviceTokenDto } from './dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -132,5 +135,58 @@ export class NotificationsController {
   })
   async deleteAll(@CurrentUser('id') userId: string) {
     return this.notificationsService.deleteAll(userId);
+  }
+
+  @Post('devices')
+  @ThrottleWrite()
+  @ApiOperation({
+    summary: 'Register OneSignal player ID for the current device',
+    description:
+      'Frontend calls this after OneSignal SDK initializes, passing the current ' +
+      'playerId. Upsert: if the playerId already belongs to another user (same ' +
+      'physical device reused), it is reassigned to the current user.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Device token registered',
+    schema: {
+      example: {
+        id: 'cuid-device-token-id',
+        playerId: '11e5c1e2-2f4b-4db1-9351-0139a0b2a193',
+        platform: 'WEB',
+        isActive: true,
+        lastSeenAt: '2026-04-24T10:00:00.000Z',
+      },
+    },
+  })
+  async registerDevice(
+    @CurrentUser('id') userId: string,
+    @Body() dto: RegisterDeviceTokenDto,
+  ) {
+    return this.notificationsService.registerDeviceToken(
+      userId,
+      dto.playerId,
+      dto.platform,
+    );
+  }
+
+  @Delete('devices/:playerId')
+  @ThrottleWrite()
+  @ApiOperation({
+    summary: 'Unregister a device (e.g. on logout)',
+    description:
+      'Deactivates the device token tied to the current user and the given playerId. ' +
+      'Scoped by userId — will not affect a token that was reassigned to another user.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Device unregistered',
+    schema: { example: { unregistered: 1 } },
+  })
+  async unregisterDevice(
+    @CurrentUser('id') userId: string,
+    @Param('playerId') playerId: string,
+  ) {
+    return this.notificationsService.unregisterDeviceToken(userId, playerId);
   }
 }
