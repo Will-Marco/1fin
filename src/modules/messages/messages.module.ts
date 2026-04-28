@@ -15,7 +15,7 @@ import { FilesModule } from '../files/files.module';
     FilesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         secret: configService.get('jwt.accessSecret'),
       }),
       inject: [ConfigService],

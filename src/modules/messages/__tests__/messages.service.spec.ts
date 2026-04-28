@@ -580,12 +580,7 @@ describe('MessagesService', () => {
         isEdited: true,
       });
 
-      const result = await service.update(
-        'msg-1',
-        { content: 'Updated' },
-        'user-1',
-        null,
-      );
+      await service.update('msg-1', { content: 'Updated' }, 'user-1', null);
 
       expect(mockPrismaService.message.update).toHaveBeenCalled();
       expect(mockPrismaService.messageEdit.create).toHaveBeenCalled();
@@ -1162,12 +1157,7 @@ describe('MessagesService', () => {
         id: 'mem-1',
       });
 
-      const result = await service.update(
-        'msg-1',
-        { content: 'Updated' },
-        'user-1',
-        null,
-      );
+      await service.update('msg-1', { content: 'Updated' }, 'user-1', null);
 
       expect(mockPrismaService.message.update).toHaveBeenCalled();
     });

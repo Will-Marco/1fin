@@ -35,7 +35,7 @@ export class MessagesGateway
     private prisma: PrismaService,
   ) {}
 
-  async handleConnection(client: AuthenticatedSocket) {
+  handleConnection(client: AuthenticatedSocket) {
     try {
       const token =
         client.handshake.auth?.token ||

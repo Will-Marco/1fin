@@ -10,7 +10,6 @@ import { EXCHANGES, ROUTING_KEYS } from '../constants';
 
 describe('MessageProducer', () => {
   let producer: MessageProducer;
-  let rabbitMQService: RabbitMQService;
 
   const mockRabbitMQService = {
     publish: jest.fn(),
@@ -27,7 +26,6 @@ describe('MessageProducer', () => {
     }).compile();
 
     producer = module.get<MessageProducer>(MessageProducer);
-    rabbitMQService = module.get<RabbitMQService>(RabbitMQService);
   });
 
   describe('sendNewMessage', () => {

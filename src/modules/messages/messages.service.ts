@@ -15,11 +15,7 @@ import {
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { MessageProducer } from '../../queues/producers';
-import {
-  CreateMessageWithFilesDto,
-  ForwardMessageDto,
-  UpdateMessageDto,
-} from './dto';
+import { CreateMessageWithFilesDto, UpdateMessageDto } from './dto';
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
   DOCUMENT_EXPIRATION_DAYS,
@@ -351,7 +347,7 @@ export class MessagesService {
       data: { messageId, content: message.content || '' },
     });
 
-    const updated = await this.prisma.message.update({
+    await this.prisma.message.update({
       where: { id: messageId },
       data: { content: dto.content, isEdited: true },
     });
@@ -380,7 +376,6 @@ export class MessagesService {
       // Original xabar uchun notification
       await this.messageProducer.sendEditedMessage({
         messageId,
-        // @ts-ignore
         companyId: message.companyId,
         globalDepartmentId: message.globalDepartmentId,
         content: dto.content,
@@ -391,7 +386,6 @@ export class MessagesService {
       for (const forward of forwardedMessages) {
         await this.messageProducer.sendEditedMessage({
           messageId: forward.forwardedMessageId,
-          // @ts-ignore
           companyId: forward.forwardedMessage.companyId,
           globalDepartmentId: forward.forwardedMessage.globalDepartmentId,
           content: dto.content,
@@ -429,7 +423,6 @@ export class MessagesService {
     if (this.messageProducer) {
       await this.messageProducer.sendDeletedMessage({
         messageId,
-        // @ts-ignore
         companyId: message.companyId,
         globalDepartmentId: message.globalDepartmentId,
         deletedBy: userId,

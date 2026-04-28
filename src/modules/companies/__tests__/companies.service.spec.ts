@@ -80,7 +80,7 @@ describe('CompaniesService', () => {
         .mockResolvedValue({ id: 'membership-id' });
       const txMembershipDeptCreateMany = jest.fn().mockResolvedValue({});
 
-      mockPrismaService.$transaction.mockImplementation(async (fn) =>
+      mockPrismaService.$transaction.mockImplementation((fn) =>
         fn({
           company: { create: txCompanyCreate },
           companyDepartmentConfig: { createMany: txDeptConfigCreateMany },
@@ -344,7 +344,7 @@ describe('CompaniesService', () => {
         .mockResolvedValueOnce({ ...mockCompany, name: 'Updated' }); // second findOne
       mockPrismaService.company.update.mockResolvedValue({});
 
-      const result = await service.update('company-id', { name: 'Updated' });
+      await service.update('company-id', { name: 'Updated' });
 
       expect(mockPrismaService.company.update).toHaveBeenCalledWith({
         where: { id: 'company-id' },
@@ -409,7 +409,7 @@ describe('CompaniesService', () => {
         globalDepartment: { id: 'dept-new', name: 'New', slug: 'new' },
       });
 
-      const result = await service.enableDepartment('company-id', 'dept-new');
+      await service.enableDepartment('company-id', 'dept-new');
 
       expect(
         mockPrismaService.companyDepartmentConfig.create,

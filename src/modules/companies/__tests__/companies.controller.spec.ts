@@ -142,7 +142,7 @@ describe('CompaniesController', () => {
         name: 'Updated',
       });
 
-      const result = await controller.update('company-id', { name: 'Updated' });
+      await controller.update('company-id', { name: 'Updated' });
 
       expect(service.update).toHaveBeenCalledWith('company-id', {
         name: 'Updated',
@@ -166,7 +166,7 @@ describe('CompaniesController', () => {
     it('should return department configs', async () => {
       mockCompaniesService.getDepartmentConfigs.mockResolvedValue([]);
 
-      const result = await controller.getDepartmentConfigs(
+      await controller.getDepartmentConfigs(
         'company-id',
         'user-id',
         SystemRole.FIN_ADMIN,

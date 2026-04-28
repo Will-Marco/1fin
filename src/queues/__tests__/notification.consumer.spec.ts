@@ -44,7 +44,7 @@ describe('NotificationConsumer', () => {
 
     beforeEach(() => {
       mockRabbitMQService.consume.mockImplementation(
-        async (queue: string, handler: (message: any) => Promise<void>) => {
+        (queue: string, handler: (message: any) => Promise<void>) => {
           if (queue === 'notifications.push') notificationHandler = handler;
           if (queue === 'documents.reminder') documentReminderHandler = handler;
         },
@@ -195,7 +195,7 @@ describe('NotificationConsumer', () => {
 
     beforeEach(async () => {
       mockRabbitMQService.consume.mockImplementation(
-        async (queue: string, handler: (message: any) => Promise<void>) => {
+        (queue: string, handler: (message: any) => Promise<void>) => {
           if (queue === 'notifications.push') notificationHandler = handler;
         },
       );

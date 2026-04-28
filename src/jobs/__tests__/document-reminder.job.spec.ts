@@ -60,7 +60,14 @@ describe('DocumentReminderJob', () => {
       await job.handleDocumentReminder();
 
       expect(mockPrismaService.document.findMany).toHaveBeenCalledWith({
-        where: { status: DocumentStatus.PENDING },
+        where: {
+          status: DocumentStatus.PENDING,
+          files: {
+            some: {
+              OR: [{ isOutgoing: false }, { isOutgoing: null }],
+            },
+          },
+        },
       });
 
       expect(

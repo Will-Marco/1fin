@@ -578,14 +578,10 @@ describe('UsersService', () => {
       mockPrismaService.$transaction.mockResolvedValue([]);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
-      const result = await service.updateMembership(
-        'user-id',
-        'membership-id',
-        {
-          rank: 2,
-          allowedDepartmentIds: ['dept-id-2'],
-        },
-      );
+      await service.updateMembership('user-id', 'membership-id', {
+        rank: 2,
+        allowedDepartmentIds: ['dept-id-2'],
+      });
 
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
     });

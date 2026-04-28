@@ -216,12 +216,13 @@ export class StatisticsService {
   /**
    * Kompaniya statistika cache ni tozalash
    */
-  async invalidateCompanyCache(companyId: string): Promise<void> {
+  invalidateCompanyCache(companyId: string): Promise<void> {
     // Bu metod yangi hujjat/xabar qo'shilganda chaqirilishi mumkin
     // Hozircha oddiy implementation - keyingi versiyada pattern matching bilan
     this.logger.debug(`Invalidating cache for company: ${companyId}`);
     // cache-manager v5 da keys() metodi yo'q, shuning uchun
     // invalidation uchun TTL ga tayanamiz yoki Redis ishlatamiz
+    return Promise.resolve();
   }
 
   /**

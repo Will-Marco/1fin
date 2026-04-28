@@ -16,9 +16,11 @@ export class MessageConsumer implements OnModuleInit {
     private prisma: PrismaService,
   ) {}
 
-  async onModuleInit() {
+  onModuleInit() {
     // Wait a bit for RabbitMQ to connect
-    setTimeout(() => this.startConsuming(), 2000);
+    setTimeout(() => {
+      void this.startConsuming();
+    }, 2000);
   }
 
   private async startConsuming() {
@@ -50,7 +52,7 @@ export class MessageConsumer implements OnModuleInit {
   }
 
   private async consumeEditedMessages() {
-    await this.rabbitMQService.consume(QUEUES.MESSAGE_EDIT, async (message) => {
+    await this.rabbitMQService.consume(QUEUES.MESSAGE_EDIT, (message) => {
       const { payload } = message;
 
       // WebSocket orqali yuborish
@@ -64,20 +66,17 @@ export class MessageConsumer implements OnModuleInit {
   }
 
   private async consumeDeletedMessages() {
-    await this.rabbitMQService.consume(
-      QUEUES.MESSAGE_DELETE,
-      async (message) => {
-        const { payload } = message;
+    await this.rabbitMQService.consume(QUEUES.MESSAGE_DELETE, (message) => {
+      const { payload } = message;
 
-        // WebSocket orqali yuborish
-        this.messagesGateway.emitToRoom(
-          payload.companyId,
-          payload.globalDepartmentId,
-          'message:deleted',
-          { messageId: payload.messageId },
-        );
-      },
-    );
+      // WebSocket orqali yuborish
+      this.messagesGateway.emitToRoom(
+        payload.companyId,
+        payload.globalDepartmentId,
+        'message:deleted',
+        { messageId: payload.messageId },
+      );
+    });
   }
 
   private async sendNotificationToOfflineUsers(payload: any) {

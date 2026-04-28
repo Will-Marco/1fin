@@ -15,9 +15,11 @@ export class NotificationConsumer implements OnModuleInit {
     private oneSignalService: OneSignalService,
   ) {}
 
-  async onModuleInit() {
+  onModuleInit() {
     // Wait a bit for RabbitMQ to connect
-    setTimeout(() => this.startConsuming(), 2000);
+    setTimeout(() => {
+      void this.startConsuming();
+    }, 2000);
   }
 
   private async startConsuming() {
@@ -36,7 +38,7 @@ export class NotificationConsumer implements OnModuleInit {
     await this.rabbitMQService.consume(
       QUEUES.NOTIFICATION_PUSH,
       async (message) => {
-        const { type, userId, title, body, data } = message;
+        const { userId, title, body, data } = message;
 
         // 1. In-app notification yaratish (DB ga saqlash)
         await this.createInAppNotification(userId, title, body, data);

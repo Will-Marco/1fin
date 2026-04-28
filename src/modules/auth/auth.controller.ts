@@ -36,7 +36,6 @@ import { JwtAuthGuard, JwtRefreshGuard } from './guards';
 import {
   CurrentUser,
   ThrottleAuth,
-  ThrottleRead,
   ThrottleWrite,
 } from '../../common/decorators';
 

@@ -20,7 +20,6 @@ import {
 
 describe('DocumentPermissionGuard', () => {
   let guard: DocumentPermissionGuard;
-  let prisma: PrismaService;
 
   const mockPrismaService = {
     document: {
@@ -40,7 +39,6 @@ describe('DocumentPermissionGuard', () => {
     }).compile();
 
     guard = module.get<DocumentPermissionGuard>(DocumentPermissionGuard);
-    prisma = module.get<PrismaService>(PrismaService);
     jest.clearAllMocks();
   });
 

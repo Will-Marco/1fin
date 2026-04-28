@@ -9,7 +9,6 @@ import { RabbitMQService } from '../rabbitmq.service';
 
 describe('NotificationProducer', () => {
   let producer: NotificationProducer;
-  let rabbitMQService: RabbitMQService;
 
   const mockRabbitMQService = {
     publish: jest.fn(),
@@ -26,7 +25,6 @@ describe('NotificationProducer', () => {
     }).compile();
 
     producer = module.get<NotificationProducer>(NotificationProducer);
-    rabbitMQService = module.get<RabbitMQService>(RabbitMQService);
   });
 
   describe('send', () => {

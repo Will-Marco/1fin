@@ -24,7 +24,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
     });
   }
 
-  async validate(req: Request, payload: JwtPayload) {
+  validate(req: Request, payload: JwtPayload) {
     const refreshToken = req.body?.refreshToken;
 
     if (!refreshToken) {

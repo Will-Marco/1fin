@@ -124,6 +124,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async publish(exchange: string, routingKey: string, message: any) {
     if (!this.isConnected || !this.channel) {
       this.logger.warn(`Cannot publish to ${exchange}: RabbitMQ not connected`);
@@ -142,6 +143,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async sendToQueue(queue: string, message: any) {
     if (!this.isConnected || !this.channel) {
       this.logger.warn(`Cannot send to ${queue}: RabbitMQ not connected`);
@@ -162,7 +164,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 
   async consume(
     queue: string,
-    callback: (message: any) => Promise<void>,
+    callback: (message: any) => Promise<void> | void,
     options?: { noAck?: boolean },
   ) {
     if (!this.isConnected || !this.channel) {
@@ -173,13 +175,14 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.channel.consume(
         queue,
-        async (msg) => {
-          if (msg && this.channel) {
+        (msg) => {
+          if (!msg || !this.channel) return;
+          void (async () => {
             try {
               const content = JSON.parse(msg.content.toString());
               await callback(content);
               if (!options?.noAck) {
-                this.channel.ack(msg);
+                this.channel?.ack(msg);
               }
             } catch (error) {
               this.logger.error(
@@ -187,9 +190,9 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
                 error,
               );
               // Reject and requeue on error
-              this.channel.nack(msg, false, true);
+              this.channel?.nack(msg, false, true);
             }
-          }
+          })();
         },
         { noAck: options?.noAck || false },
       );

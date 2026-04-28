@@ -50,7 +50,7 @@ describe('MessageConsumer', () => {
 
     beforeEach(() => {
       mockRabbitMQService.consume.mockImplementation(
-        async (queue: string, handler: (message: any) => Promise<void>) => {
+        (queue: string, handler: (message: any) => Promise<void>) => {
           if (queue === 'messages.send') newMessageHandler = handler;
           if (queue === 'messages.edit') editMessageHandler = handler;
           if (queue === 'messages.delete') deleteMessageHandler = handler;

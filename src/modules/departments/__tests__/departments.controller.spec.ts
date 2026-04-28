@@ -85,7 +85,7 @@ describe('DepartmentsController (GlobalDepartment)', () => {
         name: 'Updated',
       });
 
-      const result = await controller.update('dept-id', { name: 'Updated' });
+      await controller.update('dept-id', { name: 'Updated' });
 
       expect(service.update).toHaveBeenCalledWith('dept-id', {
         name: 'Updated',
