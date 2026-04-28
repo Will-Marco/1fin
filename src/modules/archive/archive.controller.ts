@@ -6,7 +6,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SystemRole } from '../../../generated/prisma/client';
-import { SystemRoles, ThrottleRead, ThrottleWrite } from '../../common/decorators';
+import {
+  SystemRoles,
+  ThrottleRead,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { SystemRoleGuard } from '../../common/guards';
 import { JwtAuthGuard } from '../auth/guards';
 import { ArchiveService } from './archive.service';

@@ -11,6 +11,8 @@ import { SystemRole, DocumentStatus } from '../../../generated/prisma/client';
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
   LETTERS_DEPARTMENT_SLUG,
+  RECONCILIATION_DEPARTMENT_SLUG,
+  COMPANY_INFO_DEPARTMENT_SLUG,
 } from '../constants';
 
 /**
@@ -44,11 +46,15 @@ export class DocumentPermissionGuard implements CanActivate {
       throw new BadRequestException('Hujjat ID talab qilinadi');
     }
 
-    // Get the document
+    // Get the document with files to check isOutgoing
     const document = await this.prisma.document.findUnique({
       where: { id: documentId },
       include: {
         globalDepartment: true,
+        files: {
+          select: { isOutgoing: true },
+          take: 1,
+        },
       },
     });
 
@@ -65,6 +71,20 @@ export class DocumentPermissionGuard implements CanActivate {
     if (document.globalDepartment.slug === BANK_PAYMENT_DEPARTMENT_SLUG) {
       throw new ForbiddenException(
         "Bank to'lovlari bo'limida tasdiqlash/rad etish mavjud emas",
+      );
+    }
+
+    // Check Reconciliation special rule - no accept/reject
+    if (document.globalDepartment.slug === RECONCILIATION_DEPARTMENT_SLUG) {
+      throw new ForbiddenException(
+        "Solishtirma dalolatnoma bo'limida tasdiqlash/rad etish mavjud emas",
+      );
+    }
+
+    // Check Company Info special rule - no accept/reject
+    if (document.globalDepartment.slug === COMPANY_INFO_DEPARTMENT_SLUG) {
+      throw new ForbiddenException(
+        "Korxona maʼlumotlari bo'limida tasdiqlash/rad etish mavjud emas",
       );
     }
 
@@ -119,6 +139,15 @@ export class DocumentPermissionGuard implements CanActivate {
           "Xatlar bo'limida hujjatlarni rad etish mumkin emas (faqat 'Tanishdim' tugmasi majvud)",
         );
       }
+    }
+
+    // Clientlar uchun: faqat kirim (isOutgoing=false) hujjatlarni approve/reject qilish mumkin
+    // Chiqim (isOutgoing=true) hujjatlar uchun approve/reject shart emas
+    const fileIsOutgoing = document.files?.[0]?.isOutgoing;
+    if (fileIsOutgoing === true) {
+      throw new ForbiddenException(
+        'Chiqim hujjatlarini tasdiqlash/rad etish shart emas',
+      );
     }
 
     // Attach document and membership to request for later use

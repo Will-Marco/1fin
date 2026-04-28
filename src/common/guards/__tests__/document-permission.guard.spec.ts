@@ -14,6 +14,8 @@ import {
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
   LETTERS_DEPARTMENT_SLUG,
+  RECONCILIATION_DEPARTMENT_SLUG,
+  COMPANY_INFO_DEPARTMENT_SLUG,
 } from '../../constants';
 
 describe('DocumentPermissionGuard', () => {
@@ -149,6 +151,104 @@ describe('DocumentPermissionGuard', () => {
       companyId: 'company-1',
       status: DocumentStatus.PENDING,
       globalDepartment: { slug: LETTERS_DEPARTMENT_SLUG },
+      files: [{ isOutgoing: false }],
+    });
+    mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+      isActive: true,
+    });
+
+    const request = {
+      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR },
+      params: { id: 'doc-1' },
+      route: { path: '/documents/:id/approve' },
+    };
+    const context = createMockContext(request);
+
+    const result = await guard.canActivate(context);
+    expect(result).toBe(true);
+  });
+
+  it('should throw ForbiddenException for Reconciliation department', async () => {
+    mockPrismaService.document.findUnique.mockResolvedValue({
+      status: DocumentStatus.PENDING,
+      globalDepartment: { slug: RECONCILIATION_DEPARTMENT_SLUG },
+      files: [],
+    });
+    const context = createMockContext({
+      user: { id: 'user-1', systemRole: SystemRole.FIN_ADMIN },
+      params: { id: 'doc-1' },
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('should throw ForbiddenException for Company Info department', async () => {
+    mockPrismaService.document.findUnique.mockResolvedValue({
+      status: DocumentStatus.PENDING,
+      globalDepartment: { slug: COMPANY_INFO_DEPARTMENT_SLUG },
+      files: [],
+    });
+    const context = createMockContext({
+      user: { id: 'user-1', systemRole: SystemRole.FIN_ADMIN },
+      params: { id: 'doc-1' },
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('should throw ForbiddenException for client when document isOutgoing=true', async () => {
+    mockPrismaService.document.findUnique.mockResolvedValue({
+      companyId: 'company-1',
+      status: DocumentStatus.PENDING,
+      globalDepartment: { slug: 'contract' },
+      files: [{ isOutgoing: true }], // Outgoing document
+    });
+    mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+      isActive: true,
+    });
+
+    const request = {
+      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR },
+      params: { id: 'doc-1' },
+      route: { path: '/documents/:id/approve' },
+    };
+    const context = createMockContext(request);
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'Chiqim hujjatlarini tasdiqlash/rad etish shart emas',
+    );
+  });
+
+  it('should allow client to approve/reject when document isOutgoing=false', async () => {
+    mockPrismaService.document.findUnique.mockResolvedValue({
+      companyId: 'company-1',
+      status: DocumentStatus.PENDING,
+      globalDepartment: { slug: 'contract' },
+      files: [{ isOutgoing: false }], // Incoming document
+    });
+    mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+      isActive: true,
+    });
+
+    const request = {
+      user: { id: 'user-1', systemRole: SystemRole.CLIENT_DIRECTOR },
+      params: { id: 'doc-1' },
+      route: { path: '/documents/:id/approve' },
+    };
+    const context = createMockContext(request);
+
+    const result = await guard.canActivate(context);
+    expect(result).toBe(true);
+  });
+
+  it('should allow client to approve/reject when document isOutgoing=null', async () => {
+    mockPrismaService.document.findUnique.mockResolvedValue({
+      companyId: 'company-1',
+      status: DocumentStatus.PENDING,
+      globalDepartment: { slug: 'contract' },
+      files: [{ isOutgoing: null }], // No direction specified
     });
     mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
       isActive: true,

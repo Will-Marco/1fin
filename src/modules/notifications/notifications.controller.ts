@@ -18,7 +18,11 @@ import {
 } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards';
-import { CurrentUser, ThrottleRead, ThrottleWrite } from '../../common/decorators';
+import {
+  CurrentUser,
+  ThrottleRead,
+  ThrottleWrite,
+} from '../../common/decorators';
 import { RegisterDeviceTokenDto } from './dto';
 
 @ApiTags('Notifications')

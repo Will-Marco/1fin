@@ -20,8 +20,9 @@ const DEFAULT_GLOBAL_DEPARTMENTS = [
   { name: 'Hisob fakturalar', slug: 'invoice' },
   { name: 'Ishonchnoma', slug: 'power-of-attorney' },
   { name: 'TTYU', slug: 'ttyu' },
-  { name: 'Solishtirma dalolatnoma', slug: 'reconciliation' },
+  { name: 'Solishtirma dalolatnoma', slug: 'reconciliation' }, // Special: no approve/reject
   { name: 'HR', slug: 'hr' },
+  { name: 'Korxona maʼlumotlari', slug: 'company-info' }, // Special: FIN only chat, no approve/reject
 ];
 
 async function main() {

@@ -55,7 +55,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const logMessage = `[${method}] ${originalUrl} - Status: ${status} | IP: ${ip} | UserID: ${user?.id || 'Anonymous'}`;
 
     if (isUserError) {
-      // 4xx errors - Usually user's fault (e.g. Validation, Unauthorized). 
+      // 4xx errors - Usually user's fault (e.g. Validation, Unauthorized).
       // Only log in non-production environments to avoid log noise.
       if (!isProduction) {
         this.logger.warn(`${logMessage} - Message: ${message}`);
@@ -79,4 +79,3 @@ export class HttpExceptionFilter implements ExceptionFilter {
     });
   }
 }
-

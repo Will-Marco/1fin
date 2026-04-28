@@ -22,9 +22,17 @@ export class DocumentReminderJob {
     this.logger.log('Document reminder job started');
 
     try {
-      // Barcha PENDING hujjatlarni olish
+      // Barcha PENDING hujjatlarni olish (faqat kirim - isOutgoing=false yoki null)
+      // Chiqim hujjatlar (isOutgoing=true) uchun reminder yuborilmaydi
       const pendingDocuments = await this.prisma.document.findMany({
-        where: { status: DocumentStatus.PENDING },
+        where: {
+          status: DocumentStatus.PENDING,
+          files: {
+            some: {
+              OR: [{ isOutgoing: false }, { isOutgoing: null }],
+            },
+          },
+        },
       });
 
       this.logger.log(`Found ${pendingDocuments.length} pending documents`);

@@ -58,4 +58,16 @@ export class CreateMessageWithFilesDto {
   @IsBoolean()
   @IsOptional()
   isOutgoing?: boolean;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      "Hujjat muddati (kunlarda). Default: 10 kun. Faqat 1FIN xodimlari va 'invoice' bo'limi uchun.",
+  })
+  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  @IsOptional()
+  expirationDays?: number;
 }

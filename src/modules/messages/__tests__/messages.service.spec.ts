@@ -16,6 +16,8 @@ import { MessagesService } from '../messages.service';
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
   LETTERS_DEPARTMENT_SLUG,
+  COMPANY_INFO_DEPARTMENT_SLUG,
+  INVOICE_DEPARTMENT_SLUG,
 } from '../../../common/constants';
 import { STORAGE_PROVIDER } from '../../files/storage/storage.interface';
 
@@ -43,15 +45,19 @@ describe('MessagesService', () => {
       findFirst: jest.fn(),
       count: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     userCompanyMembership: {
       findFirst: jest.fn(),
     },
     messageEdit: {
       create: jest.fn(),
+      findMany: jest.fn(),
     },
     messageForward: {
       create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     companyDepartmentConfig: {
       findUnique: jest.fn(),
@@ -566,6 +572,8 @@ describe('MessagesService', () => {
         id: 'mem-1',
       });
       mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.messageForward.findUnique.mockResolvedValue(null);
+      mockPrismaService.messageForward.findMany.mockResolvedValue([]);
       mockPrismaService.message.update.mockResolvedValue({
         ...mockMessage,
         content: 'Updated',
@@ -1040,6 +1048,384 @@ describe('MessagesService', () => {
       expect(result.data[0].deletedByUser.systemRole).toBe(
         SystemRole.FIN_DIRECTOR,
       );
+    });
+  });
+
+  describe('forwardedFrom in findAll/findOne', () => {
+    const mockForwardedMessage = {
+      ...mockMessage,
+      forwardedAsNew: [
+        {
+          createdAt: new Date(),
+          originalMessage: {
+            id: 'original-msg-id',
+            sender: {
+              id: 'original-sender',
+              name: 'Original Sender',
+              username: 'original',
+            },
+            globalDepartment: {
+              id: 'orig-dept',
+              name: 'Original Dept',
+              slug: 'orig-dept',
+            },
+          },
+        },
+      ],
+    };
+
+    it('should include forwardedFrom info for forwarded messages in findAll', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue([
+        mockForwardedMessage,
+      ]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
+
+      expect(result.data[0].forwardedFrom).toBeDefined();
+      expect(result.data[0].forwardedFrom.originalSender.name).toBe(
+        'Original Sender',
+      );
+      expect(result.data[0].forwardedFrom.originalDepartment.name).toBe(
+        'Original Dept',
+      );
+    });
+
+    it('should include forwardedFrom info for forwarded messages in findOne', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(
+        mockForwardedMessage,
+      );
+
+      const result = await service.findOne(
+        'msg-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
+
+      expect(result.forwardedFrom).toBeDefined();
+      expect(result.forwardedFrom.originalSender.username).toBe('original');
+    });
+
+    it('should not include forwardedFrom for non-forwarded messages', async () => {
+      const normalMessage = { ...mockMessage, forwardedAsNew: [] };
+      mockPrismaService.message.findMany.mockResolvedValue([normalMessage]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
+
+      expect(result.data[0].forwardedFrom).toBeUndefined();
+    });
+  });
+
+  describe('forward message edit blocking', () => {
+    it('should throw ForbiddenException when trying to edit a forwarded message', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        type: 'TEXT',
+        isDeleted: false,
+      });
+      mockPrismaService.messageForward.findUnique.mockResolvedValue({
+        id: 'forward-1',
+        forwardedMessageId: 'msg-1',
+        originalMessageId: 'original-msg',
+      });
+
+      await expect(
+        service.update('msg-1', { content: 'Updated' }, 'user-1', null),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow editing non-forwarded messages', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        type: 'TEXT',
+        isDeleted: false,
+      });
+      mockPrismaService.messageForward.findUnique.mockResolvedValue(null);
+      mockPrismaService.messageForward.findMany.mockResolvedValue([]);
+      mockPrismaService.message.update.mockResolvedValue({
+        ...mockMessage,
+        content: 'Updated',
+        isEdited: true,
+      });
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
+
+      const result = await service.update(
+        'msg-1',
+        { content: 'Updated' },
+        'user-1',
+        null,
+      );
+
+      expect(mockPrismaService.message.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('original-forward sync on edit', () => {
+    it('should update all forwarded messages when original is edited', async () => {
+      const forwardedMessages = [
+        {
+          forwardedMessageId: 'forward-1',
+          forwardedMessage: {
+            id: 'forward-1',
+            companyId: 'c1',
+            globalDepartmentId: 'd1',
+          },
+        },
+        {
+          forwardedMessageId: 'forward-2',
+          forwardedMessage: {
+            id: 'forward-2',
+            companyId: 'c1',
+            globalDepartmentId: 'd2',
+          },
+        },
+      ];
+
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        type: 'TEXT',
+        isDeleted: false,
+      });
+      mockPrismaService.messageForward.findUnique.mockResolvedValue(null);
+      mockPrismaService.messageForward.findMany.mockResolvedValue(
+        forwardedMessages,
+      );
+      mockPrismaService.message.update.mockResolvedValue({
+        ...mockMessage,
+        content: 'Updated',
+        isEdited: true,
+      });
+      mockPrismaService.message.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
+
+      await service.update('msg-1', { content: 'Updated' }, 'user-1', null);
+
+      expect(mockPrismaService.messageForward.findMany).toHaveBeenCalledWith({
+        where: { originalMessageId: 'msg-1' },
+        include: expect.anything(),
+      });
+      expect(mockPrismaService.message.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['forward-1', 'forward-2'] } },
+        data: { content: 'Updated', isEdited: true },
+      });
+    });
+  });
+
+  describe('getEditHistory', () => {
+    it('should return edit history for a message', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        id: 'msg-1',
+        content: 'Current content',
+        isEdited: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        sender: { id: 'user-1', name: 'User 1', username: 'user1' },
+      });
+      mockPrismaService.messageEdit.findMany.mockResolvedValue([
+        { id: 'edit-1', content: 'First version', editedAt: new Date() },
+        { id: 'edit-2', content: 'Second version', editedAt: new Date() },
+      ]);
+
+      const result = await service.getEditHistory('msg-1');
+
+      expect(result.message.id).toBe('msg-1');
+      expect(result.editHistory).toHaveLength(2);
+      expect(result.totalEdits).toBe(2);
+    });
+
+    it('should throw NotFoundException if message not found', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(service.getEditHistory('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('Company Info department restrictions', () => {
+    it('should throw ForbiddenException if client tries to send to Company Info department', async () => {
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-company-info',
+        slug: COMPANY_INFO_DEPARTMENT_SLUG,
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-company-info',
+        content: 'Hello',
+      };
+
+      await expect(
+        service.createWithFiles('client-user', null, dto, []),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow FIN staff to send to Company Info department', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-company-info',
+        slug: COMPANY_INFO_DEPARTMENT_SLUG,
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        files: [],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-company-info',
+        content: 'FIN message',
+      };
+
+      const result = await service.createWithFiles(
+        'fin-user',
+        SystemRole.FIN_ADMIN,
+        dto,
+        [],
+      );
+
+      expect(result).toBeDefined();
+      expect(mockPrismaService.message.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('Dynamic expiration for Invoice department', () => {
+    it('should use custom expirationDays for Invoice department', async () => {
+      const mockPdfFile = {
+        fieldname: 'files',
+        originalname: 'invoice.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-invoice',
+        slug: INVOICE_DEPARTMENT_SLUG,
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'invoice.pdf',
+        fileName: 'uuid-invoice.pdf',
+        path: 'documents/uuid-invoice.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        files: [
+          {
+            id: 'file-1',
+            path: 'documents/uuid-invoice.pdf',
+            document: { id: 'doc-1' },
+          },
+        ],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-invoice',
+        content: 'Hisob faktura',
+        expirationDays: 15, // Custom expiration
+      };
+
+      await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [
+        mockPdfFile,
+      ]);
+
+      expect(mockPrismaService.document.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            expiresAt: expect.any(Date),
+          }),
+        }),
+      );
+
+      // Verify the expiresAt is approximately 15 days from now
+      const createCall = mockPrismaService.document.create.mock.calls[0][0];
+      const expiresAt = createCall.data.expiresAt;
+      const expectedDate = new Date();
+      expectedDate.setDate(expectedDate.getDate() + 15);
+
+      // Check that dates are within 1 day of each other (accounting for test execution time)
+      expect(
+        Math.abs(expiresAt.getTime() - expectedDate.getTime()),
+      ).toBeLessThan(86400000);
+    });
+
+    it('should use default 10 days for non-Invoice departments', async () => {
+      const mockPdfFile = {
+        fieldname: 'files',
+        originalname: 'contract.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-contract',
+        slug: 'contract',
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'contract.pdf',
+        fileName: 'uuid-contract.pdf',
+        path: 'documents/uuid-contract.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        files: [
+          {
+            id: 'file-1',
+            path: 'documents/uuid-contract.pdf',
+            document: { id: 'doc-1' },
+          },
+        ],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-contract',
+        content: 'Shartnoma',
+        expirationDays: 30, // Should be ignored for non-invoice
+      };
+
+      await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [
+        mockPdfFile,
+      ]);
+
+      const createCall = mockPrismaService.document.create.mock.calls[0][0];
+      const expiresAt = createCall.data.expiresAt;
+      const expectedDate = new Date();
+      expectedDate.setDate(expectedDate.getDate() + 10); // Default 10 days
+
+      expect(
+        Math.abs(expiresAt.getTime() - expectedDate.getTime()),
+      ).toBeLessThan(86400000);
     });
   });
 });

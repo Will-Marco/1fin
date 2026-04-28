@@ -247,10 +247,7 @@ describe('NotificationsService', () => {
     it('should deactivate the token only if it belongs to the current user', async () => {
       mockPrismaService.deviceToken.updateMany.mockResolvedValue({ count: 1 });
 
-      const result = await service.unregisterDeviceToken(
-        'user-id',
-        'player-1',
-      );
+      const result = await service.unregisterDeviceToken('user-id', 'player-1');
 
       expect(result).toEqual({ unregistered: 1 });
       expect(mockPrismaService.deviceToken.updateMany).toHaveBeenCalledWith({

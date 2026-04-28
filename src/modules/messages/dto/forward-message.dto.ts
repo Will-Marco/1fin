@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class ForwardMessageDto {
   @ApiProperty({
@@ -36,4 +44,16 @@ export class ForwardMessageDto {
   @IsBoolean()
   @IsOptional()
   isOutgoing?: boolean;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      "Hujjat muddati (kunlarda). Default: 10 kun. Faqat 'invoice' bo'limi uchun.",
+  })
+  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  @IsOptional()
+  expirationDays?: number;
 }

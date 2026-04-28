@@ -181,6 +181,38 @@ export class MessagesController {
     );
   }
 
+  @Get(':id/edit-history')
+  @ThrottleRead()
+  @SystemRoles(SystemRole.FIN_DIRECTOR, SystemRole.FIN_ADMIN)
+  @ApiOperation({
+    summary: 'Get message edit history (FIN_DIRECTOR, FIN_ADMIN only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Message edit history',
+    schema: {
+      example: {
+        message: {
+          id: 'cuid-message-id',
+          content: 'Hozirgi matn',
+          isEdited: true,
+          sender: { id: 'cuid', name: 'Ali Valiyev' },
+        },
+        editHistory: [
+          {
+            id: 'edit-1',
+            content: 'Avvalgi matn',
+            editedAt: '2024-02-24T10:00:00.000Z',
+          },
+        ],
+        totalEdits: 1,
+      },
+    },
+  })
+  async getEditHistory(@Param('id') id: string) {
+    return this.messagesService.getEditHistory(id);
+  }
+
   @Get(':id')
   @ThrottleRead()
   @ApiOperation({ summary: 'Get a message by ID' })

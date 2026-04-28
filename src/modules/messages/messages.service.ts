@@ -25,6 +25,8 @@ import {
   DOCUMENT_EXPIRATION_DAYS,
   is1FinStaff,
   LETTERS_DEPARTMENT_SLUG,
+  INVOICE_DEPARTMENT_SLUG,
+  COMPANY_INFO_DEPARTMENT_SLUG,
 } from '../../common/constants';
 import {
   STORAGE_PROVIDER,
@@ -213,6 +215,19 @@ export class MessagesService {
               },
             },
           },
+          forwardedAsNew: {
+            include: {
+              originalMessage: {
+                select: {
+                  id: true,
+                  sender: { select: { id: true, name: true, username: true } },
+                  globalDepartment: {
+                    select: { id: true, name: true, slug: true },
+                  },
+                },
+              },
+            },
+          },
           _count: { select: { edits: true } },
         },
       }),
@@ -268,6 +283,19 @@ export class MessagesService {
             },
           },
         },
+        forwardedAsNew: {
+          include: {
+            originalMessage: {
+              select: {
+                id: true,
+                sender: { select: { id: true, name: true, username: true } },
+                globalDepartment: {
+                  select: { id: true, name: true, slug: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -308,6 +336,16 @@ export class MessagesService {
         'Faqat matnli xabarlarni tahrirlash mumkin',
       );
 
+    // Forward qilingan xabarni edit qilib bo'lmaydi
+    const isForwardedMessage = await this.prisma.messageForward.findUnique({
+      where: { forwardedMessageId: messageId },
+    });
+    if (isForwardedMessage) {
+      throw new ForbiddenException(
+        'Forward qilingan xabarlarni tahrirlash mumkin emas',
+      );
+    }
+
     // Save history
     await this.prisma.messageEdit.create({
       data: { messageId, content: message.content || '' },
@@ -318,7 +356,28 @@ export class MessagesService {
       data: { content: dto.content, isEdited: true },
     });
 
+    // Forward qilingan xabarlarni ham yangilash (sync)
+    const forwardedMessages = await this.prisma.messageForward.findMany({
+      where: { originalMessageId: messageId },
+      include: {
+        forwardedMessage: {
+          select: { id: true, companyId: true, globalDepartmentId: true },
+        },
+      },
+    });
+
+    // Barcha forward xabarlarni yangilash
+    if (forwardedMessages.length > 0) {
+      await this.prisma.message.updateMany({
+        where: {
+          id: { in: forwardedMessages.map((f) => f.forwardedMessageId) },
+        },
+        data: { content: dto.content, isEdited: true },
+      });
+    }
+
     if (this.messageProducer) {
+      // Original xabar uchun notification
       await this.messageProducer.sendEditedMessage({
         messageId,
         // @ts-ignore
@@ -327,6 +386,18 @@ export class MessagesService {
         content: dto.content,
         editedAt: new Date(),
       } as any);
+
+      // Forward xabarlar uchun ham notification
+      for (const forward of forwardedMessages) {
+        await this.messageProducer.sendEditedMessage({
+          messageId: forward.forwardedMessageId,
+          // @ts-ignore
+          companyId: forward.forwardedMessage.companyId,
+          globalDepartmentId: forward.forwardedMessage.globalDepartmentId,
+          content: dto.content,
+          editedAt: new Date(),
+        } as any);
+      }
     }
 
     return this.findOne(messageId, userId, userSystemRole);
@@ -375,7 +446,12 @@ export class MessagesService {
    */
   async forwardMessage(
     messageId: string,
-    dto: { toDepartmentId: string; companyId: string; note?: string; isOutgoing?: boolean },
+    dto: {
+      toDepartmentId: string;
+      companyId: string;
+      note?: string;
+      isOutgoing?: boolean;
+    },
     userId: string,
     userSystemRole: SystemRole,
   ) {
@@ -557,13 +633,66 @@ export class MessagesService {
   }
 
   private formatMessage(message: any, userSystemRole: SystemRole | null) {
+    let formatted = message;
+
     if (message.isDeleted && !userSystemRole) {
-      return {
+      formatted = {
         ...message,
         content: "Bu xabar o'chirilgan",
       };
     }
-    return message;
+
+    // Forward qilingan xabar uchun forwardedFrom qo'shish
+    if (message.forwardedAsNew && message.forwardedAsNew.length > 0) {
+      const forwardInfo = message.forwardedAsNew[0];
+      formatted = {
+        ...formatted,
+        forwardedFrom: {
+          originalSender: forwardInfo.originalMessage?.sender,
+          originalDepartment: forwardInfo.originalMessage?.globalDepartment,
+          forwardedAt: forwardInfo.createdAt,
+        },
+      };
+    }
+
+    return formatted;
+  }
+
+  /**
+   * Xabar tahrirlash tarixini olish (faqat admin uchun)
+   */
+  async getEditHistory(messageId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        content: true,
+        isEdited: true,
+        createdAt: true,
+        updatedAt: true,
+        sender: { select: { id: true, name: true, username: true } },
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Xabar topilmadi');
+    }
+
+    const editHistory = await this.prisma.messageEdit.findMany({
+      where: { messageId },
+      orderBy: { editedAt: 'desc' },
+      select: {
+        id: true,
+        content: true,
+        editedAt: true,
+      },
+    });
+
+    return {
+      message,
+      editHistory,
+      totalEdits: editHistory.length,
+    };
   }
 
   /**
@@ -606,6 +735,13 @@ export class MessagesService {
     if (department?.slug === LETTERS_DEPARTMENT_SLUG && !userSystemRole) {
       throw new ForbiddenException(
         "Xatlar bo'limida mijozlar xabar yoza olmaydi",
+      );
+    }
+
+    // Company Info special rule - faqat FIN staff xabar yoza oladi
+    if (department?.slug === COMPANY_INFO_DEPARTMENT_SLUG && !userSystemRole) {
+      throw new ForbiddenException(
+        "Korxona maʼlumotlari bo'limida mijozlar xabar yoza olmaydi",
       );
     }
 
@@ -681,8 +817,13 @@ export class MessagesService {
         // 2. Document yaratish (agar kerak bo'lsa)
         let document: { id: string } | null = null;
         if (shouldCreateDocument) {
+          // Dynamic expiration: faqat invoice bo'limi uchun custom kun, boshqalar uchun default
+          const expirationDays =
+            department?.slug === INVOICE_DEPARTMENT_SLUG && dto.expirationDays
+              ? dto.expirationDays
+              : DOCUMENT_EXPIRATION_DAYS;
           const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + DOCUMENT_EXPIRATION_DAYS);
+          expiresAt.setDate(expiresAt.getDate() + expirationDays);
 
           // Document raqamini generatsiya qilish (MSG-YYYYMMDD-XXXX)
           const today = new Date();

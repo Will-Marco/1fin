@@ -37,3 +37,12 @@ export const BANK_PAYMENT_DEPARTMENT_SLUG = 'bank-payment';
 
 // Letters department slug - special rule: no reject, clients only accept (Tanishdim)
 export const LETTERS_DEPARTMENT_SLUG = 'letters';
+
+// Invoice department slug - special rule: dynamic expiration days
+export const INVOICE_DEPARTMENT_SLUG = 'invoice';
+
+// Reconciliation department slug - special rule: no approve/reject
+export const RECONCILIATION_DEPARTMENT_SLUG = 'reconciliation';
+
+// Company info department slug - special rule: FIN only chat, no approve/reject
+export const COMPANY_INFO_DEPARTMENT_SLUG = 'company-info';
