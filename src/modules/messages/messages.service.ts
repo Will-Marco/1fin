@@ -810,9 +810,12 @@ export class MessagesService {
         // 2. Document yaratish (agar kerak bo'lsa)
         let document: { id: string } | null = null;
         if (shouldCreateDocument) {
-          // Dynamic expiration: faqat invoice bo'limi uchun custom kun, boshqalar uchun default
+          // Dynamic expiration: invoice va letters bo'limi uchun custom kun, boshqalar uchun default
+          const supportsCustomExpiration =
+            department?.slug === INVOICE_DEPARTMENT_SLUG ||
+            department?.slug === LETTERS_DEPARTMENT_SLUG;
           const expirationDays =
-            department?.slug === INVOICE_DEPARTMENT_SLUG && dto.expirationDays
+            supportsCustomExpiration && dto.expirationDays
               ? dto.expirationDays
               : DOCUMENT_EXPIRATION_DAYS;
           const expiresAt = new Date();

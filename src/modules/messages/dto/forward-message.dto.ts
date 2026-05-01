@@ -48,7 +48,7 @@ export class ForwardMessageDto {
   @ApiPropertyOptional({
     example: 10,
     description:
-      "Hujjat muddati (kunlarda). Default: 10 kun. Faqat 'invoice' bo'limi uchun.",
+      "Hujjat muddati (kunlarda). Default: 10 kun. Faqat 'invoice' yoki 'letters' bo'limi uchun.",
   })
   @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
   @IsInt()

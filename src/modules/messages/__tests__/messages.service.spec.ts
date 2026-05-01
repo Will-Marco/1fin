@@ -1297,7 +1297,7 @@ describe('MessagesService', () => {
     });
   });
 
-  describe('Dynamic expiration for Invoice department', () => {
+  describe('Dynamic expiration for Invoice and Letters departments', () => {
     it('should use custom expirationDays for Invoice department', async () => {
       const mockPdfFile = {
         fieldname: 'files',
@@ -1363,7 +1363,62 @@ describe('MessagesService', () => {
       ).toBeLessThan(86400000);
     });
 
-    it('should use default 10 days for non-Invoice departments', async () => {
+    it('should use custom expirationDays for Letters department', async () => {
+      const mockPdfFile = {
+        fieldname: 'files',
+        originalname: 'letter.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-letters',
+        slug: LETTERS_DEPARTMENT_SLUG,
+      });
+      mockStorageProvider.upload.mockResolvedValue({
+        originalName: 'letter.pdf',
+        fileName: 'uuid-letter.pdf',
+        path: 'documents/uuid-letter.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.document.create.mockResolvedValue({ id: 'doc-1' });
+      mockPrismaService.documentActionLog.create.mockResolvedValue({});
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        files: [
+          {
+            id: 'file-1',
+            path: 'documents/uuid-letter.pdf',
+            document: { id: 'doc-1' },
+          },
+        ],
+      });
+
+      const dto = {
+        companyId: 'company-1',
+        globalDepartmentId: 'dept-letters',
+        content: 'Xat',
+        expirationDays: 7,
+      };
+
+      await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [
+        mockPdfFile,
+      ]);
+
+      const createCall = mockPrismaService.document.create.mock.calls[0][0];
+      const expiresAt = createCall.data.expiresAt;
+      const expectedDate = new Date();
+      expectedDate.setDate(expectedDate.getDate() + 7);
+
+      expect(
+        Math.abs(expiresAt.getTime() - expectedDate.getTime()),
+      ).toBeLessThan(86400000);
+    });
+
+    it('should use default 10 days for departments that do not support custom expiration', async () => {
       const mockPdfFile = {
         fieldname: 'files',
         originalname: 'contract.pdf',
@@ -1401,7 +1456,7 @@ describe('MessagesService', () => {
         companyId: 'company-1',
         globalDepartmentId: 'dept-contract',
         content: 'Shartnoma',
-        expirationDays: 30, // Should be ignored for non-invoice
+        expirationDays: 30, // Should be ignored for non-invoice/non-letters
       };
 
       await service.createWithFiles('user-1', SystemRole.FIN_ADMIN, dto, [

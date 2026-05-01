@@ -62,7 +62,7 @@ export class CreateMessageWithFilesDto {
   @ApiPropertyOptional({
     example: 10,
     description:
-      "Hujjat muddati (kunlarda). Default: 10 kun. Faqat 1FIN xodimlari va 'invoice' bo'limi uchun.",
+      "Hujjat muddati (kunlarda). Default: 10 kun. Faqat 1FIN xodimlari va 'invoice' yoki 'letters' bo'limi uchun.",
   })
   @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
   @IsInt()
