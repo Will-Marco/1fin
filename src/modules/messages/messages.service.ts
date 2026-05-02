@@ -785,10 +785,15 @@ export class MessagesService {
             f.fileType === FileType.DOCUMENT || f.fileType === FileType.OTHER,
         ); // Hujjat tipidagi fayllar bor
 
-      // isOutgoing: 1FIN staff uchun frontenddan keladi, Client uchun null
+      // isOutgoing:
+      // - 1FIN staff: FE'dan keladi, default true
+      // - Client (Bank bo'limi): true — FE "Chiqim" tabida ko'rsatadi
+      // - Client (boshqa bo'limlar): null
       const isOutgoing = is1FinStaff(userSystemRole)
-        ? (dto.isOutgoing ?? true) // 1FIN: frontenddan, default true
-        : null; // Client: null
+        ? (dto.isOutgoing ?? true)
+        : department?.slug === BANK_PAYMENT_DEPARTMENT_SLUG
+          ? true
+          : null;
 
       // Transaction: message + files + document yaratish
       const result = await this.prisma.$transaction(async (tx) => {

@@ -543,6 +543,125 @@ describe('MessagesService', () => {
       // Document should be created only ONCE
       expect(mockPrismaService.document.create).toHaveBeenCalledTimes(1);
     });
+
+    describe('isOutgoing logic', () => {
+      it('should set isOutgoing=true when Client writes in Bank Payment department', async () => {
+        mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+          id: 'mem-1',
+        });
+        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+          id: 'dept-bank',
+          slug: BANK_PAYMENT_DEPARTMENT_SLUG,
+        });
+        mockPrismaService.message.create.mockResolvedValue(mockMessage);
+        mockPrismaService.message.findUnique.mockResolvedValue(
+          mockMessageWithFiles,
+        );
+
+        const dto = {
+          companyId: 'company-1',
+          globalDepartmentId: 'dept-bank',
+          content: "To'lov so'rovi",
+        };
+
+        await service.createWithFiles('client-user', null, dto, []);
+
+        expect(mockPrismaService.message.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ isOutgoing: true }),
+          }),
+        );
+      });
+
+      it('should set isOutgoing=null when Client writes in non-Bank department', async () => {
+        mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+          id: 'mem-1',
+        });
+        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+          id: 'dept-1',
+          slug: 'dogovor',
+        });
+        mockPrismaService.message.create.mockResolvedValue(mockMessage);
+        mockPrismaService.message.findUnique.mockResolvedValue(
+          mockMessageWithFiles,
+        );
+
+        const dto = {
+          companyId: 'company-1',
+          globalDepartmentId: 'dept-1',
+          content: 'Salom',
+        };
+
+        await service.createWithFiles('client-user', null, dto, []);
+
+        expect(mockPrismaService.message.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ isOutgoing: null }),
+          }),
+        );
+      });
+
+      it('should keep isOutgoing=true (default) for 1FIN staff in Bank Payment department', async () => {
+        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+          id: 'dept-bank',
+          slug: BANK_PAYMENT_DEPARTMENT_SLUG,
+        });
+        mockPrismaService.message.create.mockResolvedValue(mockMessage);
+        mockPrismaService.message.findUnique.mockResolvedValue(
+          mockMessageWithFiles,
+        );
+
+        const dto = {
+          companyId: 'company-1',
+          globalDepartmentId: 'dept-bank',
+          content: "To'lov tasdiqlandi",
+        };
+
+        await service.createWithFiles(
+          'fin-user',
+          SystemRole.FIN_ADMIN,
+          dto,
+          [],
+        );
+
+        expect(mockPrismaService.message.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ isOutgoing: true }),
+          }),
+        );
+      });
+
+      it('should respect explicit isOutgoing=false from 1FIN staff in Bank Payment department', async () => {
+        mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+          id: 'dept-bank',
+          slug: BANK_PAYMENT_DEPARTMENT_SLUG,
+        });
+        mockPrismaService.message.create.mockResolvedValue(mockMessage);
+        mockPrismaService.message.findUnique.mockResolvedValue(
+          mockMessageWithFiles,
+        );
+
+        const dto = {
+          companyId: 'company-1',
+          globalDepartmentId: 'dept-bank',
+          content: "To'lov keldi",
+          isOutgoing: false,
+        };
+
+        await service.createWithFiles(
+          'fin-user',
+          SystemRole.FIN_ADMIN,
+          dto,
+          [],
+        );
+
+        expect(mockPrismaService.message.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ isOutgoing: false }),
+          }),
+        );
+      });
+    });
   });
 
   describe('findAll', () => {
