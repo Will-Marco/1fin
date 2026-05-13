@@ -17,21 +17,15 @@ export class MessageConsumer implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // Wait a bit for RabbitMQ to connect
-    setTimeout(() => {
-      void this.startConsuming();
-    }, 2000);
+    // Register on every (re)connection — consumers re-bind after RabbitMQ reconnects
+    this.rabbitMQService.onConnect(() => this.startConsuming());
   }
 
   private async startConsuming() {
-    if (!this.rabbitMQService.isReady()) {
-      this.logger.warn('RabbitMQ not ready, message consumers not started');
-      return;
-    }
-
     await this.consumeNewMessages();
     await this.consumeEditedMessages();
     await this.consumeDeletedMessages();
+    this.logger.log('Message consumers registered');
   }
 
   private async consumeNewMessages() {

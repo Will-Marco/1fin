@@ -12,6 +12,8 @@ import { EXCHANGES, QUEUES } from './constants';
 const RECONNECT_INITIAL_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
 
+type ConnectCallback = () => Promise<void> | void;
+
 @Injectable()
 export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   private connection: amqp.ChannelModel | null = null;
@@ -21,11 +23,34 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   private isShuttingDown = false;
   private reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private connectCallbacks: ConnectCallback[] = [];
 
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     await this.connect();
+  }
+
+  /**
+   * Register a callback to run after each successful (re)connection.
+   * If already connected, the callback runs immediately.
+   * Consumers use this to (re-)register their subscriptions on reconnect.
+   */
+  onConnect(callback: ConnectCallback): void {
+    this.connectCallbacks.push(callback);
+    if (this.isReady()) {
+      void this.runCallback(callback);
+    }
+  }
+
+  private async runCallback(callback: ConnectCallback): Promise<void> {
+    try {
+      await callback();
+    } catch (error) {
+      this.logger.error(
+        `onConnect callback failed: ${(error as Error).message}`,
+      );
+    }
   }
 
   async onModuleDestroy() {
@@ -90,6 +115,11 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 
       // Setup queues after successful connection
       await this.setupQueues();
+
+      // Notify all subscribers (consumers re-register here)
+      for (const cb of this.connectCallbacks) {
+        await this.runCallback(cb);
+      }
     } catch (error) {
       this.logger.error(`Failed to connect to RabbitMQ: ${error.message}`);
       this.isConnected = false;

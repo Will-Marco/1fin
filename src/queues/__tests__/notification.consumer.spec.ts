@@ -11,6 +11,7 @@ describe('NotificationConsumer', () => {
   const mockRabbitMQService = {
     isReady: jest.fn(),
     consume: jest.fn(),
+    onConnect: jest.fn(),
   };
 
   const mockPrismaService = {
@@ -239,17 +240,13 @@ describe('NotificationConsumer', () => {
     });
   });
 
-  describe('isReady check', () => {
-    it('should not consume when RabbitMQ is not ready', async () => {
-      mockRabbitMQService.isReady.mockReturnValue(false);
-
-      await (consumer as any).startConsuming();
-
-      expect(mockRabbitMQService.consume).not.toHaveBeenCalled();
+  describe('onConnect registration', () => {
+    it('should register onConnect callback during onModuleInit', () => {
+      consumer.onModuleInit();
+      expect(mockRabbitMQService.onConnect).toHaveBeenCalledTimes(1);
     });
 
-    it('should consume when RabbitMQ is ready', async () => {
-      mockRabbitMQService.isReady.mockReturnValue(true);
+    it('should start consuming queues when called', async () => {
       mockRabbitMQService.consume.mockResolvedValue(undefined);
 
       await (consumer as any).startConsuming();

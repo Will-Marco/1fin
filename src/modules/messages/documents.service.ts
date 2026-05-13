@@ -1,15 +1,25 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DocumentStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import {
+  NotificationProducer,
+  NotificationType,
+} from '../../queues/producers';
 import { CreateDocumentDto, RejectDocumentDto } from './dto';
 
 @Injectable()
 export class DocumentsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(DocumentsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notificationProducer: NotificationProducer,
+  ) {}
 
   /**
    * Create a new document.
@@ -82,6 +92,8 @@ export class DocumentsService {
       },
     });
 
+    await this.notifyStatusChange(document, updated, NotificationType.DOCUMENT_APPROVED);
+
     return updated;
   }
 
@@ -118,7 +130,50 @@ export class DocumentsService {
       },
     });
 
+    await this.notifyStatusChange(
+      document,
+      updated,
+      NotificationType.DOCUMENT_REJECTED,
+      dto.reason,
+    );
+
     return updated;
+  }
+
+  private async notifyStatusChange(
+    document: { createdById: string; documentName: string; documentNumber: string; companyId: string; globalDepartmentId: string },
+    updated: { id: string; approvedBy: { name: string | null; username: string } | null },
+    type: NotificationType.DOCUMENT_APPROVED | NotificationType.DOCUMENT_REJECTED,
+    rejectionReason?: string,
+  ) {
+    const actorName =
+      updated.approvedBy?.name || updated.approvedBy?.username || 'Mijoz';
+    const isApproved = type === NotificationType.DOCUMENT_APPROVED;
+    const title = isApproved
+      ? 'Hujjat qabul qilindi'
+      : 'Hujjat rad etildi';
+    const body = isApproved
+      ? `${actorName}: "${document.documentName}" (${document.documentNumber}) hujjatini qabul qildi`
+      : `${actorName}: "${document.documentName}" (${document.documentNumber}) hujjatini rad etdi${rejectionReason ? `. Sabab: ${rejectionReason}` : ''}`;
+
+    try {
+      await this.notificationProducer.send({
+        type,
+        userId: document.createdById,
+        title,
+        body,
+        data: {
+          documentId: updated.id,
+          companyId: document.companyId,
+          departmentId: document.globalDepartmentId,
+          ...(rejectionReason && { rejectionReason }),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish document status notification: ${(error as Error).message}`,
+      );
+    }
   }
 
   /**
