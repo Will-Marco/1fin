@@ -60,6 +60,23 @@ export class StatisticsService {
       }),
     };
 
+    // File modelida companyId maydoni yo'q — message/document relation orqali filter
+    const fileWhere: any = {
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+      ...(dto.globalDepartmentId && {
+        globalDepartmentId: dto.globalDepartmentId,
+      }),
+    };
+    if (dto.companyId) {
+      fileWhere.OR = [
+        { message: { is: { companyId: dto.companyId } } },
+        { document: { is: { companyId: dto.companyId } } },
+      ];
+    }
+
     // Parallel hisoblashlar (barcha query'lar bir vaqtda)
     const [documentsRaw, messagesRaw, filesRaw, approvedDocs] =
       await Promise.all([
@@ -77,7 +94,7 @@ export class StatisticsService {
         }),
         // Files aggregate
         this.prisma.file.aggregate({
-          where: baseWhere,
+          where: fileWhere,
           _count: { _all: true },
           _sum: { fileSize: true },
         }),
