@@ -8,12 +8,19 @@ import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 import { EXCHANGES, QUEUES } from './constants';
 
+// Reconnect tuning
+const RECONNECT_INITIAL_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
+
 @Injectable()
 export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   private connection: amqp.ChannelModel | null = null;
   private channel: amqp.Channel | null = null;
   private readonly logger = new Logger(RabbitMQService.name);
   private isConnected = false;
+  private isShuttingDown = false;
+  private reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
+  private reconnectTimer: NodeJS.Timeout | null = null;
 
   constructor(private configService: ConfigService) {}
 
@@ -22,10 +29,34 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.isShuttingDown = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     await this.close();
   }
 
+  private scheduleReconnect(): void {
+    if (this.isShuttingDown || this.reconnectTimer) return;
+
+    const delay = this.reconnectDelay;
+    this.logger.warn(`Reconnecting to RabbitMQ in ${delay}ms`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.connect();
+    }, delay);
+
+    // Exponential backoff with cap
+    this.reconnectDelay = Math.min(
+      this.reconnectDelay * 2,
+      RECONNECT_MAX_DELAY_MS,
+    );
+  }
+
   private async connect(): Promise<void> {
+    if (this.isShuttingDown) return;
+
     const url = this.configService.get<string>('rabbitmq.url');
 
     if (!url) {
@@ -39,6 +70,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       this.connection = await amqp.connect(url);
       this.channel = await this.connection.createChannel();
       this.isConnected = true;
+      this.reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
 
       // Handle connection errors
       this.connection.on('error', (err) => {
@@ -49,6 +81,9 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       this.connection.on('close', () => {
         this.logger.warn('RabbitMQ connection closed');
         this.isConnected = false;
+        this.connection = null;
+        this.channel = null;
+        this.scheduleReconnect();
       });
 
       this.logger.log('Successfully connected to RabbitMQ');
@@ -57,8 +92,10 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       await this.setupQueues();
     } catch (error) {
       this.logger.error(`Failed to connect to RabbitMQ: ${error.message}`);
-      this.logger.warn('Server will continue without RabbitMQ');
       this.isConnected = false;
+      this.connection = null;
+      this.channel = null;
+      this.scheduleReconnect();
       // Don't throw - allow server to start without RabbitMQ
     }
   }
