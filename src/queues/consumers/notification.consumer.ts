@@ -16,22 +16,14 @@ export class NotificationConsumer implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // Wait a bit for RabbitMQ to connect
-    setTimeout(() => {
-      void this.startConsuming();
-    }, 2000);
+    // Register on every (re)connection — consumers re-bind after RabbitMQ reconnects
+    this.rabbitMQService.onConnect(() => this.startConsuming());
   }
 
   private async startConsuming() {
-    if (!this.rabbitMQService.isReady()) {
-      this.logger.warn(
-        'RabbitMQ not ready, notification consumers not started',
-      );
-      return;
-    }
-
     await this.consumeNotifications();
     await this.consumeDocumentReminders();
+    this.logger.log('Notification consumers registered');
   }
 
   private async consumeNotifications() {

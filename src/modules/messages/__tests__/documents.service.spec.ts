@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentStatus } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { NotificationProducer } from '../../../queues/producers';
 import { DocumentsService } from '../documents.service';
 
 describe('DocumentsService', () => {
@@ -32,11 +33,17 @@ describe('DocumentsService', () => {
     },
   };
 
+  const mockNotificationProducer = {
+    send: jest.fn().mockResolvedValue(undefined),
+    sendToMany: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: NotificationProducer, useValue: mockNotificationProducer },
       ],
     }).compile();
 

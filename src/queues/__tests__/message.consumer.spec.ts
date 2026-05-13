@@ -11,6 +11,7 @@ describe('MessageConsumer', () => {
   const mockRabbitMQService = {
     isReady: jest.fn(),
     consume: jest.fn(),
+    onConnect: jest.fn(),
   };
 
   const mockMessagesGateway = {
