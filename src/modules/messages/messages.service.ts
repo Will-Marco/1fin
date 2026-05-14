@@ -14,7 +14,11 @@ import {
   SystemRole,
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { MessageProducer } from '../../queues/producers';
+import {
+  MessageProducer,
+  NotificationProducer,
+  NotificationType,
+} from '../../queues/producers';
 import { CreateMessageWithFilesDto, UpdateMessageDto } from './dto';
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
@@ -111,6 +115,7 @@ export class MessagesService {
   constructor(
     private prisma: PrismaService,
     @Optional() private messageProducer?: MessageProducer,
+    @Optional() private notificationProducer?: NotificationProducer,
     @Optional() @Inject(STORAGE_PROVIDER) private storage?: StorageProvider,
   ) {}
 
@@ -796,7 +801,13 @@ export class MessagesService {
           : null;
 
       // Transaction: message + files + document yaratish
-      const result = await this.prisma.$transaction(async (tx) => {
+      // Document info ham qaytariladi (DOCUMENT_PENDING push uchun)
+      type DocumentInfo = {
+        id: string;
+        documentNumber: string;
+        documentName: string;
+      };
+      const txResult = await this.prisma.$transaction(async (tx) => {
         // 1. Message yaratish
         const message = await tx.message.create({
           data: {
@@ -814,6 +825,7 @@ export class MessagesService {
 
         // 2. Document yaratish (agar kerak bo'lsa)
         let document: { id: string } | null = null;
+        let documentInfo: DocumentInfo | null = null;
         if (shouldCreateDocument) {
           // Dynamic expiration: invoice va letters bo'limi uchun custom kun, boshqalar uchun default
           const supportsCustomExpiration =
@@ -834,12 +846,13 @@ export class MessagesService {
             .substring(2, 6)
             .toUpperCase();
           const documentNumber = `MSG-${datePrefix}-${randomSuffix}`;
+          const documentName = dto.content?.substring(0, 100) || 'Hujjat';
 
           document = await tx.document.create({
             data: {
               globalDepartmentId: dto.globalDepartmentId,
               companyId: dto.companyId,
-              documentName: dto.content?.substring(0, 100) || 'Hujjat',
+              documentName,
               documentNumber,
               status: DocumentStatus.PENDING,
               createdById: userId,
@@ -847,6 +860,12 @@ export class MessagesService {
             },
             select: { id: true },
           });
+
+          documentInfo = {
+            id: document.id,
+            documentNumber,
+            documentName,
+          };
 
           // Document action log
           await tx.documentActionLog.create({
@@ -891,7 +910,7 @@ export class MessagesService {
         }
 
         // 4. Full message olish
-        return tx.message.findUnique({
+        const fullMessage = await tx.message.findUnique({
           where: { id: message.id },
           include: {
             sender: {
@@ -923,7 +942,12 @@ export class MessagesService {
             },
           },
         });
+
+        return { message: fullMessage, documentInfo };
       });
+
+      const result = txResult.message;
+      const docInfo = txResult.documentInfo;
 
       // Notification yuborish (transaction'dan keyin)
       if (this.messageProducer && result) {
@@ -956,6 +980,38 @@ export class MessagesService {
             document: f.document,
           })),
         } as any);
+      }
+
+      // DOCUMENT_PENDING push: hujjat yaratilgan bo'lsa, bo'limga kirish huquqi
+      // bor a'zolarni xabardor qilish (1FIN xodimning o'ziga emas)
+      if (this.notificationProducer && docInfo) {
+        const memberships =
+          await this.prisma.userCompanyMembership.findMany({
+            where: {
+              companyId: dto.companyId,
+              isActive: true,
+              userId: { not: userId },
+              allowedDepartments: {
+                some: { globalDepartmentId: dto.globalDepartmentId },
+              },
+            },
+            select: { userId: true },
+          });
+
+        const recipientIds = memberships.map((m) => m.userId);
+        if (recipientIds.length > 0) {
+          await this.notificationProducer.sendToMany(recipientIds, {
+            type: NotificationType.DOCUMENT_PENDING,
+            title: 'Yangi hujjat tasdiqlash kutmoqda',
+            body: `"${docInfo.documentName}" (${docInfo.documentNumber}) hujjati tasdiqlashni kutmoqda`,
+            data: {
+              companyId: dto.companyId,
+              globalDepartmentId: dto.globalDepartmentId,
+              documentId: docInfo.id,
+              documentNumber: docInfo.documentNumber,
+            },
+          });
+        }
       }
 
       return {

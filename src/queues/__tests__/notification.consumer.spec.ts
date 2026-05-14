@@ -147,10 +147,11 @@ describe('NotificationConsumer', () => {
 
         const message = {
           userIds: ['user-1', 'user-2'],
+          documentId: 'doc-id',
           documentName: 'Contract',
           documentNumber: 'DOC-001',
           companyId: 'company-id',
-          departmentId: 'dept-id',
+          globalDepartmentId: 'dept-id',
         };
 
         await documentReminderHandler(message);
@@ -165,7 +166,9 @@ describe('NotificationConsumer', () => {
             data: {
               type: NotificationType.DOCUMENT_REMINDER,
               companyId: 'company-id',
-              departmentId: 'dept-id',
+              globalDepartmentId: 'dept-id',
+              documentId: 'doc-id',
+              documentNumber: 'DOC-001',
             },
             isRead: false,
           },
@@ -177,10 +180,11 @@ describe('NotificationConsumer', () => {
       it('should handle empty userIds array', async () => {
         const message = {
           userIds: [],
+          documentId: 'doc-id',
           documentName: 'Contract',
           documentNumber: 'DOC-001',
           companyId: 'company-id',
-          departmentId: 'dept-id',
+          globalDepartmentId: 'dept-id',
         };
 
         await documentReminderHandler(message);

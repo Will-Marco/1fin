@@ -47,29 +47,27 @@ export class NotificationConsumer implements OnModuleInit {
       async (message) => {
         const {
           userIds,
+          documentId,
           documentName,
           documentNumber,
           companyId,
-          departmentId,
+          globalDepartmentId,
         } = message;
 
         const title = 'Hujjat tasdiqlash kutilmoqda';
         const body = `"${documentName}" (${documentNumber}) hujjati tasdiqlashni kutmoqda`;
 
-        for (const userId of userIds) {
-          // In-app notification
-          await this.createInAppNotification(userId, title, body, {
-            type: NotificationType.DOCUMENT_REMINDER,
-            companyId,
-            departmentId,
-          });
+        const data = {
+          type: NotificationType.DOCUMENT_REMINDER,
+          companyId,
+          globalDepartmentId,
+          documentId,
+          documentNumber,
+        };
 
-          // Push notification
-          await this.sendPushNotification(userId, title, body, {
-            type: NotificationType.DOCUMENT_REMINDER,
-            companyId,
-            departmentId,
-          });
+        for (const userId of userIds) {
+          await this.createInAppNotification(userId, title, body, data);
+          await this.sendPushNotification(userId, title, body, data);
         }
       },
     );

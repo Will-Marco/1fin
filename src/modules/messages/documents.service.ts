@@ -92,7 +92,11 @@ export class DocumentsService {
       },
     });
 
-    await this.notifyStatusChange(document, updated, NotificationType.DOCUMENT_APPROVED);
+    await this.notifyStatusChange(
+      document,
+      updated,
+      NotificationType.DOCUMENT_APPROVED,
+    );
 
     return updated;
   }
@@ -141,17 +145,26 @@ export class DocumentsService {
   }
 
   private async notifyStatusChange(
-    document: { createdById: string; documentName: string; documentNumber: string; companyId: string; globalDepartmentId: string },
-    updated: { id: string; approvedBy: { name: string | null; username: string } | null },
-    type: NotificationType.DOCUMENT_APPROVED | NotificationType.DOCUMENT_REJECTED,
+    document: {
+      createdById: string;
+      documentName: string;
+      documentNumber: string;
+      companyId: string;
+      globalDepartmentId: string;
+    },
+    updated: {
+      id: string;
+      approvedBy: { name: string | null; username: string } | null;
+    },
+    type:
+      | NotificationType.DOCUMENT_APPROVED
+      | NotificationType.DOCUMENT_REJECTED,
     rejectionReason?: string,
   ) {
     const actorName =
       updated.approvedBy?.name || updated.approvedBy?.username || 'Mijoz';
     const isApproved = type === NotificationType.DOCUMENT_APPROVED;
-    const title = isApproved
-      ? 'Hujjat qabul qilindi'
-      : 'Hujjat rad etildi';
+    const title = isApproved ? 'Hujjat qabul qilindi' : 'Hujjat rad etildi';
     const body = isApproved
       ? `${actorName}: "${document.documentName}" (${document.documentNumber}) hujjatini qabul qildi`
       : `${actorName}: "${document.documentName}" (${document.documentNumber}) hujjatini rad etdi${rejectionReason ? `. Sabab: ${rejectionReason}` : ''}`;
@@ -164,8 +177,9 @@ export class DocumentsService {
         body,
         data: {
           documentId: updated.id,
+          documentNumber: document.documentNumber,
           companyId: document.companyId,
-          departmentId: document.globalDepartmentId,
+          globalDepartmentId: document.globalDepartmentId,
           ...(rejectionReason && { rejectionReason }),
         },
       });
