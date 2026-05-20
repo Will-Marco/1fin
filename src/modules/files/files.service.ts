@@ -59,15 +59,29 @@ export class FilesService {
    * Fayl turini aniqlash
    */
   private getFileType(mimeType: string): FileType {
-    if (ALLOWED_MIME_TYPES.IMAGE.includes(mimeType)) {
+    // MIME parametrlarini olib tashlash:
+    // MediaRecorder 'audio/webm;codecs=opus' kabi qiymat yuboradi
+    const mime = (mimeType || '').split(';')[0].trim().toLowerCase();
+
+    if (ALLOWED_MIME_TYPES.IMAGE.includes(mime)) {
       return FileType.IMAGE;
     }
-    if (ALLOWED_MIME_TYPES.DOCUMENT.includes(mimeType)) {
+    if (ALLOWED_MIME_TYPES.DOCUMENT.includes(mime)) {
       return FileType.DOCUMENT;
     }
-    if (ALLOWED_MIME_TYPES.VOICE.includes(mimeType)) {
+    if (ALLOWED_MIME_TYPES.VOICE.includes(mime)) {
       return FileType.VOICE;
     }
+
+    // Ro'yxatda bo'lmagan variantlar uchun prefiks bo'yicha aniqlash
+    // (audio/mp3, audio/x-wav, audio/x-m4a va h.k.)
+    if (mime.startsWith('audio/')) {
+      return FileType.VOICE;
+    }
+    if (mime.startsWith('image/')) {
+      return FileType.IMAGE;
+    }
+
     return FileType.OTHER;
   }
 
