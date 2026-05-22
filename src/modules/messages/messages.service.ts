@@ -758,8 +758,9 @@ export class MessagesService {
     }
 
     // Fayllarni validatsiya qilish
+    const isVoiceMessage = !!dto.voiceDuration;
     for (const file of files || []) {
-      const fileType = this.getFileType(file.mimetype);
+      const fileType = this.getFileType(file.mimetype, isVoiceMessage);
       this.validateFileSize(file.size, fileType);
     }
 
@@ -772,7 +773,7 @@ export class MessagesService {
 
     try {
       for (const file of files || []) {
-        const fileType = this.getFileType(file.mimetype);
+        const fileType = this.getFileType(file.mimetype, isVoiceMessage);
         const folder = this.getFolderName(fileType);
         const uploaded = await this.storage.upload(file, folder);
         uploadedFiles.push({ file, uploaded, fileType });
@@ -1034,7 +1035,7 @@ export class MessagesService {
     }
   }
 
-  private getFileType(mimeType: string): FileType {
+  private getFileType(mimeType: string, isVoice = false): FileType {
     // MIME parametrlarini olib tashlash:
     // MediaRecorder 'audio/webm;codecs=opus' kabi qiymat yuboradi
     const mime = (mimeType || '').split(';')[0].trim().toLowerCase();
@@ -1046,6 +1047,17 @@ export class MessagesService {
     // Ro'yxatda bo'lmagan variantlar uchun prefiks bo'yicha aniqlash
     // (audio/mp3, audio/x-wav, audio/x-m4a va h.k.)
     if (mime.startsWith('audio/')) return FileType.VOICE;
+
+    // Brauzer MediaRecorder audio-only yozuvni gohida 'video/webm'
+    // (yoki video/ogg, video/mp4) deb belgilaydi. voiceDuration kelgan
+    // bo'lsa — bu ovozli xabar, shuning uchun VOICE deb hisoblanadi.
+    if (
+      isVoice &&
+      (mime === 'video/webm' || mime === 'video/ogg' || mime === 'video/mp4')
+    ) {
+      return FileType.VOICE;
+    }
+
     if (mime.startsWith('image/')) return FileType.IMAGE;
 
     return FileType.OTHER;
@@ -1083,7 +1095,7 @@ export class MessagesService {
     // Voice file mavjud bo'lsa
     if (
       dto.voiceDuration &&
-      files.some((f) => this.getFileType(f.mimetype) === FileType.VOICE)
+      files.some((f) => this.getFileType(f.mimetype, true) === FileType.VOICE)
     ) {
       return MessageType.VOICE;
     }
