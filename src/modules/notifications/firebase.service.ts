@@ -39,18 +39,24 @@ export class FirebaseService implements OnModuleInit {
       return;
     }
 
-    if (admin.apps.length === 0) {
-      this.app = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
-    } else {
-      this.app = admin.apps[0]!;
+    try {
+      if (admin.apps.length === 0) {
+        this.app = admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+      } else {
+        this.app = admin.apps[0]!;
+      }
+      this.logger.log('Firebase Admin initialized');
+    } catch (error) {
+      this.logger.error(
+        `Firebase init failed — push notifications disabled: ${error.message}`,
+      );
     }
-    this.logger.log('Firebase Admin initialized');
   }
 
   async sendPush(payload: PushNotificationPayload): Promise<boolean> {
