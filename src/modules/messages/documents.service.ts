@@ -6,10 +6,7 @@ import {
 } from '@nestjs/common';
 import { DocumentStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import {
-  NotificationProducer,
-  NotificationType,
-} from '../../queues/producers';
+import { NotificationProducer, NotificationType } from '../../queues/producers';
 import { CreateDocumentDto, RejectDocumentDto } from './dto';
 
 @Injectable()

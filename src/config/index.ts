@@ -4,4 +4,4 @@ export { default as databaseConfig } from './database.config';
 export { default as s3Config } from './s3.config';
 export { default as redisConfig } from './redis.config';
 export { default as rabbitmqConfig } from './rabbitmq.config';
-export { default as onesignalConfig } from './onesignal.config';
+export { default as firebaseConfig } from './firebase.config';

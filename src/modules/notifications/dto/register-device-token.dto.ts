@@ -4,12 +4,12 @@ import { DevicePlatform } from '../../../../generated/prisma/client';
 
 export class RegisterDeviceTokenDto {
   @ApiProperty({
-    example: '11e5c1e2-2f4b-4db1-9351-0139a0b2a193',
-    description: 'OneSignal player/subscription ID',
+    example: 'eXample_FCM_token_string',
+    description: 'Firebase Cloud Messaging (FCM) device token',
   })
   @IsString()
   @IsNotEmpty()
-  playerId: string;
+  fcmToken: string;
 
   @ApiProperty({
     enum: DevicePlatform,

@@ -986,18 +986,17 @@ export class MessagesService {
       // DOCUMENT_PENDING push: hujjat yaratilgan bo'lsa, bo'limga kirish huquqi
       // bor a'zolarni xabardor qilish (1FIN xodimning o'ziga emas)
       if (this.notificationProducer && docInfo) {
-        const memberships =
-          await this.prisma.userCompanyMembership.findMany({
-            where: {
-              companyId: dto.companyId,
-              isActive: true,
-              userId: { not: userId },
-              allowedDepartments: {
-                some: { globalDepartmentId: dto.globalDepartmentId },
-              },
+        const memberships = await this.prisma.userCompanyMembership.findMany({
+          where: {
+            companyId: dto.companyId,
+            isActive: true,
+            userId: { not: userId },
+            allowedDepartments: {
+              some: { globalDepartmentId: dto.globalDepartmentId },
             },
-            select: { userId: true },
-          });
+          },
+          select: { userId: true },
+        });
 
         const recipientIds = memberships.map((m) => m.userId);
         if (recipientIds.length > 0) {

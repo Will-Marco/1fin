@@ -144,10 +144,10 @@ export class NotificationsController {
   @Post('devices')
   @ThrottleWrite()
   @ApiOperation({
-    summary: 'Register OneSignal player ID for the current device',
+    summary: 'Register FCM token for the current device',
     description:
-      'Frontend calls this after OneSignal SDK initializes, passing the current ' +
-      'playerId. Upsert: if the playerId already belongs to another user (same ' +
+      'Frontend calls this after Firebase SDK initializes, passing the current ' +
+      'fcmToken. Upsert: if the fcmToken already belongs to another user (same ' +
       'physical device reused), it is reassigned to the current user.',
   })
   @ApiResponse({
@@ -156,7 +156,7 @@ export class NotificationsController {
     schema: {
       example: {
         id: 'cuid-device-token-id',
-        playerId: '11e5c1e2-2f4b-4db1-9351-0139a0b2a193',
+        fcmToken: 'eXample_FCM_token_string',
         platform: 'WEB',
         isActive: true,
         lastSeenAt: '2026-04-24T10:00:00.000Z',
@@ -169,17 +169,17 @@ export class NotificationsController {
   ) {
     return this.notificationsService.registerDeviceToken(
       userId,
-      dto.playerId,
+      dto.fcmToken,
       dto.platform,
     );
   }
 
-  @Delete('devices/:playerId')
+  @Delete('devices/:fcmToken')
   @ThrottleWrite()
   @ApiOperation({
     summary: 'Unregister a device (e.g. on logout)',
     description:
-      'Deactivates the device token tied to the current user and the given playerId. ' +
+      'Deactivates the device token tied to the current user and the given fcmToken. ' +
       'Scoped by userId — will not affect a token that was reassigned to another user.',
   })
   @ApiResponse({
@@ -189,8 +189,8 @@ export class NotificationsController {
   })
   async unregisterDevice(
     @CurrentUser('id') userId: string,
-    @Param('playerId') playerId: string,
+    @Param('fcmToken') fcmToken: string,
   ) {
-    return this.notificationsService.unregisterDeviceToken(userId, playerId);
+    return this.notificationsService.unregisterDeviceToken(userId, fcmToken);
   }
 }

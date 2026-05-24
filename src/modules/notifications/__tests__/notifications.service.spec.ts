@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { NotificationsService } from '../notifications.service';
-import { OneSignalService } from '../onesignal.service';
+import { FirebaseService } from '../firebase.service';
 import { PrismaService } from '../../../database/prisma.service';
 
 describe('NotificationsService', () => {
@@ -36,7 +36,7 @@ describe('NotificationsService', () => {
     },
   };
 
-  const mockOneSignalService = {
+  const mockFirebaseService = {
     sendPush: jest.fn(),
     sendBulkPush: jest.fn(),
   };
@@ -46,7 +46,7 @@ describe('NotificationsService', () => {
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: mockPrismaService },
-        { provide: OneSignalService, useValue: mockOneSignalService },
+        { provide: FirebaseService, useValue: mockFirebaseService },
       ],
     }).compile();
 
@@ -57,7 +57,7 @@ describe('NotificationsService', () => {
   describe('create', () => {
     it('should create notification and send push', async () => {
       mockPrismaService.notification.create.mockResolvedValue(mockNotification);
-      mockOneSignalService.sendPush.mockResolvedValue(true);
+      mockFirebaseService.sendPush.mockResolvedValue(true);
 
       const result = await service.create(
         'user-id',
@@ -75,7 +75,7 @@ describe('NotificationsService', () => {
           data: { key: 'value' },
         },
       });
-      expect(mockOneSignalService.sendPush).toHaveBeenCalled();
+      expect(mockFirebaseService.sendPush).toHaveBeenCalled();
     });
 
     it('should create notification without push if sendPush is false', async () => {
@@ -83,14 +83,14 @@ describe('NotificationsService', () => {
 
       await service.create('user-id', 'Title', 'Body', {}, false);
 
-      expect(mockOneSignalService.sendPush).not.toHaveBeenCalled();
+      expect(mockFirebaseService.sendPush).not.toHaveBeenCalled();
     });
   });
 
   describe('createBulk', () => {
     it('should create multiple notifications', async () => {
       mockPrismaService.notification.createMany.mockResolvedValue({ count: 3 });
-      mockOneSignalService.sendBulkPush.mockResolvedValue(true);
+      mockFirebaseService.sendBulkPush.mockResolvedValue(true);
 
       const result = await service.createBulk(
         ['user-1', 'user-2', 'user-3'],
@@ -99,7 +99,7 @@ describe('NotificationsService', () => {
       );
 
       expect(result.count).toBe(3);
-      expect(mockOneSignalService.sendBulkPush).toHaveBeenCalled();
+      expect(mockFirebaseService.sendBulkPush).toHaveBeenCalled();
     });
   });
 
@@ -207,10 +207,10 @@ describe('NotificationsService', () => {
   });
 
   describe('registerDeviceToken', () => {
-    it('should upsert a device token by playerId and reassign to current user', async () => {
+    it('should upsert a device token by fcmToken and reassign to current user', async () => {
       const upserted = {
         id: 'dt-1',
-        playerId: 'player-1',
+        fcmToken: 'fcm-token-1',
         platform: 'WEB',
         isActive: true,
         lastSeenAt: new Date(),
@@ -219,14 +219,14 @@ describe('NotificationsService', () => {
 
       const result = await service.registerDeviceToken(
         'user-id',
-        'player-1',
+        'fcm-token-1',
         'WEB' as any,
       );
 
       expect(result).toEqual(upserted);
       expect(mockPrismaService.deviceToken.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { playerId: 'player-1' },
+          where: { fcmToken: 'fcm-token-1' },
           update: expect.objectContaining({
             userId: 'user-id',
             platform: 'WEB',
@@ -234,7 +234,7 @@ describe('NotificationsService', () => {
           }),
           create: expect.objectContaining({
             userId: 'user-id',
-            playerId: 'player-1',
+            fcmToken: 'fcm-token-1',
             platform: 'WEB',
             isActive: true,
           }),
@@ -247,11 +247,14 @@ describe('NotificationsService', () => {
     it('should deactivate the token only if it belongs to the current user', async () => {
       mockPrismaService.deviceToken.updateMany.mockResolvedValue({ count: 1 });
 
-      const result = await service.unregisterDeviceToken('user-id', 'player-1');
+      const result = await service.unregisterDeviceToken(
+        'user-id',
+        'fcm-token-1',
+      );
 
       expect(result).toEqual({ unregistered: 1 });
       expect(mockPrismaService.deviceToken.updateMany).toHaveBeenCalledWith({
-        where: { userId: 'user-id', playerId: 'player-1' },
+        where: { userId: 'user-id', fcmToken: 'fcm-token-1' },
         data: { isActive: false },
       });
     });
@@ -261,7 +264,7 @@ describe('NotificationsService', () => {
 
       const result = await service.unregisterDeviceToken(
         'user-id',
-        'player-belonging-to-someone-else',
+        'fcm-token-belonging-to-someone-else',
       );
 
       expect(result).toEqual({ unregistered: 0 });

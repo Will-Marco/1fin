@@ -123,10 +123,10 @@ describe('NotificationsController', () => {
   });
 
   describe('registerDevice', () => {
-    it('should forward playerId and platform to the service', async () => {
+    it('should forward fcmToken and platform to the service', async () => {
       const registered = {
         id: 'dt-1',
-        playerId: 'player-1',
+        fcmToken: 'fcm-token-1',
         platform: 'WEB',
         isActive: true,
         lastSeenAt: new Date(),
@@ -136,31 +136,34 @@ describe('NotificationsController', () => {
       );
 
       const result = await controller.registerDevice('user-id', {
-        playerId: 'player-1',
+        fcmToken: 'fcm-token-1',
         platform: 'WEB' as any,
       });
 
       expect(result).toEqual(registered);
       expect(service.registerDeviceToken).toHaveBeenCalledWith(
         'user-id',
-        'player-1',
+        'fcm-token-1',
         'WEB',
       );
     });
   });
 
   describe('unregisterDevice', () => {
-    it('should forward userId and playerId to the service', async () => {
+    it('should forward userId and fcmToken to the service', async () => {
       mockNotificationsService.unregisterDeviceToken.mockResolvedValue({
         unregistered: 1,
       });
 
-      const result = await controller.unregisterDevice('user-id', 'player-1');
+      const result = await controller.unregisterDevice(
+        'user-id',
+        'fcm-token-1',
+      );
 
       expect(result).toEqual({ unregistered: 1 });
       expect(service.unregisterDeviceToken).toHaveBeenCalledWith(
         'user-id',
-        'player-1',
+        'fcm-token-1',
       );
     });
   });

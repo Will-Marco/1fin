@@ -1,27 +1,27 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { OneSignalService } from './onesignal.service';
+import { FirebaseService } from './firebase.service';
 import { DevicePlatform } from '../../../generated/prisma/client';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     private prisma: PrismaService,
-    private oneSignalService: OneSignalService,
+    private firebaseService: FirebaseService,
   ) {}
 
   /**
-   * Register (or re-assign) an OneSignal player ID to the current user.
-   * playerId is globally unique — if it was previously tied to another user
+   * Register (or re-assign) an FCM token to the current user.
+   * fcmToken is globally unique — if it was previously tied to another user
    * (same physical device, different account), it gets reassigned here.
    */
   async registerDeviceToken(
     userId: string,
-    playerId: string,
+    fcmToken: string,
     platform: DevicePlatform,
   ) {
     return this.prisma.deviceToken.upsert({
-      where: { playerId },
+      where: { fcmToken },
       update: {
         userId,
         platform,
@@ -30,13 +30,13 @@ export class NotificationsService {
       },
       create: {
         userId,
-        playerId,
+        fcmToken,
         platform,
         isActive: true,
       },
       select: {
         id: true,
-        playerId: true,
+        fcmToken: true,
         platform: true,
         isActive: true,
         lastSeenAt: true,
@@ -45,13 +45,13 @@ export class NotificationsService {
   }
 
   /**
-   * Deactivate a specific player ID for the current user (e.g. logout on that device).
+   * Deactivate a specific FCM token for the current user (e.g. logout on that device).
    * Scoped to userId to prevent removing a token that has already been
    * reassigned to someone else on the same physical device.
    */
-  async unregisterDeviceToken(userId: string, playerId: string) {
+  async unregisterDeviceToken(userId: string, fcmToken: string) {
     const result = await this.prisma.deviceToken.updateMany({
-      where: { userId, playerId },
+      where: { userId, fcmToken },
       data: { isActive: false },
     });
     return { unregistered: result.count };
@@ -76,7 +76,7 @@ export class NotificationsService {
 
     // Push notification yuborish
     if (sendPush) {
-      await this.oneSignalService.sendPush({
+      await this.firebaseService.sendPush({
         userId,
         title,
         body,
@@ -106,7 +106,7 @@ export class NotificationsService {
 
     // Push notifications yuborish
     if (sendPush && userIds.length > 0) {
-      await this.oneSignalService.sendBulkPush({
+      await this.firebaseService.sendBulkPush({
         userIds,
         title,
         body,

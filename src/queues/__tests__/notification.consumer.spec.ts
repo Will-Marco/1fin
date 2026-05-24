@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationConsumer } from '../consumers/notification.consumer';
 import { RabbitMQService } from '../rabbitmq.service';
 import { PrismaService } from '../../database/prisma.service';
-import { OneSignalService } from '../../modules/notifications/onesignal.service';
+import { FirebaseService } from '../../modules/notifications/firebase.service';
 import { NotificationType } from '../producers';
 
 describe('NotificationConsumer', () => {
@@ -20,8 +20,9 @@ describe('NotificationConsumer', () => {
     },
   };
 
-  const mockOneSignalService = {
+  const mockFirebaseService = {
     sendPush: jest.fn(),
+    sendBulkPush: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -32,7 +33,7 @@ describe('NotificationConsumer', () => {
         NotificationConsumer,
         { provide: RabbitMQService, useValue: mockRabbitMQService },
         { provide: PrismaService, useValue: mockPrismaService },
-        { provide: OneSignalService, useValue: mockOneSignalService },
+        { provide: FirebaseService, useValue: mockFirebaseService },
       ],
     }).compile();
 
@@ -60,7 +61,7 @@ describe('NotificationConsumer', () => {
 
       it('should create in-app notification and send push', async () => {
         mockPrismaService.notification.create.mockResolvedValue({});
-        mockOneSignalService.sendPush.mockResolvedValue(true);
+        mockFirebaseService.sendPush.mockResolvedValue(true);
 
         const message = {
           type: NotificationType.NEW_MESSAGE,
@@ -82,7 +83,7 @@ describe('NotificationConsumer', () => {
           },
         });
 
-        expect(mockOneSignalService.sendPush).toHaveBeenCalledWith({
+        expect(mockFirebaseService.sendPush).toHaveBeenCalledWith({
           userId: 'user-id',
           title: 'New Message',
           body: 'You have a new message',
@@ -92,7 +93,7 @@ describe('NotificationConsumer', () => {
 
       it('should handle notification without data', async () => {
         mockPrismaService.notification.create.mockResolvedValue({});
-        mockOneSignalService.sendPush.mockResolvedValue(true);
+        mockFirebaseService.sendPush.mockResolvedValue(true);
 
         const message = {
           type: NotificationType.NEW_MESSAGE,
@@ -116,7 +117,7 @@ describe('NotificationConsumer', () => {
 
       it('should handle document approved notification', async () => {
         mockPrismaService.notification.create.mockResolvedValue({});
-        mockOneSignalService.sendPush.mockResolvedValue(true);
+        mockFirebaseService.sendPush.mockResolvedValue(true);
 
         const message = {
           type: NotificationType.DOCUMENT_APPROVED,
@@ -143,7 +144,7 @@ describe('NotificationConsumer', () => {
 
       it('should create notifications for multiple users', async () => {
         mockPrismaService.notification.create.mockResolvedValue({});
-        mockOneSignalService.sendPush.mockResolvedValue(true);
+        mockFirebaseService.sendPush.mockResolvedValue(true);
 
         const message = {
           userIds: ['user-1', 'user-2'],
@@ -174,7 +175,7 @@ describe('NotificationConsumer', () => {
           },
         });
 
-        expect(mockOneSignalService.sendPush).toHaveBeenCalledTimes(2);
+        expect(mockFirebaseService.sendPush).toHaveBeenCalledTimes(2);
       });
 
       it('should handle empty userIds array', async () => {
@@ -190,7 +191,7 @@ describe('NotificationConsumer', () => {
         await documentReminderHandler(message);
 
         expect(mockPrismaService.notification.create).not.toHaveBeenCalled();
-        expect(mockOneSignalService.sendPush).not.toHaveBeenCalled();
+        expect(mockFirebaseService.sendPush).not.toHaveBeenCalled();
       });
     });
   });
@@ -228,7 +229,7 @@ describe('NotificationConsumer', () => {
 
     it('should handle push notification errors gracefully', async () => {
       mockPrismaService.notification.create.mockResolvedValue({});
-      mockOneSignalService.sendPush.mockRejectedValue(new Error('Push failed'));
+      mockFirebaseService.sendPush.mockRejectedValue(new Error('Push failed'));
 
       const message = {
         type: NotificationType.NEW_MESSAGE,
@@ -240,7 +241,7 @@ describe('NotificationConsumer', () => {
       // Should not throw - errors are logged but not propagated
       await notificationHandler(message);
 
-      expect(mockOneSignalService.sendPush).toHaveBeenCalled();
+      expect(mockFirebaseService.sendPush).toHaveBeenCalled();
     });
   });
 

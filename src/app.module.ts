@@ -6,8 +6,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import {
   appConfig,
   databaseConfig,
+  firebaseConfig,
   jwtConfig,
-  onesignalConfig,
   rabbitmqConfig,
   redisConfig,
   s3Config,
@@ -36,7 +36,7 @@ import { QueuesModule } from './queues/queues.module';
         s3Config,
         redisConfig,
         rabbitmqConfig,
-        onesignalConfig,
+        firebaseConfig,
       ],
     }),
     CacheModule.register({

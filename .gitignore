@@ -36,3 +36,6 @@ prisma/*.db-journal
 
 # Uploads
 uploads/
+
+# Firebase service account key
+fin-2331b-firebase-adminsdk-fbsvc-7fe5dbda0d.json

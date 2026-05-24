@@ -3,7 +3,7 @@ import { RabbitMQService } from '../rabbitmq.service';
 import { QUEUES } from '../constants';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationType } from '../producers';
-import { OneSignalService } from '../../modules/notifications/onesignal.service';
+import { FirebaseService } from '../../modules/notifications/firebase.service';
 
 @Injectable()
 export class NotificationConsumer implements OnModuleInit {
@@ -12,7 +12,7 @@ export class NotificationConsumer implements OnModuleInit {
   constructor(
     private rabbitMQService: RabbitMQService,
     private prisma: PrismaService,
-    private oneSignalService: OneSignalService,
+    private firebaseService: FirebaseService,
   ) {}
 
   onModuleInit() {
@@ -35,7 +35,7 @@ export class NotificationConsumer implements OnModuleInit {
         // 1. In-app notification yaratish (DB ga saqlash)
         await this.createInAppNotification(userId, title, body, data);
 
-        // 2. Push notification yuborish (OneSignal)
+        // 2. Push notification yuborish (FCM)
         await this.sendPushNotification(userId, title, body, data);
       },
     );
@@ -101,7 +101,7 @@ export class NotificationConsumer implements OnModuleInit {
     data?: any,
   ) {
     try {
-      await this.oneSignalService.sendPush({ userId, title, body, data });
+      await this.firebaseService.sendPush({ userId, title, body, data });
     } catch (error) {
       this.logger.error(
         `Failed to send push notification to ${userId}:`,
