@@ -48,17 +48,17 @@ import { QueuesModule } from './queues/queues.module';
       {
         name: 'short',
         ttl: 1000, // 1 sekund
-        limit: 3, // 3 ta so'rov
+        limit: 100, // dev: oshirilgan (prod: 3)
       },
       {
         name: 'medium',
         ttl: 10000, // 10 sekund
-        limit: 20, // 20 ta so'rov
+        limit: 500, // dev: oshirilgan (prod: 20)
       },
       {
         name: 'long',
         ttl: 60000, // 1 daqiqa
-        limit: 100, // 100 ta so'rov
+        limit: 2000, // dev: oshirilgan (prod: 100)
       },
     ]),
     DatabaseModule,
