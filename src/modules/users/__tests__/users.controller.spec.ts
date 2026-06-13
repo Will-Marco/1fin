@@ -163,6 +163,7 @@ describe('UsersController', () => {
         undefined,
         undefined,
         undefined,
+        undefined,
         SystemRole.FIN_DIRECTOR,
       );
 
@@ -174,6 +175,7 @@ describe('UsersController', () => {
           search: undefined,
           companyId: undefined,
           systemRole: undefined,
+          status: undefined,
         },
         SystemRole.FIN_DIRECTOR,
       );
@@ -192,6 +194,7 @@ describe('UsersController', () => {
         undefined,
         undefined,
         'FIN_EMPLOYEE,CLIENT_DIRECTOR',
+        undefined,
         SystemRole.FIN_ADMIN,
       );
 
@@ -202,8 +205,39 @@ describe('UsersController', () => {
           search: undefined,
           companyId: undefined,
           systemRole: ['FIN_EMPLOYEE', 'CLIENT_DIRECTOR'],
+          status: undefined,
         },
         SystemRole.FIN_ADMIN,
+      );
+    });
+
+    it('should forward the status filter to the service', async () => {
+      const paginated = {
+        data: [mockUser],
+        meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+      };
+      mockUsersService.findAll.mockResolvedValue(paginated);
+
+      await controller.findAll(
+        '1',
+        '20',
+        undefined,
+        undefined,
+        undefined,
+        'inactive',
+        SystemRole.FIN_DIRECTOR,
+      );
+
+      expect(service.findAll).toHaveBeenCalledWith(
+        1,
+        20,
+        {
+          search: undefined,
+          companyId: undefined,
+          systemRole: undefined,
+          status: 'inactive',
+        },
+        SystemRole.FIN_DIRECTOR,
       );
     });
   });

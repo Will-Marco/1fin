@@ -369,6 +369,65 @@ describe('UsersService', () => {
       );
     });
 
+    it('should default to only active users when status is not provided', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(1, 20, {}, SystemRole.FIN_DIRECTOR);
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isActive: true }),
+        }),
+      );
+    });
+
+    it('should return only inactive users when status is "inactive"', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+      mockPrismaService.user.count.mockResolvedValue(0);
+
+      await service.findAll(
+        1,
+        20,
+        { status: 'inactive' },
+        SystemRole.FIN_DIRECTOR,
+      );
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isActive: false }),
+        }),
+      );
+    });
+
+    it('should not filter by isActive when status is "all"', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(1, 20, { status: 'all' }, SystemRole.FIN_DIRECTOR);
+
+      const callArg = mockPrismaService.user.findMany.mock.calls[0][0];
+      expect(callArg.where).not.toHaveProperty('isActive');
+    });
+
+    it('should fall back to active users for an unknown status value', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([mockUser]);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      await service.findAll(
+        1,
+        20,
+        { status: 'garbage' as any },
+        SystemRole.FIN_DIRECTOR,
+      );
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isActive: true }),
+        }),
+      );
+    });
+
     it('should ignore systemRole filter if requesting role cannot see those roles', async () => {
       mockPrismaService.user.findMany.mockResolvedValue([]);
       mockPrismaService.user.count.mockResolvedValue(0);

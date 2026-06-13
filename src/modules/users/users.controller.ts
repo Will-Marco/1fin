@@ -262,6 +262,14 @@ export class UsersController {
     description: 'Filter by system roles (comma-separated)',
     example: 'FIN_EMPLOYEE,CLIENT_DIRECTOR',
   })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['active', 'inactive', 'all'],
+    description:
+      "Filter by active status. Default 'active' (only active users). " +
+      "'inactive' = only deactivated, 'all' = both.",
+  })
   @ApiResponse({
     status: 200,
     description:
@@ -290,6 +298,7 @@ export class UsersController {
     @Query('search') search?: string,
     @Query('companyId') companyId?: string,
     @Query('systemRole') systemRoleFilter?: string,
+    @Query('status') status?: 'active' | 'inactive' | 'all',
     @CurrentUser('systemRole') requestingUserRole?: SystemRole,
   ) {
     const systemRoles = systemRoleFilter
@@ -303,6 +312,7 @@ export class UsersController {
         search,
         companyId,
         systemRole: systemRoles,
+        status,
       },
       requestingUserRole,
     );

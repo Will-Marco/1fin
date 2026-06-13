@@ -108,11 +108,22 @@ export class UsersService {
       search?: string;
       companyId?: string;
       systemRole?: SystemRole[];
+      status?: 'active' | 'inactive' | 'all';
     },
     requestingUserRole?: SystemRole,
   ) {
     const skip = (page - 1) * limit;
-    const where: any = { isActive: true };
+    const status = filters?.status ?? 'active';
+    const where: any = {};
+    // 'all' → isActive bo'yicha filtr qo'ymaymiz; 'inactive' → faqat deaktivlar;
+    // qolgan hamma holat (active va noma'lum/xato qiymat) → xavfsiz default: active.
+    if (status === 'all') {
+      // filtr yo'q
+    } else if (status === 'inactive') {
+      where.isActive = false;
+    } else {
+      where.isActive = true;
+    }
 
     // Role visibility logic
     const visibleRoles = this.getVisibleRoles(requestingUserRole);
@@ -136,9 +147,15 @@ export class UsersService {
     }
 
     if (filters?.companyId) {
-      where.memberships = {
-        some: { companyId: filters.companyId, isActive: true },
-      };
+      // Deactive hodimning membership'lari ham deactive bo'ladi, shuning uchun
+      // membership isActive filtrini ham status'ga moslashtiramiz.
+      const membershipWhere: any = { companyId: filters.companyId };
+      if (status === 'inactive') {
+        membershipWhere.isActive = false;
+      } else if (status !== 'all') {
+        membershipWhere.isActive = true;
+      }
+      where.memberships = { some: membershipWhere };
     }
 
     const [users, total] = await Promise.all([
