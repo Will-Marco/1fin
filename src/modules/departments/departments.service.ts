@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemRole } from '../../../generated/prisma/client';
+import { hasGlobalCompanyAccess } from '../../common/constants';
 import { CreateGlobalDepartmentDto, UpdateGlobalDepartmentDto } from './dto';
 
 @Injectable()
@@ -151,15 +152,15 @@ export class DepartmentsService {
 
   /**
    * Internal helper: returns departments visible to a user inside one company.
-   * FIN_* → all enabled company departments.
-   * CLIENT_* → only their allowed departments.
+   * Global-access users (FIN_DIRECTOR/FIN_ADMIN) → all enabled company departments.
+   * Scoped users (clients + FIN_EMPLOYEE) → only their allowed departments.
    */
   private async getDepartmentsForUser(
     userId: string,
     companyId: string,
-    isFINUser: boolean,
+    hasGlobalAccess: boolean,
   ): Promise<{ id: string; name: string; slug: string }[]> {
-    if (isFINUser) {
+    if (hasGlobalAccess) {
       const configs = await this.prisma.companyDepartmentConfig.findMany({
         where: { companyId, isEnabled: true },
         select: {
@@ -186,9 +187,10 @@ export class DepartmentsService {
   }
 
   /**
-   * Internal helper: companies visible to a FIN_* user.
-   * FIN staff don't need UserCompanyMembership — they see every company
-   * that has at least one enabled department config.
+   * Internal helper: companies visible to a global-access user (FIN_DIRECTOR/
+   * FIN_ADMIN). They don't need UserCompanyMembership — they see every company
+   * that has at least one enabled department config. (FIN_EMPLOYEE is scoped and
+   * goes through getCompaniesForClientUser instead.)
    */
   private async getCompaniesForFinUser(): Promise<
     { id: string; name: string }[]
@@ -267,13 +269,7 @@ export class DepartmentsService {
       throw new BadRequestException('companyId majburiy');
     }
 
-    const isFINUser = (
-      [
-        SystemRole.FIN_DIRECTOR,
-        SystemRole.FIN_ADMIN,
-        SystemRole.FIN_EMPLOYEE,
-      ] as SystemRole[]
-    ).includes(userSystemRole);
+    const isFINUser = hasGlobalCompanyAccess(userSystemRole);
 
     const departments = await this.getDepartmentsForUser(
       userId,
@@ -306,13 +302,7 @@ export class DepartmentsService {
     userId: string,
     userSystemRole: SystemRole,
   ) {
-    const isFINUser = (
-      [
-        SystemRole.FIN_DIRECTOR,
-        SystemRole.FIN_ADMIN,
-        SystemRole.FIN_EMPLOYEE,
-      ] as SystemRole[]
-    ).includes(userSystemRole);
+    const isFINUser = hasGlobalCompanyAccess(userSystemRole);
 
     // 1. Resolve companies visible to this user.
     //    FIN_*   → all companies that have at least one enabled department config
@@ -413,13 +403,7 @@ export class DepartmentsService {
       throw new BadRequestException('companyId majburiy');
     }
 
-    const isFINUser = (
-      [
-        SystemRole.FIN_DIRECTOR,
-        SystemRole.FIN_ADMIN,
-        SystemRole.FIN_EMPLOYEE,
-      ] as SystemRole[]
-    ).includes(userSystemRole);
+    const isFINUser = hasGlobalCompanyAccess(userSystemRole);
 
     const departments = await this.getDepartmentsForUser(
       userId,

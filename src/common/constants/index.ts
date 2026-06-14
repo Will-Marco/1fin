@@ -16,7 +16,8 @@ export const CLIENT_ROLES: SystemRole[] = [
   SystemRole.CLIENT_EMPLOYEE,
 ];
 
-// Helper function to check if user is 1FIN staff
+// Helper function to check if user is 1FIN staff (identity / behavior:
+// message direction, viewing deleted messages, document semantics).
 export const is1FinStaff = (
   systemRole: SystemRole | null | undefined,
 ): boolean => {
@@ -24,6 +25,25 @@ export const is1FinStaff = (
     systemRole !== null &&
     systemRole !== undefined &&
     FIN_ROLES.includes(systemRole)
+  );
+};
+
+// Roles with global access to ALL companies/departments regardless of
+// UserCompanyMembership. FIN_EMPLOYEE is intentionally EXCLUDED — like client
+// employees, they are scoped to the companies/departments assigned to them.
+export const GLOBAL_ACCESS_ROLES: SystemRole[] = [
+  SystemRole.FIN_DIRECTOR,
+  SystemRole.FIN_ADMIN,
+];
+
+// Helper for data-visibility scoping: which companies/departments a user can see.
+export const hasGlobalCompanyAccess = (
+  systemRole: SystemRole | null | undefined,
+): boolean => {
+  return (
+    systemRole !== null &&
+    systemRole !== undefined &&
+    GLOBAL_ACCESS_ROLES.includes(systemRole)
   );
 };
 

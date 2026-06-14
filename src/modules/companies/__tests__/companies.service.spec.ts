@@ -269,6 +269,32 @@ describe('CompaniesService', () => {
       );
     });
 
+    it('should return only membership companies for FIN_EMPLOYEE (scoped)', async () => {
+      const scopedCompany = {
+        ...mockCompany,
+        memberships: [{ id: 'm1', _count: { allowedDepartments: 2 } }],
+      };
+      mockPrismaService.company.findMany.mockResolvedValue([scopedCompany]);
+      mockPrismaService.company.count.mockResolvedValue(1);
+
+      await service.findAll('fin-emp-id', SystemRole.FIN_EMPLOYEE, 1, 20);
+
+      // FIN_EMPLOYEE must be filtered by membership, just like a client.
+      expect(mockPrismaService.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: true,
+            memberships: {
+              some: {
+                userId: 'fin-emp-id',
+                isActive: true,
+              },
+            },
+          }),
+        }),
+      );
+    });
+
     it('should filter by search term for 1FIN user', async () => {
       mockPrismaService.company.findMany.mockResolvedValue([]);
       mockPrismaService.company.count.mockResolvedValue(0);

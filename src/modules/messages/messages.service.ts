@@ -23,6 +23,7 @@ import { CreateMessageWithFilesDto, UpdateMessageDto } from './dto';
 import {
   BANK_PAYMENT_DEPARTMENT_SLUG,
   DOCUMENT_EXPIRATION_DAYS,
+  hasGlobalCompanyAccess,
   is1FinStaff,
   LETTERS_DEPARTMENT_SLUG,
   INVOICE_DEPARTMENT_SLUG,
@@ -128,12 +129,14 @@ export class MessagesService {
     userId: string,
     userSystemRole?: SystemRole | null,
   ) {
-    // 1FIN staff (FIN_DIRECTOR, FIN_ADMIN, FIN_EMPLOYEE) have global access
-    if (is1FinStaff(userSystemRole)) {
+    // FIN_DIRECTOR / FIN_ADMIN have global access to every department.
+    // FIN_EMPLOYEE is scoped like a client — must have an explicit membership.
+    if (hasGlobalCompanyAccess(userSystemRole)) {
       return true;
     }
 
-    // Client users must have an active membership with access to this department
+    // Scoped users (clients + FIN_EMPLOYEE) must have an active membership with
+    // access to this department.
     const membership = await this.prisma.userCompanyMembership.findFirst({
       where: {
         userId,

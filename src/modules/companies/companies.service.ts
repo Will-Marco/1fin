@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SystemRole } from '../../../generated/prisma/client';
-import { is1FinStaff } from '../../common/constants';
+import { hasGlobalCompanyAccess } from '../../common/constants';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto';
 
@@ -122,10 +122,11 @@ export class CompaniesService {
   ) {
     const skip = (page - 1) * limit;
     const where: any = { isActive: true };
-    const isFin = is1FinStaff(systemRole);
+    const isFin = hasGlobalCompanyAccess(systemRole);
 
-    // Client users (CLIENT_* roles) → only companies they have membership in
-    // 1FIN staff (FIN_* roles) → all companies
+    // FIN_DIRECTOR / FIN_ADMIN → all companies.
+    // Everyone else (clients + FIN_EMPLOYEE) → only companies they have an
+    // active membership in.
     if (!isFin) {
       where.memberships = {
         some: {
@@ -259,7 +260,7 @@ export class CompaniesService {
     }
 
     // Check access for client users (when userId is provided)
-    if (userId && !is1FinStaff(systemRole)) {
+    if (userId && !hasGlobalCompanyAccess(systemRole)) {
       const membership = await this.prisma.userCompanyMembership.findUnique({
         where: { userId_companyId: { userId, companyId: id } },
       });
@@ -331,8 +332,8 @@ export class CompaniesService {
     // Check company exists and user has access
     await this.findOne(companyId, userId, systemRole);
 
-    // 1FIN users see all enabled departments
-    if (is1FinStaff(systemRole)) {
+    // FIN_DIRECTOR / FIN_ADMIN see all enabled departments
+    if (hasGlobalCompanyAccess(systemRole)) {
       return this.prisma.companyDepartmentConfig.findMany({
         where: { companyId, isEnabled: true },
         orderBy: { createdAt: 'asc' },
