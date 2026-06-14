@@ -54,13 +54,20 @@ export class FirebaseService implements OnModuleInit {
       this.logger.log('Firebase Admin initialized');
     } catch (error) {
       this.logger.error(
-        `Firebase init failed — push notifications disabled: ${error.message}`,
+        `Firebase init failed — push notifications disabled: ${error.message}. ` +
+          'If this is a "DECODER routines::unsupported" error, the private key is ' +
+          'malformed — prefer setting FIREBASE_PRIVATE_KEY_BASE64 (base64 of the PEM).',
       );
     }
   }
 
   async sendPush(payload: PushNotificationPayload): Promise<boolean> {
-    if (!this.app) return false;
+    if (!this.app) {
+      this.logger.warn(
+        `Push skipped — Firebase not initialized (user ${payload.userId})`,
+      );
+      return false;
+    }
 
     const tokens = await this.getActiveTokens([payload.userId]);
     if (tokens.length === 0) {
@@ -72,7 +79,13 @@ export class FirebaseService implements OnModuleInit {
   }
 
   async sendBulkPush(payload: BulkPushPayload): Promise<boolean> {
-    if (!this.app || payload.userIds.length === 0) return false;
+    if (!this.app) {
+      this.logger.warn(
+        `Bulk push skipped — Firebase not initialized (${payload.userIds.length} users)`,
+      );
+      return false;
+    }
+    if (payload.userIds.length === 0) return false;
 
     const tokens = await this.getActiveTokens(payload.userIds);
     if (tokens.length === 0) {
