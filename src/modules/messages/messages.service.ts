@@ -111,6 +111,21 @@ const REPLY_TO_SELECT = {
   },
 } as const;
 
+// Sender select used for the main message author. Includes per-company
+// memberships so each message can surface the sender's rank (1-3) for the
+// chat's company. `attachSenderRank` flattens this into `sender.rank` and
+// strips the membership list before the payload leaves the service.
+const SENDER_SELECT = {
+  id: true,
+  username: true,
+  name: true,
+  avatar: true,
+  systemRole: true,
+  memberships: {
+    select: { companyId: true, rank: true },
+  },
+} as const;
+
 @Injectable()
 export class MessagesService {
   constructor(
@@ -190,13 +205,7 @@ export class MessagesService {
         orderBy: { createdAt: 'desc' },
         include: {
           sender: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              avatar: true,
-              systemRole: true,
-            },
+            select: SENDER_SELECT,
           },
           replyTo: {
             select: REPLY_TO_SELECT,
@@ -258,13 +267,7 @@ export class MessagesService {
       where: { id: messageId },
       include: {
         sender: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            avatar: true,
-            systemRole: true,
-          },
+          select: SENDER_SELECT,
         },
         replyTo: {
           select: REPLY_TO_SELECT,
@@ -633,7 +636,26 @@ export class MessagesService {
     };
   }
 
+  /**
+   * Flatten the sender's per-company rank for this message's company into
+   * `sender.rank`, and drop the raw membership list so other companies the
+   * sender belongs to are not leaked. rank is null when the sender has no
+   * membership here (e.g. FIN_DIRECTOR/ADMIN) or is not a ranked employee.
+   */
+  private attachSenderRank(message: any) {
+    const sender = message?.sender;
+    if (sender && Array.isArray(sender.memberships)) {
+      const membership = sender.memberships.find(
+        (m: any) => m.companyId === message.companyId,
+      );
+      sender.rank = membership?.rank ?? null;
+      delete sender.memberships;
+    }
+    return message;
+  }
+
   private formatMessage(message: any, userSystemRole: SystemRole | null) {
+    this.attachSenderRank(message);
     let formatted = message;
 
     if (message.isDeleted && !userSystemRole) {
@@ -918,13 +940,7 @@ export class MessagesService {
           where: { id: message.id },
           include: {
             sender: {
-              select: {
-                id: true,
-                username: true,
-                name: true,
-                avatar: true,
-                systemRole: true,
-              },
+              select: SENDER_SELECT,
             },
             replyTo: {
               select: REPLY_TO_SELECT,
@@ -971,6 +987,10 @@ export class MessagesService {
             name: result.sender.name,
             avatar: result.sender.avatar || undefined,
             systemRole: result.sender.systemRole,
+            rank:
+              result.sender.memberships?.find(
+                (m: any) => m.companyId === dto.companyId,
+              )?.rank ?? null,
           },
           replyTo: result.replyTo,
           files: result.files?.map((f) => ({
@@ -1015,6 +1035,10 @@ export class MessagesService {
             },
           });
         }
+      }
+
+      if (result) {
+        this.attachSenderRank(result);
       }
 
       return {

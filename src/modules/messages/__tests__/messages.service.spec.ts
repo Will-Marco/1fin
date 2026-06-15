@@ -135,6 +135,41 @@ describe('MessagesService', () => {
       expect(mockMessageProducer.sendNewMessage).toHaveBeenCalled();
     });
 
+    it('includes sender rank (for this company) in the realtime payload', async () => {
+      // FIN_EMPLOYEE is membership-scoped, so checkAccess needs a membership.
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'mem-1',
+      });
+      mockPrismaService.message.create.mockResolvedValue(mockMessage);
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessageWithFiles,
+        sender: {
+          id: 'user-1',
+          username: 'u1',
+          name: 'User 1',
+          avatar: null,
+          systemRole: SystemRole.FIN_EMPLOYEE,
+          memberships: [
+            { companyId: 'company-1', rank: 1 },
+            { companyId: 'company-2', rank: 3 },
+          ],
+        },
+      });
+
+      await service.createWithFiles(
+        'user-1',
+        SystemRole.FIN_EMPLOYEE,
+        { companyId: 'company-1', globalDepartmentId: 'dept-1', content: 'Hi' },
+        [],
+      );
+
+      expect(mockMessageProducer.sendNewMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sender: expect.objectContaining({ rank: 1 }),
+        }),
+      );
+    });
+
     it('should create a message for a client user with valid membership', async () => {
       mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
         id: 'mem-1',
@@ -682,6 +717,57 @@ describe('MessagesService', () => {
           where: { companyId: 'company-1', globalDepartmentId: 'dept-1' },
         }),
       );
+    });
+
+    it('flattens sender rank from the membership in this chat company', async () => {
+      const msg = {
+        ...mockMessage,
+        companyId: 'company-1',
+        sender: {
+          id: 'user-1',
+          name: 'User 1',
+          memberships: [
+            { companyId: 'company-1', rank: 2 },
+            { companyId: 'company-2', rank: 3 },
+          ],
+        },
+      };
+      mockPrismaService.message.findMany.mockResolvedValue([msg]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
+
+      // rank for THIS company is surfaced; the membership list is not leaked.
+      expect(result.data[0].sender.rank).toBe(2);
+      expect(result.data[0].sender.memberships).toBeUndefined();
+    });
+
+    it('sets sender rank to null when the sender has no membership here', async () => {
+      const msg = {
+        ...mockMessage,
+        companyId: 'company-1',
+        sender: {
+          id: 'user-1',
+          name: 'User 1',
+          memberships: [{ companyId: 'company-2', rank: 3 }],
+        },
+      };
+      mockPrismaService.message.findMany.mockResolvedValue([msg]);
+      mockPrismaService.message.count.mockResolvedValue(1);
+
+      const result = await service.findAll(
+        'company-1',
+        'dept-1',
+        'admin-1',
+        SystemRole.FIN_ADMIN,
+      );
+
+      expect(result.data[0].sender.rank).toBeNull();
     });
   });
 
