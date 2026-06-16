@@ -155,10 +155,9 @@ describe('NotificationsController', () => {
         unregistered: 1,
       });
 
-      const result = await controller.unregisterDevice(
-        'user-id',
-        'fcm-token-1',
-      );
+      const result = await controller.unregisterDevice('user-id', {
+        fcmToken: 'fcm-token-1',
+      });
 
       expect(result).toEqual({ unregistered: 1 });
       expect(service.unregisterDeviceToken).toHaveBeenCalledWith(

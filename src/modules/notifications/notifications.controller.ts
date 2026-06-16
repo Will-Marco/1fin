@@ -23,7 +23,7 @@ import {
   ThrottleRead,
   ThrottleWrite,
 } from '../../common/decorators';
-import { RegisterDeviceTokenDto } from './dto';
+import { RegisterDeviceTokenDto, UnregisterDeviceTokenDto } from './dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -174,12 +174,14 @@ export class NotificationsController {
     );
   }
 
-  @Delete('devices/:fcmToken')
+  @Delete('devices')
   @ThrottleWrite()
   @ApiOperation({
     summary: 'Unregister a device (e.g. on logout)',
     description:
       'Deactivates the device token tied to the current user and the given fcmToken. ' +
+      'The token is sent in the BODY (not the URL) because FCM tokens may contain ' +
+      '"/" and other characters that break path routing. ' +
       'Scoped by userId — will not affect a token that was reassigned to another user.',
   })
   @ApiResponse({
@@ -189,8 +191,8 @@ export class NotificationsController {
   })
   async unregisterDevice(
     @CurrentUser('id') userId: string,
-    @Param('fcmToken') fcmToken: string,
+    @Body() dto: UnregisterDeviceTokenDto,
   ) {
-    return this.notificationsService.unregisterDeviceToken(userId, fcmToken);
+    return this.notificationsService.unregisterDeviceToken(userId, dto.fcmToken);
   }
 }
