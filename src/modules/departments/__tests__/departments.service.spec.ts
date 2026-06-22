@@ -33,6 +33,9 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     userDepartmentRead: {
       findMany: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
     message: {
       count: jest.fn(),
     },
@@ -48,6 +51,11 @@ describe('DepartmentsService (GlobalDepartment)', () => {
 
     service = module.get<DepartmentsService>(DepartmentsService);
     jest.clearAllMocks();
+
+    // Default unread baseline source — overridden per test where it matters.
+    mockPrismaService.user.findUnique.mockResolvedValue({
+      createdAt: new Date('2020-01-01'),
+    });
   });
 
   // ─────────────────────────────────────────────
@@ -254,6 +262,7 @@ describe('DepartmentsService (GlobalDepartment)', () => {
 
     it('CLIENT user — should return unread counts for allowed departments only', async () => {
       mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+        createdAt: new Date('2024-01-01'),
         allowedDepartments: [
           {
             globalDepartment: {
@@ -311,6 +320,99 @@ describe('DepartmentsService (GlobalDepartment)', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             senderId: { not: userId },
+          }),
+        }),
+      );
+    });
+
+    // Regression: a brand-new user who has never called mark-read must NOT see
+    // the whole message history as unread — only messages after they joined.
+    it('CLIENT user with no read record — counts only messages after the membership join date', async () => {
+      const joinedAt = new Date('2025-06-01T00:00:00Z');
+      mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+        createdAt: joinedAt,
+        allowedDepartments: [
+          {
+            globalDepartment: {
+              id: 'dept-1',
+              name: 'Buxgalteriya',
+              slug: 'buxgalteriya',
+            },
+          },
+        ],
+      });
+      mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([]); // never marked read
+      mockPrismaService.message.count.mockResolvedValueOnce(0);
+
+      const result = await service.getUnreadSummary(
+        userId,
+        companyId,
+        'CLIENT_EMPLOYEE' as any,
+      );
+
+      expect(result.totalUnread).toBe(0);
+      expect(mockPrismaService.message.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: { gt: joinedAt },
+          }),
+        }),
+      );
+    });
+
+    it('FIN user with no read record — counts only messages after the account creation date', async () => {
+      const accountCreatedAt = new Date('2025-06-01T00:00:00Z');
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
+        {
+          globalDepartment: {
+            id: 'dept-1',
+            name: 'Buxgalteriya',
+            slug: 'buxgalteriya',
+          },
+        },
+      ]);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        createdAt: accountCreatedAt,
+      });
+      mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([]);
+      mockPrismaService.message.count.mockResolvedValueOnce(0);
+
+      await service.getUnreadSummary(userId, companyId, 'FIN_DIRECTOR' as any);
+
+      expect(mockPrismaService.message.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: { gt: accountCreatedAt },
+          }),
+        }),
+      );
+    });
+
+    it('uses the explicit lastReadAt when a read record exists (not the baseline)', async () => {
+      const lastReadAt = new Date('2025-03-15T00:00:00Z');
+      mockPrismaService.companyDepartmentConfig.findMany.mockResolvedValue([
+        {
+          globalDepartment: {
+            id: 'dept-1',
+            name: 'Buxgalteriya',
+            slug: 'buxgalteriya',
+          },
+        },
+      ]);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        createdAt: new Date('2020-01-01'),
+      });
+      mockPrismaService.userDepartmentRead.findMany.mockResolvedValue([
+        { globalDepartmentId: 'dept-1', lastReadAt },
+      ]);
+      mockPrismaService.message.count.mockResolvedValueOnce(0);
+
+      await service.getUnreadSummary(userId, companyId, 'FIN_DIRECTOR' as any);
+
+      expect(mockPrismaService.message.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: { gt: lastReadAt },
           }),
         }),
       );
@@ -406,6 +508,7 @@ describe('DepartmentsService (GlobalDepartment)', () => {
         { company: { id: 'company-1', name: 'Alfa LLC' } },
       ]);
       mockPrismaService.userCompanyMembership.findUnique.mockResolvedValue({
+        createdAt: new Date('2024-01-01'),
         allowedDepartments: [
           {
             globalDepartment: {

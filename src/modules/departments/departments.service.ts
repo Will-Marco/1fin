@@ -223,6 +223,7 @@ export class DepartmentsService {
     userId: string,
     companyId: string,
     departments: { id: string; name: string; slug: string }[],
+    accessBaseline: Date,
   ) {
     if (departments.length === 0) return [];
 
@@ -236,14 +237,17 @@ export class DepartmentsService {
 
     return Promise.all(
       departments.map(async (dept) => {
-        const lastReadAt = readMap.get(dept.id);
+        // When the user has never marked this department as read, fall back to
+        // the access baseline (membership join / account creation). Otherwise a
+        // brand-new user would see the whole message history as "unread".
+        const since = readMap.get(dept.id) ?? accessBaseline;
         const unreadCount = await this.prisma.message.count({
           where: {
             globalDepartmentId: dept.id,
             companyId,
             isDeleted: false,
             senderId: { not: userId },
-            ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+            createdAt: { gt: since },
           },
         });
         return {
@@ -254,6 +258,36 @@ export class DepartmentsService {
         };
       }),
     );
+  }
+
+  /**
+   * Internal helper: the "access baseline" for a user in one company — the
+   * earliest moment messages should be considered unread when no explicit read
+   * record exists yet. For membership-based users this is when they were added
+   * to the company; for global-access FIN staff it's their account creation.
+   * Messages created before this point are treated as already seen (not unread).
+   */
+  private async getAccessBaseline(
+    userId: string,
+    companyId: string,
+    isFINUser: boolean,
+    userCreatedAt?: Date,
+  ): Promise<Date> {
+    if (!isFINUser) {
+      const membership = await this.prisma.userCompanyMembership.findUnique({
+        where: { userId_companyId: { userId, companyId } },
+        select: { createdAt: true },
+      });
+      if (membership?.createdAt) return membership.createdAt;
+    }
+
+    if (userCreatedAt) return userCreatedAt;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { createdAt: true },
+    });
+    return user?.createdAt ?? new Date(0);
   }
 
   /**
@@ -280,10 +314,16 @@ export class DepartmentsService {
       return { departments: [], totalUnread: 0 };
     }
 
+    const accessBaseline = await this.getAccessBaseline(
+      userId,
+      companyId,
+      isFINUser,
+    );
     const departmentResults = await this.countUnreadForDepartments(
       userId,
       companyId,
       departments,
+      accessBaseline,
     );
     const totalUnread = departmentResults.reduce(
       (sum, d) => sum + d.unreadCount,
@@ -312,6 +352,16 @@ export class DepartmentsService {
       ? await this.getCompaniesForFinUser()
       : await this.getCompaniesForClientUser(userId);
 
+    // Resolve the account-creation date once — used as the unread baseline for
+    // FIN users (no per-company membership) and as a fallback for everyone.
+    const userCreatedAt =
+      (
+        await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { createdAt: true },
+        })
+      )?.createdAt ?? new Date(0);
+
     // 2. For each company — resolve departments + count unreads in parallel
     const companyResults = await Promise.all(
       companies.map(async (company) => {
@@ -320,10 +370,17 @@ export class DepartmentsService {
           company.id,
           isFINUser,
         );
+        const accessBaseline = await this.getAccessBaseline(
+          userId,
+          company.id,
+          isFINUser,
+          userCreatedAt,
+        );
         const departmentResults = await this.countUnreadForDepartments(
           userId,
           company.id,
           departments,
+          accessBaseline,
         );
         const totalUnread = departmentResults.reduce(
           (sum, d) => sum + d.unreadCount,
