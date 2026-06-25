@@ -108,9 +108,17 @@ export class FirebaseService implements OnModuleInit {
       const stringData: Record<string, string> = {};
       if (data) {
         for (const [key, value] of Object.entries(data)) {
+          if (value === undefined || value === null) continue;
           stringData[key] = String(value);
         }
       }
+
+      // title/body ni data ga ham qo'shamiz: ba'zi clientlar (ayniqsa
+      // chat ilovalardagi background handler) notificationni `data` dan
+      // quradi. Aks holda banner bo'sh chiqadi. notification blokidan
+      // ustun bo'lib ketmasligi uchun faqat data da bo'lmasa qo'shamiz.
+      stringData.title = stringData.title ?? title;
+      stringData.body = stringData.body ?? body;
 
       const response = await admin.messaging(this.app).sendEachForMulticast({
         tokens,

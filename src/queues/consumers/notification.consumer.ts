@@ -30,13 +30,17 @@ export class NotificationConsumer implements OnModuleInit {
     await this.rabbitMQService.consume(
       QUEUES.NOTIFICATION_PUSH,
       async (message) => {
-        const { userId, title, body, data } = message;
+        const { userId, type, title, body, data } = message;
+
+        // type ni data ichiga ko'chiramiz — client notification turini
+        // ajratib, tap bo'yicha to'g'ri ekranga o'tishi uchun.
+        const enrichedData = type ? { type, ...data } : data;
 
         // 1. In-app notification yaratish (DB ga saqlash)
-        await this.createInAppNotification(userId, title, body, data);
+        await this.createInAppNotification(userId, title, body, enrichedData);
 
         // 2. Push notification yuborish (FCM)
-        await this.sendPushNotification(userId, title, body, data);
+        await this.sendPushNotification(userId, title, body, enrichedData);
       },
     );
   }

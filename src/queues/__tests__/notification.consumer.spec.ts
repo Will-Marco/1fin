@@ -78,7 +78,7 @@ describe('NotificationConsumer', () => {
             userId: 'user-id',
             title: 'New Message',
             body: 'You have a new message',
-            data: { departmentId: 'dept-id' },
+            data: { type: NotificationType.NEW_MESSAGE, departmentId: 'dept-id' },
             isRead: false,
           },
         });
@@ -87,7 +87,7 @@ describe('NotificationConsumer', () => {
           userId: 'user-id',
           title: 'New Message',
           body: 'You have a new message',
-          data: { departmentId: 'dept-id' },
+          data: { type: NotificationType.NEW_MESSAGE, departmentId: 'dept-id' },
         });
       });
 
@@ -109,7 +109,7 @@ describe('NotificationConsumer', () => {
             userId: 'user-id',
             title: 'Test',
             body: 'Test body',
-            data: {},
+            data: { type: NotificationType.NEW_MESSAGE },
             isRead: false,
           },
         });
