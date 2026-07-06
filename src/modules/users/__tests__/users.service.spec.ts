@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -533,6 +534,87 @@ describe('UsersService', () => {
 
       expect(result.message).toBe("Foydalanuvchi o'chirildi");
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // resetPassword
+  // ─────────────────────────────────────────────
+
+  describe('resetPassword', () => {
+    beforeEach(() => {
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-new-password');
+    });
+
+    it('should allow FIN_ADMIN to reset any user password', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      const result = await service.resetPassword('user-id', 'NewPass123', {
+        systemRole: SystemRole.FIN_ADMIN,
+      });
+
+      expect(result.message).toBe('Parol muvaffaqiyatli yangilandi');
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-id' },
+        data: { password: 'hashed-new-password', mustChangePassword: true },
+      });
+      expect(
+        mockPrismaService.userCompanyMembership.findFirst,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should allow CLIENT_DIRECTOR to reset a same-company member password', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockClientUser);
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue({
+        id: 'membership-id',
+      });
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      const result = await service.resetPassword(
+        'client-user-id',
+        'NewPass123',
+        {
+          systemRole: SystemRole.CLIENT_DIRECTOR,
+          memberships: [{ companyId: 'company-id', isActive: true }],
+        },
+      );
+
+      expect(result.message).toBe('Parol muvaffaqiyatli yangilandi');
+      expect(
+        mockPrismaService.userCompanyMembership.findFirst,
+      ).toHaveBeenCalledWith({
+        where: {
+          userId: 'client-user-id',
+          isActive: true,
+          companyId: { in: ['company-id'] },
+        },
+      });
+    });
+
+    it('should throw ForbiddenException if CLIENT_DIRECTOR targets a user outside their company', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockClientUser);
+      mockPrismaService.userCompanyMembership.findFirst.mockResolvedValue(
+        null,
+      );
+
+      await expect(
+        service.resetPassword('client-user-id', 'NewPass123', {
+          systemRole: SystemRole.CLIENT_DIRECTOR,
+          memberships: [{ companyId: 'other-company-id', isActive: true }],
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if target user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.resetPassword('missing-id', 'NewPass123', {
+          systemRole: SystemRole.FIN_ADMIN,
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

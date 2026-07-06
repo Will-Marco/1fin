@@ -36,10 +36,17 @@ import {
   AssignMembershipDto,
   CreateClientUserDto,
   CreateSystemUserDto,
+  ResetPasswordDto,
   UpdateMembershipDto,
   UpdateUserDto,
 } from './dto';
 import { UsersService } from './users.service';
+
+interface JwtUser {
+  id: string;
+  systemRole: SystemRole;
+  memberships?: Array<{ companyId: string; isActive: boolean }>;
+}
 
 @ApiTags('Users')
 @Controller('users')
@@ -413,6 +420,35 @@ export class UsersController {
   })
   async deactivate(@Param('id') id: string) {
     return this.usersService.deactivate(id);
+  }
+
+  @Patch(':id/password')
+  @ThrottleWrite()
+  @SystemRoles(
+    SystemRole.FIN_DIRECTOR,
+    SystemRole.FIN_ADMIN,
+    SystemRole.CLIENT_DIRECTOR,
+  )
+  @ApiOperation({
+    summary:
+      "Reset a user's password (FIN_DIRECTOR/FIN_ADMIN: any user; CLIENT_DIRECTOR: own company members only)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset',
+    schema: { example: { message: "Parol muvaffaqiyatli yangilandi" } },
+  })
+  @ApiResponse({ status: 403, description: 'Not allowed to reset this user' })
+  async resetPassword(
+    @Param('id') id: string,
+    @Body() dto: ResetPasswordDto,
+    @CurrentUser() currentUser: JwtUser,
+  ) {
+    return this.usersService.resetPassword(
+      id,
+      dto.newPassword,
+      currentUser,
+    );
   }
 
   // ─────────────────────────────────────────────

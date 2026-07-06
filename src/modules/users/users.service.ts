@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -315,6 +316,59 @@ export class UsersService {
     ]);
 
     return { message: "Foydalanuvchi o'chirildi" };
+  }
+
+  /**
+   * Reset a user's password.
+   * FIN_DIRECTOR/FIN_ADMIN: can reset any user's password.
+   * CLIENT_DIRECTOR: can only reset passwords of users who share an
+   * active company membership with them.
+   */
+  async resetPassword(
+    targetUserId: string,
+    newPassword: string,
+    requester: {
+      systemRole: SystemRole;
+      memberships?: Array<{ companyId: string; isActive: boolean }>;
+    },
+  ) {
+    await this.findOne(targetUserId);
+
+    const isSystemStaff =
+      requester.systemRole === SystemRole.FIN_DIRECTOR ||
+      requester.systemRole === SystemRole.FIN_ADMIN;
+
+    if (!isSystemStaff) {
+      const requesterCompanyIds = new Set(
+        (requester.memberships ?? [])
+          .filter((m) => m.isActive)
+          .map((m) => m.companyId),
+      );
+
+      const sharesCompany = await this.prisma.userCompanyMembership.findFirst(
+        {
+          where: {
+            userId: targetUserId,
+            isActive: true,
+            companyId: { in: Array.from(requesterCompanyIds) },
+          },
+        },
+      );
+
+      if (!sharesCompany) {
+        throw new ForbiddenException(
+          "Siz faqat o'z kompaniyangiz a'zolarining parolini o'zgartira olasiz",
+        );
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { password: hashedPassword, mustChangePassword: true },
+    });
+
+    return { message: "Parol muvaffaqiyatli yangilandi" };
   }
 
   // ─────────────────────────────────────────────
