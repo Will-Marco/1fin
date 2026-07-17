@@ -178,7 +178,13 @@ export class FirebaseService implements OnModuleInit {
 
   private async getActiveTokens(userIds: string[]): Promise<string[]> {
     const tokens = await this.prisma.deviceToken.findMany({
-      where: { userId: { in: userIds }, isActive: true },
+      // notificationsEnabled — CLIENT_FOUNDER o'chira oladigan flag.
+      // O'chirilgan bo'lsa push yubormaymiz (in-app notification qoladi).
+      where: {
+        userId: { in: userIds },
+        isActive: true,
+        user: { notificationsEnabled: true },
+      },
       select: { fcmToken: true },
     });
     return tokens.map((t) => t.fcmToken);
