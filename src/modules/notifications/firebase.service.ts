@@ -130,9 +130,18 @@ export class FirebaseService implements OnModuleInit {
 
       // Muvaffaqiyatsiz (invalid) tokenlarni deactivate qilish
       const failedTokens: string[] = [];
+      const errorCounts: Record<string, number> = {};
       response.responses.forEach((res, idx) => {
         if (!res.success) {
-          const code = res.error?.code;
+          const code = res.error?.code ?? 'unknown';
+          errorCounts[code] = (errorCounts[code] ?? 0) + 1;
+
+          // Token oxiridan 12 belgi — logdan tokenni ajratish uchun yetarli,
+          // to'liq tokenni logga yozmaymiz.
+          this.logger.warn(
+            `FCM token failed [${code}] ...${tokens[idx].slice(-12)}: ${res.error?.message}`,
+          );
+
           if (
             code === 'messaging/invalid-registration-token' ||
             code === 'messaging/registration-token-not-registered'
@@ -149,8 +158,16 @@ export class FirebaseService implements OnModuleInit {
         });
       }
 
+      // failed va deactivated orasidagi farq = cleanup tutmagan xatolar.
+      // Agar bu farq har safar takrorlansa, o'lik tokenlar to'planib boradi.
+      const codeSummary = Object.entries(errorCounts)
+        .map(([code, count]) => `${code}=${count}`)
+        .join(', ');
+
       this.logger.log(
-        `FCM sent: ${response.successCount} success, ${response.failureCount} failed`,
+        `FCM sent: ${response.successCount} success, ${response.failureCount} failed` +
+          (codeSummary ? ` [${codeSummary}]` : '') +
+          `, ${failedTokens.length} deactivated`,
       );
       return response.successCount > 0;
     } catch (error) {
