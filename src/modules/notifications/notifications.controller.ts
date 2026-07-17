@@ -115,32 +115,10 @@ export class NotificationsController {
     return this.notificationsService.markAllAsRead(userId);
   }
 
-  @Delete(':id')
-  @ThrottleWrite()
-  @ApiOperation({ summary: 'Delete a notification' })
-  @ApiResponse({
-    status: 200,
-    description: 'Notification deleted',
-    schema: { example: { message: "Bildirishnoma o'chirildi" } },
-  })
-  async delete(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.notificationsService.delete(id, userId);
-  }
-
-  @Delete()
-  @ThrottleWrite()
-  @ApiOperation({ summary: 'Delete all notifications' })
-  @ApiResponse({
-    status: 200,
-    description: 'All notifications deleted',
-    schema: {
-      example: { message: "Barcha bildirishnomalar o'chirildi", count: 10 },
-    },
-  })
-  async deleteAll(@CurrentUser('id') userId: string) {
-    return this.notificationsService.deleteAll(userId);
-  }
-
+  // MUHIM: 'devices' route'lari @Delete(':id') dan OLDIN turishi shart.
+  // NestJS route'larni e'lon tartibida moslaydi — aks holda
+  // DELETE /notifications/devices  →  @Delete(':id') ga (id='devices')
+  // tushib, unregister hech qachon ishlamaydi.
   @Post('devices')
   @ThrottleWrite()
   @ApiOperation({
@@ -193,6 +171,35 @@ export class NotificationsController {
     @CurrentUser('id') userId: string,
     @Body() dto: UnregisterDeviceTokenDto,
   ) {
-    return this.notificationsService.unregisterDeviceToken(userId, dto.fcmToken);
+    return this.notificationsService.unregisterDeviceToken(
+      userId,
+      dto.fcmToken,
+    );
+  }
+
+  @Delete(':id')
+  @ThrottleWrite()
+  @ApiOperation({ summary: 'Delete a notification' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notification deleted',
+    schema: { example: { message: "Bildirishnoma o'chirildi" } },
+  })
+  async delete(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.notificationsService.delete(id, userId);
+  }
+
+  @Delete()
+  @ThrottleWrite()
+  @ApiOperation({ summary: 'Delete all notifications' })
+  @ApiResponse({
+    status: 200,
+    description: 'All notifications deleted',
+    schema: {
+      example: { message: "Barcha bildirishnomalar o'chirildi", count: 10 },
+    },
+  })
+  async deleteAll(@CurrentUser('id') userId: string) {
+    return this.notificationsService.deleteAll(userId);
   }
 }
