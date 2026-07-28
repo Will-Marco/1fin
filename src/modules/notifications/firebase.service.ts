@@ -3,6 +3,27 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import * as admin from 'firebase-admin';
 
+/**
+ * Tokenni butunlay o'lik deb hisoblaydigan FCM xato kodlari — bularni
+ * deactivate qilamiz, chunki qayta urinish hech qachon yordam bermaydi.
+ *
+ * ATAYLAB kiritilmagan:
+ *   - messaging/third-party-auth-error: bu TOKEN muammosi emas, Firebase
+ *     konsolidagi APNs (iOS push) credential yo'q/muddati o'tgan degani.
+ *     Deactivate qilsak, APNs tuzatilgach ham userlar push olmay qoladi.
+ *     Yechim — Firebase Console → Cloud Messaging → APNs key (.p8) yuklash.
+ *   - messaging/internal-error, messaging/server-unavailable, messaging/
+ *     unavailable: vaqtinchalik xatolar — token yaroqli, keyinroq ishlaydi.
+ */
+const PERMANENT_TOKEN_ERRORS = new Set<string>([
+  'messaging/invalid-registration-token',
+  'messaging/registration-token-not-registered',
+  // "not a valid FCM registration token" — buzuq token. Multicast'da faqat
+  // ba'zi tokenlar shu xato bersa (hammasi emas), bu payload emas, token
+  // muammosi ekanini bildiradi.
+  'messaging/invalid-argument',
+]);
+
 interface PushNotificationPayload {
   userId: string;
   title: string;
@@ -142,10 +163,7 @@ export class FirebaseService implements OnModuleInit {
             `FCM token failed [${code}] ...${tokens[idx].slice(-12)}: ${res.error?.message}`,
           );
 
-          if (
-            code === 'messaging/invalid-registration-token' ||
-            code === 'messaging/registration-token-not-registered'
-          ) {
+          if (PERMANENT_TOKEN_ERRORS.has(code)) {
             failedTokens.push(tokens[idx]);
           }
         }
