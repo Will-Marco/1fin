@@ -23,6 +23,9 @@ describe('NotificationsController routing', () => {
   const service = {
     registerDeviceToken: jest.fn().mockResolvedValue({ id: 'dt-1' }),
     unregisterDeviceToken: jest.fn().mockResolvedValue({ unregistered: 1 }),
+    getUserDevices: jest
+      .fn()
+      .mockResolvedValue({ data: [], meta: { total: 0 } }),
     delete: jest.fn().mockResolvedValue({ message: 'Notification deleted' }),
     deleteAll: jest.fn().mockResolvedValue({ message: 'ok', count: 0 }),
   };
@@ -65,6 +68,28 @@ describe('NotificationsController routing', () => {
     expect(service.unregisterDeviceToken).toHaveBeenCalledWith(
       'user-1',
       'token-abc',
+    );
+    expect(service.delete).not.toHaveBeenCalled();
+  });
+
+  it('GET /notifications/devices lists devices (not shadowed by a notification route)', async () => {
+    await request(app.getHttpServer())
+      .get('/notifications/devices')
+      .expect(200);
+
+    expect(service.getUserDevices).toHaveBeenCalledWith('user-1');
+  });
+
+  it('DELETE /notifications/devices/:token (legacy path) unregisters the device', async () => {
+    // Eski mobile token'ni URL'da yuboradi. Bu route @Delete(':id') dan OLDIN
+    // turishi shart — aks holda 'devices' segmenti ':id' ga tushib ketardi.
+    await request(app.getHttpServer())
+      .delete('/notifications/devices/token-xyz:APA91bH_example')
+      .expect(200);
+
+    expect(service.unregisterDeviceToken).toHaveBeenCalledWith(
+      'user-1',
+      'token-xyz:APA91bH_example',
     );
     expect(service.delete).not.toHaveBeenCalled();
   });

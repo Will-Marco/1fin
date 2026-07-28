@@ -3,6 +3,7 @@ import { NotificationConsumer } from '../consumers/notification.consumer';
 import { RabbitMQService } from '../rabbitmq.service';
 import { PrismaService } from '../../database/prisma.service';
 import { FirebaseService } from '../../modules/notifications/firebase.service';
+import { NotificationsGateway } from '../../modules/notifications/notifications.gateway';
 import { NotificationType } from '../producers';
 
 describe('NotificationConsumer', () => {
@@ -17,12 +18,17 @@ describe('NotificationConsumer', () => {
   const mockPrismaService = {
     notification: {
       create: jest.fn(),
+      count: jest.fn(),
     },
   };
 
   const mockFirebaseService = {
     sendPush: jest.fn(),
     sendBulkPush: jest.fn(),
+  };
+
+  const mockNotificationsGateway = {
+    emitToUser: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -34,6 +40,10 @@ describe('NotificationConsumer', () => {
         { provide: RabbitMQService, useValue: mockRabbitMQService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: FirebaseService, useValue: mockFirebaseService },
+        {
+          provide: NotificationsGateway,
+          useValue: mockNotificationsGateway,
+        },
       ],
     }).compile();
 

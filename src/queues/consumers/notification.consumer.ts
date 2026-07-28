@@ -4,6 +4,7 @@ import { QUEUES } from '../constants';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationType } from '../producers';
 import { FirebaseService } from '../../modules/notifications/firebase.service';
+import { NotificationsGateway } from '../../modules/notifications/notifications.gateway';
 
 @Injectable()
 export class NotificationConsumer implements OnModuleInit {
@@ -13,6 +14,7 @@ export class NotificationConsumer implements OnModuleInit {
     private rabbitMQService: RabbitMQService,
     private prisma: PrismaService,
     private firebaseService: FirebaseService,
+    private notificationsGateway: NotificationsGateway,
   ) {}
 
   onModuleInit() {
@@ -84,7 +86,7 @@ export class NotificationConsumer implements OnModuleInit {
     data?: any,
   ) {
     try {
-      await this.prisma.notification.create({
+      const notification = await this.prisma.notification.create({
         data: {
           userId,
           title,
@@ -93,8 +95,54 @@ export class NotificationConsumer implements OnModuleInit {
           isRead: false,
         },
       });
+
+      // Realtime: app OCHIQ bo'lgan (socket'ga ulangan) userlarga darhol yuborish.
+      // Web'da FCM ishlamagani uchun asosiy yetkazish kanali shu.
+      this.emitRealtime(userId, notification);
     } catch (error) {
       this.logger.error(`Failed to create notification for ${userId}:`, error);
+    }
+  }
+
+  /**
+   * Yangi notification'ni WebSocket orqali yuborish + badge uchun yangi
+   * o'qilmagan sonini jo'natish. Socket emit sinsa ham asosiy oqim (DB + FCM)
+   * buzilmasligi uchun alohida try/catch.
+   */
+  private async emitRealtime(
+    userId: string,
+    notification: {
+      id: string;
+      title: string;
+      body: string;
+      data: unknown;
+      isRead: boolean;
+      createdAt: Date;
+    },
+  ) {
+    try {
+      this.notificationsGateway.emitToUser(userId, 'notification:new', {
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        data: notification.data,
+        isRead: notification.isRead,
+        createdAt: notification.createdAt,
+      });
+
+      const unreadCount = await this.prisma.notification.count({
+        where: { userId, isRead: false },
+      });
+      this.notificationsGateway.emitToUser(
+        userId,
+        'notification:unread-count',
+        { unreadCount },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit realtime notification to ${userId}:`,
+        error,
+      );
     }
   }
 

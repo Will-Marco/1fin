@@ -119,6 +119,38 @@ export class NotificationsController {
   // NestJS route'larni e'lon tartibida moslaydi — aks holda
   // DELETE /notifications/devices  →  @Delete(':id') ga (id='devices')
   // tushib, unregister hech qachon ishlamaydi.
+  @Get('devices')
+  @ThrottleRead()
+  @ApiOperation({
+    summary: "List the current user's registered devices",
+    description:
+      'Returns the active device tokens for the current user. Useful to verify ' +
+      'that a token was registered. NOTE: earlier the mobile/web client called ' +
+      'GET /notifications/devices and got 404 because this route did not exist.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of active devices',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 'cuid-device-token-id',
+            fcmToken: 'eXample_FCM_token_string',
+            platform: 'WEB',
+            isActive: true,
+            lastSeenAt: '2026-07-28T10:00:00.000Z',
+            createdAt: '2026-07-01T10:00:00.000Z',
+          },
+        ],
+        meta: { total: 1 },
+      },
+    },
+  })
+  async listDevices(@CurrentUser('id') userId: string) {
+    return this.notificationsService.getUserDevices(userId);
+  }
+
   @Post('devices')
   @ThrottleWrite()
   @ApiOperation({
@@ -175,6 +207,31 @@ export class NotificationsController {
       userId,
       dto.fcmToken,
     );
+  }
+
+  // BACKWARD-COMPAT: eski mobile hali `DELETE /notifications/devices/{token}`
+  // (token URL'da) chaqiradi. Yangi kontrakt — token BODY'da. Bu shim eski
+  // client'ni tirik ushlaydi. DIQQAT: agar fcmToken ichida "/" bo'lsa path
+  // routing buziladi — shuning uchun asosiy yo'l baribir body-based DELETE.
+  // Bu route @Delete(':id') dan OLDIN turishi shart (aks holda ':id' yutadi).
+  @Delete('devices/:token')
+  @ThrottleWrite()
+  @ApiOperation({
+    summary: 'Unregister a device by token in the URL (legacy)',
+    description:
+      'Deprecated. Use DELETE /notifications/devices with { fcmToken } in the body. ' +
+      'Kept for older mobile clients that still send the token in the path.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Device unregistered',
+    schema: { example: { unregistered: 1 } },
+  })
+  async unregisterDeviceLegacy(
+    @CurrentUser('id') userId: string,
+    @Param('token') token: string,
+  ) {
+    return this.notificationsService.unregisterDeviceToken(userId, token);
   }
 
   @Delete(':id')

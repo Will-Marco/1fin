@@ -45,6 +45,26 @@ export class NotificationsService {
   }
 
   /**
+   * List the current user's registered (active) devices.
+   * Mobile/web can call this to verify its token is registered on the server.
+   */
+  async getUserDevices(userId: string) {
+    const devices = await this.prisma.deviceToken.findMany({
+      where: { userId, isActive: true },
+      orderBy: { lastSeenAt: 'desc' },
+      select: {
+        id: true,
+        fcmToken: true,
+        platform: true,
+        isActive: true,
+        lastSeenAt: true,
+        createdAt: true,
+      },
+    });
+    return { data: devices, meta: { total: devices.length } };
+  }
+
+  /**
    * Deactivate a specific FCM token for the current user (e.g. logout on that device).
    * Scoped to userId to prevent removing a token that has already been
    * reassigned to someone else on the same physical device.
