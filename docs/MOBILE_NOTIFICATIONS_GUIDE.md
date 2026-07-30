@@ -1,7 +1,7 @@
 # 1Fin — Mobile Notifications To'liq Yo'riqnomasi
 
 > Auditoriya: **one_fin** (Flutter) developer.
-> Backend commit: `78d422f` (main). Deploy qilingandan keyin amal qiladi.
+> Backend: `main` (WebSocket + read-sync + Redis adapter). Deploy'dan keyin amal qiladi.
 > Base host: `https://jr-techno.uz`, API prefix: `/api/v1`.
 
 ---
@@ -17,6 +17,12 @@
    kodingiz (`notificationDeviceByFcmToken`) **o'zgarishsiz** ishlaydi.
 3. **Yangi `GET /notifications/devices`** — user'ning ro'yxatga olingan aktiv
    qurilmalari. Token registratsiyasini tekshirish uchun.
+4. **Read-sync (Telegram-uslub)** — bir qurilmada bell/chat o'qilsa, boshqa
+   qurilmalarda badge darhol yangilanadi. Yangi socket eventlar: `notification:read`,
+   `notification:read-all`, `notification:deleted`, `chat:read`, `chat:read-all`
+   (§3.1). Client bularni **tinglashi** kerak (bo'lim §6).
+5. **Sanalar UTC** — REST va socket'dagi `createdAt` va h.k. barchasi UTC (`...Z`).
+   UI'da `.toLocal()` qiling, aks holda 5 soat orqada ko'rinadi (bo'lim §7).
 
 ---
 
@@ -270,29 +276,11 @@ class NotificationSocketService {
 
 ### 3.6 Qo'shimcha listener'lar (read-sync)
 
-`_setupHandlers()` ichiga qo'shing — bular boshqa qurilmadagi read/delete'ni
-shu qurilmaga tarqatadi:
-
-```dart
-// Bell read-sync
-_socket!.on('notification:read', (d) {
-  // d['id'] ni ro'yxatda read qil; d['unreadCount'] ni badge'ga.
-});
-_socket!.on('notification:read-all', (d) => {/* hammasi read, badge=d['unreadCount'] */});
-_socket!.on('notification:deleted', (d) => {/* d['id'] ni ro'yxatdan olib tashla */});
-_socket!.on('notification:deleted-all', (_) => {/* ro'yxat bo'shatiladi */});
-
-// Chat read-receipt (xabar badge sync)
-_socket!.on('chat:read', (d) {
-  // (d['companyId'], d['globalDepartmentId']) unread'ini 0 qil, chat badge qayta hisobla.
-});
-_socket!.on('chat:read-all', (d) {
-  // d['companyId'] dagi barcha bo'limlar unread=0.
-});
-```
-
-**Eslatma:** bu event'lar user o'zi (yoki o'zining boshqa qurilmasi) read
-qilganda keladi — server `user:<id>` xonasiga yuboradi. Boshqa user'larga tegmaydi.
+`_setupHandlers()` ichiga read-sync listener'larni ham qo'shing — ular boshqa
+qurilmadagi read/delete'ni shu qurilmaga tarqatadi. To'liq ro'yxat, payload'lar va
+client state mantiqi **§6 (Read-sync — client state model)**da. Qisqacha:
+`notification:read/read-all/deleted/deleted-all` (bell) va `chat:read/chat:read-all`
+(xabar badge). Bu event'lar faqat user'ning **o'z** qurilmalariga boradi.
 
 ---
 
@@ -363,7 +351,93 @@ qaйtganda `GET /notifications` + `unread-count` bilan haqiqiy holatni oling.
 
 ---
 
-## 6. FCM native banner (mobile side — backend'dan tashqarida)
+## 6. Read-sync — client state model (bell + chat)
+
+Maqsad: user telefonda o'qisa → web'da ham darhol o'qilgan, badge yangilangan
+(Telegram hissi). Backend har read/delete harakatidan keyin user'ning **barcha**
+qurilmalariga (`user:<id>` xonasi) event yuboradi. Client shularni tinglaydi.
+
+### 6.1 Ikki alohida counter
+
+| Counter | Manba (REST) | Socket'da yangilanadi |
+|---|---|---|
+| **Bell** (qo'ng'iroq) | `GET /notifications/unread-count` → `{ unreadCount }` | `notification:unread-count` (har bell eventida keladi) |
+| **Chat** (xabar badge) | `GET .../unread-summary` → per-company/department | `chat:read` / `chat:read-all` (client o'zi qayta hisoblaydi) |
+
+Bularni **alohida** saqlang — ular boshqa-boshqa domenlar.
+
+### 6.2 Bell counter — oson
+
+Bell eventlarining **har biri** yangi `unreadCount` bilan keladi → to'g'ridan-to'g'ri
+badge'ga yozing. Ro'yxatni ham yangilang:
+
+```dart
+_socket!.on('notification:read',        (d) => markReadInList(d['id']));
+_socket!.on('notification:read-all',    (_) => markAllReadInList());
+_socket!.on('notification:deleted',     (d) => removeFromList(d['id']));
+_socket!.on('notification:deleted-all', (_) => clearList());
+_socket!.on('notification:unread-count',(d) => bellBadge = d['unreadCount']); // YAGONA manba
+```
+
+### 6.3 Chat counter — read-receipt (server total yubormaydi)
+
+**Muhim dizayn:** masshtab uchun server chat total'ni QAYTA HISOBLAMAYDI. U faqat
+"shu bo'lim o'qildi" deb yengil receipt yuboradi. Client o'z lokal hisoblagichini
+yangilaydi:
+
+```dart
+_socket!.on('chat:read', (d) {
+  // (d['companyId'], d['globalDepartmentId']) unread = 0
+  setDepartmentUnread(d['companyId'], d['globalDepartmentId'], 0);
+  recomputeChatBadge(); // lokal yig'indi
+});
+_socket!.on('chat:read-all', (d) {
+  // d['companyId'] dagi barcha bo'limlar unread = 0
+  clearCompanyUnread(d['companyId'], d['globalDepartmentIds']);
+  recomputeChatBadge();
+});
+```
+
+### 6.4 Drift'dan himoya (majburiy)
+
+Socket eventlar o'tkazib yuborilishi mumkin (uzilish paytida). Shuning uchun
+**har connect/reconnect va foreground'ga qaytishda** REST bilan reconcile qiling:
+- Bell: `GET /notifications/unread-count`
+- Chat: `GET .../unread-summary`
+
+Server — yagona haqiqat manbai; socket faqat tezkor yangilanish. Bu ikkovини
+birlashtirsa — Telegram darajasidagi ishonchli sync bo'ladi.
+
+> **Eslatma:** read/mark-read harakatini o'zingiz REST orqali qilasiz (masalan
+> `PATCH /notifications/:id/read`, `POST departments/:id/mark-read/...`). Socket
+> shu harakatning natijasini boshqa qurilmalarga tarqatadi — client **emit
+> qilmaydi**, faqat tinglaydi.
+
+---
+
+## 7. Sanalar — timezone (`.toLocal()`)
+
+Backend **barcha** sanalarni UTC ISO formatida qaytaradi (`2026-07-30T09:00:00.000Z`) —
+REST'da ham, socket payload'ida ham (`notification:new` dagi `createdAt` va h.k.).
+Bu **to'g'ri kontrakt** (o'zgarmaydi).
+
+**Mobile qoidasi:** parse qilganda darhol local'ga o'giring, aks holda UI 5 soat
+orqada (UTC) ko'rsatadi:
+
+```dart
+final createdAt = DateTime.parse(json['createdAt']).toLocal();       // parse
+final ts = DateTime.tryParse(json['createdAt'])?.toLocal();          // nullable
+```
+
+- Formatlashda (`DateFormat`) DateTime local bo'lishi shart — `.toLocal()` UTC field'larni
+  qurilma vaqtiga (O'zbekiston UTC+5) o'giradi.
+- Socket'dan kelgan `createdAt`ga ham xuddi shu qoida.
+- Backend'dagi REST model'lar uchun tayyor fix: `fix/dates-uzbekistan-timezone`
+  branch (one_fin repo) — 22 ta parse joyiga `.toLocal()` qo'shilgan; merge qiling.
+
+---
+
+## 8. FCM native banner (mobile side — backend'dan tashqarida)
 
 - Ma'lum masala: ba'zан banner **bo'sh** (title/body yo'q) kelardi. Backend
   `notification: {title, body}` ni to'g'ri yuborayotgani tasdiqlangan — sabab mobile
@@ -376,16 +450,30 @@ qaйtganda `GET /notifications` + `unread-count` bilan haqiqiy holatni oling.
 
 ---
 
-## 7. Tekshiruv checklist
+## 9. Tekshiruv checklist
 
+**WebSocket ulanish**
 - [ ] `notificationsSocketUrl` qo'shildi (`$origin/notifications`).
 - [ ] `NotificationSocketService` login'da `connect()`, logout'da `disconnect()`.
+- [ ] Web'da transport `['polling']`, mobile'da `['websocket','polling']`.
+
+**Bell (notification)**
 - [ ] `notification:new` → badge/list yangilanadi, foreground'da banner (dedup bilan).
-- [ ] `notification:unread-count` → badge.
-- [ ] Web'da transport `['polling']`.
+- [ ] `notification:read` / `read-all` / `deleted` / `deleted-all` → ro'yxat yangilanadi.
+- [ ] `notification:unread-count` → bell badge (yagona manba).
+
+**Chat read-sync**
+- [ ] `chat:read` → o'sha bo'lim unread=0, chat badge qayta hisoblanadi.
+- [ ] `chat:read-all` → kompaniyadagi barcha bo'limlar unread=0.
+- [ ] Connect/reconnect va foreground'da REST reconcile (`unread-count` + `unread-summary`).
+
+**Device (FCM token)**
 - [ ] `POST /notifications/devices` register (bor) ishlayapti.
-- [ ] `DELETE /notifications/devices/{token}` unregister endi `{unregistered:1}` qaytaradi (404 emas).
+- [ ] `DELETE /notifications/devices/{token}` endi `{unregistered:1}` qaytaradi (404 emas).
 - [ ] `GET /notifications/devices` bilan token ro'yxatda ekanini tekshirdim.
+
+**Sanalar & FCM**
+- [ ] Barcha sana parse'da `.toLocal()` (REST + socket `createdAt`). Date branch merge qilindi.
 - [ ] App ochilganda `GET /notifications` bilan sync.
 - [ ] Foreground'da FCM + socket dublikat banner yo'q.
 
