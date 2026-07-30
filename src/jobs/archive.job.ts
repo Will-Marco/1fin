@@ -1,18 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ArchiveService } from '../modules/archive/archive.service';
+import { CronLockService } from '../common/redis/cron-lock.service';
+import { CRON_LOCK_TTL_MS } from './cron.constants';
 
 @Injectable()
 export class ArchiveJob {
   private readonly logger = new Logger(ArchiveJob.name);
 
-  constructor(private archiveService: ArchiveService) {}
+  constructor(
+    private archiveService: ArchiveService,
+    private cronLock: CronLockService,
+  ) {}
 
-  // Har kuni kechqurun soat 02:00 da ishga tushadi (kam traffic vaqtda)
+  // Har kuni kechqurun soat 02:00 da (kam traffic). Cluster'da faqat bir instance.
   @Cron('0 2 * * *', {
     name: 'archive-old-data',
     timeZone: 'Asia/Tashkent',
   })
+  async scheduledArchive() {
+    await this.cronLock.runWithLock('cron:archive-old-data', CRON_LOCK_TTL_MS, () =>
+      this.handleArchive(),
+    );
+  }
+
   async handleArchive() {
     this.logger.log('Archive job started');
 

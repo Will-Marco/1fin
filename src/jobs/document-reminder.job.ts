@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DocumentStatus } from '../../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { CronLockService } from '../common/redis/cron-lock.service';
+import { CRON_LOCK_TTL_MS } from './cron.constants';
 import { NotificationProducer } from '../queues/producers';
 
 @Injectable()
@@ -11,13 +13,23 @@ export class DocumentReminderJob {
   constructor(
     private prisma: PrismaService,
     private notificationProducer: NotificationProducer,
+    private cronLock: CronLockService,
   ) {}
 
-  // Har kuni soat 09:00 da ishga tushadi
+  // Har kuni soat 09:00 da ishga tushadi. Cluster mode'da faqat BIR instance
+  // bajaradi (Redis lock) — aks holda har userga N marta reminder ketardi.
   @Cron('0 9 * * *', {
     name: 'document-reminder',
     timeZone: 'Asia/Tashkent',
   })
+  async scheduledDocumentReminder() {
+    await this.cronLock.runWithLock(
+      'cron:document-reminder',
+      CRON_LOCK_TTL_MS,
+      () => this.handleDocumentReminder(),
+    );
+  }
+
   async handleDocumentReminder() {
     this.logger.log('Document reminder job started');
 

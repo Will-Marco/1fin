@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationProducer } from '../../queues/producers';
+import { CronLockService } from '../../common/redis/cron-lock.service';
 import { DocumentReminderJob } from '../document-reminder.job';
 
 describe('DocumentReminderJob', () => {
@@ -20,6 +21,13 @@ describe('DocumentReminderJob', () => {
     sendDocumentReminder: jest.fn(),
   };
 
+  // Lock: task'ni darhol chaqiradigan mock (worker mantiqi test qilinadi).
+  const mockCronLock = {
+    runWithLock: jest.fn(
+      (_key: string, _ttl: number, task: () => Promise<void>) => task(),
+    ),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -28,6 +36,7 @@ describe('DocumentReminderJob', () => {
         DocumentReminderJob,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
+        { provide: CronLockService, useValue: mockCronLock },
       ],
     }).compile();
 
@@ -114,6 +123,22 @@ describe('DocumentReminderJob', () => {
       expect(
         mockNotificationProducer.sendDocumentReminder,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('scheduledDocumentReminder (cron entrypoint)', () => {
+    it('runs the worker through the distributed lock', async () => {
+      mockPrismaService.document.findMany.mockResolvedValue([]);
+
+      await job.scheduledDocumentReminder();
+
+      expect(mockCronLock.runWithLock).toHaveBeenCalledWith(
+        'cron:document-reminder',
+        expect.any(Number),
+        expect.any(Function),
+      );
+      // Mock task'ni chaqirgani uchun worker ham ishlashi kerak.
+      expect(mockPrismaService.document.findMany).toHaveBeenCalled();
     });
   });
 });

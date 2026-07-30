@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ArchiveService } from '../../modules/archive/archive.service';
+import { CronLockService } from '../../common/redis/cron-lock.service';
 import { ArchiveJob } from '../archive.job';
 
 describe('ArchiveJob', () => {
@@ -10,11 +11,18 @@ describe('ArchiveJob', () => {
     archiveOrphanFiles: jest.fn(),
   };
 
+  const mockCronLock = {
+    runWithLock: jest.fn(
+      (_key: string, _ttl: number, task: () => Promise<void>) => task(),
+    ),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ArchiveJob,
         { provide: ArchiveService, useValue: mockArchiveService },
+        { provide: CronLockService, useValue: mockCronLock },
       ],
     }).compile();
 

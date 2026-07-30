@@ -2,18 +2,31 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DocumentStatus } from '../../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { CronLockService } from '../common/redis/cron-lock.service';
+import { CRON_LOCK_TTL_MS } from './cron.constants';
 
 @Injectable()
 export class DocumentExpiryJob {
   private readonly logger = new Logger(DocumentExpiryJob.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cronLock: CronLockService,
+  ) {}
 
-  // Har kuni yarim tunda ishga tushadi (00:00)
+  // Har kuni yarim tunda (00:00). Cluster'da faqat bir instance bajaradi.
   @Cron('0 0 * * *', {
     name: 'document-expiry',
     timeZone: 'Asia/Tashkent',
   })
+  async scheduledDocumentExpiry() {
+    await this.cronLock.runWithLock(
+      'cron:document-expiry',
+      CRON_LOCK_TTL_MS,
+      () => this.handleDocumentExpiry(),
+    );
+  }
+
   async handleDocumentExpiry() {
     this.logger.log('Document expiry checking job started');
 

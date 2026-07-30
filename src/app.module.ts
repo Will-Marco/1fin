@@ -12,6 +12,7 @@ import {
   redisConfig,
   s3Config,
 } from './config';
+import { RedisModule } from './common/redis/redis.module';
 import { DatabaseModule } from './database/database.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ArchiveModule } from './modules/archive/archive.module';
@@ -62,6 +63,7 @@ import { QueuesModule } from './queues/queues.module';
       },
     ]),
     DatabaseModule,
+    RedisModule,
     AuthModule,
     CompaniesModule,
     UsersModule,
