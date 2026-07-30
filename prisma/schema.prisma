@@ -383,6 +383,9 @@ model Notification {
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Unread count query'lari (badge) uchun — findAll orderBy createdAt ham foydalanadi.
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 

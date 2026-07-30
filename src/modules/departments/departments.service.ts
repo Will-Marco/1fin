@@ -1,17 +1,39 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemRole } from '../../../generated/prisma/client';
 import { hasGlobalCompanyAccess } from '../../common/constants';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { CreateGlobalDepartmentDto, UpdateGlobalDepartmentDto } from './dto';
 
 @Injectable()
 export class DepartmentsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(DepartmentsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notificationsGateway: NotificationsGateway,
+  ) {}
+
+  /**
+   * Chat read-receipt'ni user'ning barcha qurilmalariga yuborish
+   * (Telegram-uslub: bir qurilmada bo'lim o'qilsa — hammasida badge yangilanadi).
+   * Yengil: server total'ni QAYTA HISOBLAMAYDI (masshtab uchun) — client shu
+   * receipt bo'yicha o'z hisoblagichini yangilaydi, reconnect'da unread-summary
+   * bilan solishtiradi.
+   */
+  private emitChatRead(userId: string, event: string, payload: object) {
+    try {
+      this.notificationsGateway.emitToUser(userId, event, payload);
+    } catch (error) {
+      this.logger.error(`Chat read-receipt emit failed for ${userId}:`, error);
+    }
+  }
 
   private generateSlug(name: string): string {
     return name
@@ -445,6 +467,11 @@ export class DepartmentsService {
       },
     });
 
+    this.emitChatRead(userId, 'chat:read', {
+      companyId,
+      globalDepartmentId: departmentId,
+    });
+
     return { message: "Bo'lim o'qilgan deb belgilandi" };
   }
 
@@ -496,6 +523,11 @@ export class DepartmentsService {
         }),
       ),
     );
+
+    this.emitChatRead(userId, 'chat:read-all', {
+      companyId,
+      globalDepartmentIds: departmentIds,
+    });
 
     return {
       message: "Barcha bo'limlar o'qilgan deb belgilandi",

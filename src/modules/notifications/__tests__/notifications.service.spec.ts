@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { NotificationsService } from '../notifications.service';
 import { FirebaseService } from '../firebase.service';
+import { NotificationsGateway } from '../notifications.gateway';
 import { PrismaService } from '../../../database/prisma.service';
 
 describe('NotificationsService', () => {
@@ -41,12 +42,17 @@ describe('NotificationsService', () => {
     sendBulkPush: jest.fn(),
   };
 
+  const mockNotificationsGateway = {
+    emitToUser: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: FirebaseService, useValue: mockFirebaseService },
+        { provide: NotificationsGateway, useValue: mockNotificationsGateway },
       ],
     }).compile();
 
@@ -131,6 +137,8 @@ describe('NotificationsService', () => {
         readAt: new Date(),
       });
 
+      mockPrismaService.notification.count.mockResolvedValue(2);
+
       const result = await service.markAsRead('notif-id', 'user-id');
 
       expect(result.isRead).toBe(true);
@@ -138,6 +146,17 @@ describe('NotificationsService', () => {
         where: { id: 'notif-id' },
         data: { isRead: true, readAt: expect.any(Date) },
       });
+      // Real-time sync: aniq event + badge count barcha qurilmalarga.
+      expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+        'user-id',
+        'notification:read',
+        { id: 'notif-id', unreadCount: 2 },
+      );
+      expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+        'user-id',
+        'notification:unread-count',
+        { unreadCount: 2 },
+      );
     });
 
     it('should throw NotFoundException if notification not found', async () => {
@@ -153,6 +172,8 @@ describe('NotificationsService', () => {
     it('should mark all notifications as read', async () => {
       mockPrismaService.notification.updateMany.mockResolvedValue({ count: 5 });
 
+      mockPrismaService.notification.count.mockResolvedValue(0);
+
       const result = await service.markAllAsRead('user-id');
 
       expect(result.message).toBe('All notifications marked as read');
@@ -160,6 +181,11 @@ describe('NotificationsService', () => {
         where: { userId: 'user-id', isRead: false },
         data: { isRead: true, readAt: expect.any(Date) },
       });
+      expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+        'user-id',
+        'notification:read-all',
+        { unreadCount: 0 },
+      );
     });
   });
 
@@ -180,9 +206,16 @@ describe('NotificationsService', () => {
       );
       mockPrismaService.notification.delete.mockResolvedValue(mockNotification);
 
+      mockPrismaService.notification.count.mockResolvedValue(1);
+
       const result = await service.delete('notif-id', 'user-id');
 
       expect(result.message).toBe('Notification deleted');
+      expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+        'user-id',
+        'notification:deleted',
+        { id: 'notif-id', unreadCount: 1 },
+      );
     });
 
     it('should throw NotFoundException if notification not found', async () => {
@@ -200,9 +233,16 @@ describe('NotificationsService', () => {
         count: 10,
       });
 
+      mockPrismaService.notification.count.mockResolvedValue(0);
+
       const result = await service.deleteAll('user-id');
 
       expect(result.message).toBe('All notifications deleted');
+      expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+        'user-id',
+        'notification:deleted-all',
+        { unreadCount: 0 },
+      );
     });
   });
 

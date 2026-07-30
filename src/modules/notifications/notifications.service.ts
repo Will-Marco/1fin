@@ -1,14 +1,45 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { FirebaseService } from './firebase.service';
+import { NotificationsGateway } from './notifications.gateway';
 import { DevicePlatform } from '../../../generated/prisma/client';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     private prisma: PrismaService,
     private firebaseService: FirebaseService,
+    private notificationsGateway: NotificationsGateway,
   ) {}
+
+  /**
+   * Read-state o'zgarishini user'ning BARCHA qurilmalariga real-time yuborish
+   * (Telegram-uslub: bir qurilmada o'qilsa/o'chirilsa — hammasida sinxron).
+   * Socket emit sinsa ham REST javobi buzilmasligi uchun try/catch.
+   */
+  private async syncRead(
+    userId: string,
+    event: string,
+    payload: Record<string, any> = {},
+  ) {
+    try {
+      const unreadCount = await this.prisma.notification.count({
+        where: { userId, isRead: false },
+      });
+      // Aniq event (ro'yxatni yangilash uchun) + badge count (bir xil manba).
+      this.notificationsGateway.emitToUser(userId, event, {
+        ...payload,
+        unreadCount,
+      });
+      this.notificationsGateway.emitToUser(userId, 'notification:unread-count', {
+        unreadCount,
+      });
+    } catch (error) {
+      this.logger.error(`Read-state sync failed for ${userId}:`, error);
+    }
+  }
 
   /**
    * Register (or re-assign) an FCM token to the current user.
@@ -175,10 +206,14 @@ export class NotificationsService {
       throw new NotFoundException('Notification not found');
     }
 
-    return this.prisma.notification.update({
+    const updated = await this.prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true, readAt: new Date() },
     });
+
+    await this.syncRead(userId, 'notification:read', { id: notificationId });
+
+    return updated;
   }
 
   async markAllAsRead(userId: string) {
@@ -186,6 +221,8 @@ export class NotificationsService {
       where: { userId, isRead: false },
       data: { isRead: true, readAt: new Date() },
     });
+
+    await this.syncRead(userId, 'notification:read-all');
 
     return { message: 'All notifications marked as read' };
   }
@@ -211,6 +248,9 @@ export class NotificationsService {
       where: { id: notificationId },
     });
 
+    // O'chirilgan notification o'qilmagan bo'lsa badge o'zgaradi — sinxronlaymiz.
+    await this.syncRead(userId, 'notification:deleted', { id: notificationId });
+
     return { message: 'Notification deleted' };
   }
 
@@ -218,6 +258,8 @@ export class NotificationsService {
     await this.prisma.notification.deleteMany({
       where: { userId },
     });
+
+    await this.syncRead(userId, 'notification:deleted-all');
 
     return { message: 'All notifications deleted' };
   }

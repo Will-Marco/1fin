@@ -64,15 +64,34 @@ static String get notificationsSocketUrl =>
 
 ### 3.1 Server → client event'lar
 
+Barcha eventlar `user:<userId>` xonasiga boradi — ya'ni user'ning **barcha
+qurilma/tab**lariga. Bu qurilmalararo real-time sync beradi (Telegram-uslub).
+
+**Bell (notification) eventlari:**
 | Event | Payload | Izoh |
 |---|---|---|
 | `notification:connected` | `{ userId }` | Ulanish + auth muvaffaqiyatli. |
-| `notification:new` | `{ id, title, body, data, isRead, createdAt }` | Yangi notification. `data.type` ichida tur bor (`NEW_MESSAGE`, `DOCUMENT_REMINDER`, ...) — tap bo'yicha routing uchun. |
-| `notification:unread-count` | `{ unreadCount }` | Badge yangilash. Har yangi notification'dan keyin keladi. |
+| `notification:new` | `{ id, title, body, data, isRead, createdAt }` | Yangi notification. `data.type` ichida tur (`NEW_MESSAGE`, `DOCUMENT_REMINDER`, ...) — tap routing uchun. |
+| `notification:read` | `{ id, unreadCount }` | Bitta bell o'qildi (istalgan qurilmada). Ro'yxatda o'sha itemni read qil. |
+| `notification:read-all` | `{ unreadCount }` | Hammasi o'qildi. |
+| `notification:deleted` | `{ id, unreadCount }` | Bitta o'chirildi. |
+| `notification:deleted-all` | `{ unreadCount }` | Hammasi o'chirildi. |
+| `notification:unread-count` | `{ unreadCount }` | Bell badge — YAGONA manba. Yuqoridagi har harakatdan keyin keladi. |
 
-Client hech narsa **emit qilmaydi** — ulanadi va tinglaydi. Server ulanish paytida
-avtomatik `user:<userId>` xonasiga qo'shadi (JWT'dagi `sub`'dan). Bir nechta qurilma/tab
-bir vaqtda ulansa — hammasiga boradi.
+**Chat (xabar) read-receipt eventlari:**
+| Event | Payload | Izoh |
+|---|---|---|
+| `chat:read` | `{ companyId, globalDepartmentId }` | Shu bo'lim o'qildi (boshqa qurilmada). O'sha bo'lim unread'ini 0 qil, chat badge'ni qayta hisobla. |
+| `chat:read-all` | `{ companyId, globalDepartmentIds }` | Kompaniyadagi barcha bo'limlar o'qildi. |
+
+> **Chat badge mantiqi (muhim):** server chat total'ni yubormaydi (masshtab uchun).
+> Client `chat:read`/`chat:read-all` bo'yicha lokal hisoblagichni yangilaydi, va
+> ulanish/reconnect'da `GET /notifications/../unread-summary` bilan solishtiradi
+> (haqiqat manbai — server). Bell badge esa har eventda `unreadCount` bilan keladi.
+
+Client hech narsa **emit qilmaydi** — ulanadi va tinglaydi. Read/mark-read'lar
+oldingidek REST orqali bo'ladi; socket faqat natijani boshqa qurilmalarga tarqatadi.
+Server ulanish paytida avtomatik `user:<userId>` xonasiga qo'shadi (JWT `sub`).
 
 ### 3.2 Transport (MUHIM — chat bilan bir xil)
 
@@ -248,6 +267,32 @@ class NotificationSocketService {
 - **`onUnreadCount`** → tab/icon badge.
 - Reconnect avtomatik (options'da yoqilgan). Uzilib qайta ulanganda `GET /notifications`
   bilan sync qiling (socket o'chiq paytdagilarni ushlab olish uchun).
+
+### 3.6 Qo'shimcha listener'lar (read-sync)
+
+`_setupHandlers()` ichiga qo'shing — bular boshqa qurilmadagi read/delete'ni
+shu qurilmaga tarqatadi:
+
+```dart
+// Bell read-sync
+_socket!.on('notification:read', (d) {
+  // d['id'] ni ro'yxatda read qil; d['unreadCount'] ni badge'ga.
+});
+_socket!.on('notification:read-all', (d) => {/* hammasi read, badge=d['unreadCount'] */});
+_socket!.on('notification:deleted', (d) => {/* d['id'] ni ro'yxatdan olib tashla */});
+_socket!.on('notification:deleted-all', (_) => {/* ro'yxat bo'shatiladi */});
+
+// Chat read-receipt (xabar badge sync)
+_socket!.on('chat:read', (d) {
+  // (d['companyId'], d['globalDepartmentId']) unread'ini 0 qil, chat badge qayta hisobla.
+});
+_socket!.on('chat:read-all', (d) {
+  // d['companyId'] dagi barcha bo'limlar unread=0.
+});
+```
+
+**Eslatma:** bu event'lar user o'zi (yoki o'zining boshqa qurilmasi) read
+qilganda keladi — server `user:<id>` xonasiga yuboradi. Boshqa user'larga tegmaydi.
 
 ---
 

@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../database/prisma.service';
 import { DepartmentsService } from '../departments.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
 
 describe('DepartmentsService (GlobalDepartment)', () => {
   let service: DepartmentsService;
@@ -32,6 +33,7 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     },
     userDepartmentRead: {
       findMany: jest.fn(),
+      upsert: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -41,11 +43,16 @@ describe('DepartmentsService (GlobalDepartment)', () => {
     },
   };
 
+  const mockNotificationsGateway = {
+    emitToUser: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DepartmentsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: NotificationsGateway, useValue: mockNotificationsGateway },
       ],
     }).compile();
 
@@ -542,6 +549,28 @@ describe('DepartmentsService (GlobalDepartment)', () => {
       expect(result.grandTotalUnread).toBe(0);
       expect(result.companies).toHaveLength(0);
       expect(mockPrismaService.message.count).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('markDepartmentAsRead — chat read-receipt', () => {
+    it('emits chat:read to the user after marking a department read', async () => {
+      mockPrismaService.globalDepartment.findUnique.mockResolvedValue({
+        id: 'dept-1',
+      });
+      mockPrismaService.userDepartmentRead.upsert.mockResolvedValue({});
+
+      const result = await service.markDepartmentAsRead(
+        'user-1',
+        'company-1',
+        'dept-1',
+      );
+
+      expect(result.message).toBeDefined();
+      expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+        'user-1',
+        'chat:read',
+        { companyId: 'company-1', globalDepartmentId: 'dept-1' },
+      );
     });
   });
 });
