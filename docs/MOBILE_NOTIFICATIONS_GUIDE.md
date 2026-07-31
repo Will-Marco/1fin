@@ -42,6 +42,52 @@ banner chiqmasligi uchun:
 - Har doim `GET /notifications` + `GET /notifications/unread-count` bilan haqiqiy
   holatni sync qiling (socket faqat "tezkor xabarchi", manba emas).
 
+### 1.1 Oqim diagrammalari
+
+**A. Yangi notification yetkazish** — app ochiq (socket) vs yopiq (FCM badge):
+
+```mermaid
+sequenceDiagram
+    participant Ev as Voqea (yangi xabar / reminder)
+    participant MQ as RabbitMQ
+    participant C as NotificationConsumer
+    participant DB as DB (Notification)
+    participant WS as /notifications socket
+    participant FCM as FCM push
+    participant Dev as User qurilma(lar)i
+
+    Ev->>MQ: notifications.push
+    MQ->>C: message
+    C->>DB: notification yaratish (isRead=false)
+    C->>WS: notification:new + unread-count
+    C->>FCM: push (title, body, badge=unreadCount)
+    alt App OCHIQ (socket ulangan)
+        WS-->>Dev: realtime notification + badge
+    else App YOPIQ / background
+        FCM-->>Dev: native banner + app-icon badge
+    end
+```
+
+**B. Qurilmalararo read-sync (Telegram hissi)** — bir qurilmada o'qish → boshqasi yangilanadi:
+
+```mermaid
+sequenceDiagram
+    participant A as Qurilma A (telefon)
+    participant API as Backend REST
+    participant WS as /notifications socket
+    participant B as Qurilma B (web)
+
+    A->>API: PATCH /notifications/:id/read
+    API->>API: DB update + unread count
+    API->>WS: emit(user:<id>): notification:read + unread-count
+    WS-->>A: notification:read (echo)
+    WS-->>B: notification:read → ro'yxat + badge yangilanadi
+    Note over B: Chat uchun ham xuddi shunday:<br/>POST mark-read → chat:read
+```
+
+> **Reconcile:** socket event o'tkazib yuborilsa (uzilish), qurilma reconnect/
+> foreground'da `GET .../unread-count` + `unread-summary` bilan haqiqiy holatga qaytadi.
+
 ---
 
 ## 2. Base URL va Auth
