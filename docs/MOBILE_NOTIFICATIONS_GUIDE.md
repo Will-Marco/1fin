@@ -437,16 +437,29 @@ final ts = DateTime.tryParse(json['createdAt'])?.toLocal();          // nullable
 
 ---
 
-## 8. FCM native banner (mobile side — backend'dan tashqarida)
+## 8. FCM native banner + badge (mobile side)
 
-- Ma'lum masala: ba'zан banner **bo'sh** (title/body yo'q) kelardi. Backend
-  `notification: {title, body}` ni to'g'ri yuborayotgani tasdiqlangan — sabab mobile
-  tomonda. Foreground handler'da to'liq payload'ni log qiling:
-  `FCM [foreground] full payload: <message.data + message.notification>` — shu log kerak.
-- iOS push umuman kelmasa — bu **backend emas, Firebase Console** masalasi (APNs .p8
-  Authentication Key). Backend hal qilmaydi.
-- Foreground'da FCM banner + socket banner **dublikat** bo'lmasin: foreground'da FCM
-  bannerni bostiring, socket'ga tayaning (yoki `notification.id`/`messageId` bo'yicha dedup).
+### 8.1 Badge (unread count) — endi push'da keladi ✅
+Har FCM push'ga user'ning o'qilmagan notification soni qo'shiladi (app **yopiq**da
+ham badge to'g'ri bo'lishi uchun — socket faqat app ochiqda ishlaydi):
+
+| Maydon | Platforma | Ishlatish |
+|---|---|---|
+| `apns.payload.aps.badge` (number) | iOS | OS **avtomatik** app-icon badge'ga qo'yadi — qo'shimcha kod shart emas. |
+| `android.notification.notificationCount` | Android | Best-effort — ba'zi launcher'lar ko'rsatadi. |
+| `data.unreadCount` (string) | Android (ishonchli) | Client o'qib launcher badge'ni qo'yadi, masalan `flutter_app_badger`: `AppBadger.updateBadgeCount(int.parse(unreadCount))`. |
+
+> Bell (notification) badge'i bilan bir xil manba (`Notification.isRead`). App
+> ochiq bo'lganda socket `notification:unread-count` bilan yangilanadi; yopiqda —
+> keyingi push badge'ni yangilaydi.
+
+### 8.2 Bo'sh banner (ochiq masala)
+- Ba'zан banner **bo'sh** (title/body yo'q) kelardi. Backend `notification:{title,body}`
+  ni to'g'ri yuboradi (tasdiqlangan) — sabab mobile tomonda. Foreground handler'da
+  to'liq payload'ni log qiling: `FCM [foreground] full payload: ...` — shu log kerak.
+- iOS push umuman kelmasa — **backend emas, Firebase Console** masalasi (APNs .p8 key).
+- Foreground'da FCM banner + socket banner **dublikat** bo'lmasin: FCM bannerni
+  bostiring, socket'ga tayaning (yoki `notification.id`/`messageId` bo'yicha dedup).
 
 ---
 
@@ -474,6 +487,7 @@ final ts = DateTime.tryParse(json['createdAt'])?.toLocal();          // nullable
 
 **Sanalar & FCM**
 - [ ] Barcha sana parse'da `.toLocal()` (REST + socket `createdAt`). Date branch merge qilindi.
+- [ ] iOS badge avtomatik ishlaydi (`aps.badge`); Android `data.unreadCount` bilan launcher badge qo'yildi.
 - [ ] App ochilganda `GET /notifications` bilan sync.
 - [ ] Foreground'da FCM + socket dublikat banner yo'q.
 

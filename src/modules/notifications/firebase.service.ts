@@ -96,7 +96,20 @@ export class FirebaseService implements OnModuleInit {
       return false;
     }
 
-    return this.sendToTokens(tokens, payload.title, payload.body, payload.data);
+    // Badge — user'ning o'qilmagan notification soni. In-app notification allaqachon
+    // yaratilgach chaqirilgani uchun count yangi notification'ni ham qamraydi.
+    // @@index([userId, isRead]) tufayli arzon.
+    const badge = await this.prisma.notification.count({
+      where: { userId: payload.userId, isRead: false },
+    });
+
+    return this.sendToTokens(
+      tokens,
+      payload.title,
+      payload.body,
+      payload.data,
+      badge,
+    );
   }
 
   async sendBulkPush(payload: BulkPushPayload): Promise<boolean> {
@@ -124,6 +137,7 @@ export class FirebaseService implements OnModuleInit {
     title: string,
     body: string,
     data?: Record<string, any>,
+    badge?: number,
   ): Promise<boolean> {
     try {
       const stringData: Record<string, string> = {};
@@ -141,12 +155,28 @@ export class FirebaseService implements OnModuleInit {
       stringData.title = stringData.title ?? title;
       stringData.body = stringData.body ?? body;
 
+      // Badge (app-icon unread soni). iOS — aps.badge (OS avtomatik qo'yadi).
+      // Android — launcher'lar turlicha; data.unreadCount client uchun ishonchli
+      // (masalan flutter_app_badger), notificationCount esa best-effort native.
+      if (badge !== undefined) {
+        stringData.unreadCount = String(badge);
+      }
+
       const response = await admin.messaging(this.app).sendEachForMulticast({
         tokens,
         notification: { title, body },
         data: stringData,
-        android: { priority: 'high' },
-        apns: { payload: { aps: { sound: 'default' } } },
+        android: {
+          priority: 'high',
+          ...(badge !== undefined
+            ? { notification: { notificationCount: badge } }
+            : {}),
+        },
+        apns: {
+          payload: {
+            aps: { sound: 'default', ...(badge !== undefined ? { badge } : {}) },
+          },
+        },
       });
 
       // Muvaffaqiyatsiz (invalid) tokenlarni deactivate qilish

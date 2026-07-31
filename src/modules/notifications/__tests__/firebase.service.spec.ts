@@ -30,6 +30,7 @@ describe('FirebaseService token cleanup', () => {
   let service: FirebaseService;
   const updateMany = jest.fn().mockResolvedValue({ count: 0 });
   const findMany = jest.fn();
+  const notificationCount = jest.fn().mockResolvedValue(0);
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -43,7 +44,10 @@ describe('FirebaseService token cleanup', () => {
         },
         {
           provide: PrismaService,
-          useValue: { deviceToken: { findMany, updateMany } },
+          useValue: {
+            deviceToken: { findMany, updateMany },
+            notification: { count: notificationCount },
+          },
         },
       ],
     }).compile();
@@ -95,5 +99,25 @@ describe('FirebaseService token cleanup', () => {
     await service.sendPush({ userId: 'u1', title: 'T', body: 'B' });
 
     expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it('includes the unread count as badge (aps.badge + android.notificationCount + data.unreadCount)', async () => {
+    findMany.mockResolvedValue([{ fcmToken: 'tok-ok' }]);
+    notificationCount.mockResolvedValue(7);
+    sendMock.mockResolvedValue({
+      successCount: 1,
+      failureCount: 0,
+      responses: [success()],
+    });
+
+    await service.sendPush({ userId: 'u1', title: 'T', body: 'B' });
+
+    expect(notificationCount).toHaveBeenCalledWith({
+      where: { userId: 'u1', isRead: false },
+    });
+    const msg = sendMock.mock.calls[0][0];
+    expect(msg.apns.payload.aps.badge).toBe(7);
+    expect(msg.android.notification.notificationCount).toBe(7);
+    expect(msg.data.unreadCount).toBe('7');
   });
 });
