@@ -52,6 +52,10 @@ export class MessagesGateway
 
       client.userId = payload.sub;
       client.userRole = payload.systemRole;
+      // socket.data — Redis adapter orqali BOSHQA instance'lardagi fetchSockets()
+      // ham o'qiy oladi (client.userId to'g'ridan-to'g'ri property cluster'da
+      // ko'rinmaydi). Aktiv-user aniqlash shunga bog'liq.
+      client.data.userId = payload.sub;
 
       console.log(
         `Client connected: ${client.id}, User: ${client.userId}, Role: ${client.userRole}`,
@@ -157,5 +161,24 @@ export class MessagesGateway
   ) {
     const room = `company:${companyId}:dept:${globalDepartmentId}`;
     this.server.to(room).emit(event, payload);
+  }
+
+  /**
+   * Ayni paytda shu bo'lim chatida AKTIV turgan (room'ga qo'shilgan) user'lar.
+   * Redis adapter tufayli fetchSockets() barcha instance'lardagi socket'larni
+   * qamraydi. Yangi xabar kelganda bularni unread'ga QO'SHMASLIK uchun ishlatiladi.
+   */
+  async getActiveUserIds(
+    companyId: string,
+    globalDepartmentId: string,
+  ): Promise<string[]> {
+    const room = `company:${companyId}:dept:${globalDepartmentId}`;
+    const sockets = await this.server.in(room).fetchSockets();
+    const userIds = new Set<string>();
+    for (const socket of sockets) {
+      const uid = socket.data?.userId;
+      if (typeof uid === 'string') userIds.add(uid);
+    }
+    return [...userIds];
   }
 }

@@ -16,6 +16,7 @@ describe('MessageConsumer', () => {
 
   const mockMessagesGateway = {
     emitToRoom: jest.fn(),
+    getActiveUserIds: jest.fn().mockResolvedValue([]),
   };
 
   const mockNotificationProducer = {
@@ -25,6 +26,9 @@ describe('MessageConsumer', () => {
   const mockPrismaService = {
     userCompanyMembership: {
       findMany: jest.fn(),
+    },
+    userDepartmentRead: {
+      upsert: jest.fn(),
     },
   };
 
@@ -110,6 +114,70 @@ describe('MessageConsumer', () => {
             type: NotificationType.NEW_MESSAGE,
             title: 'Yangi xabar - User',
           }),
+        );
+      });
+
+      it('skips notification for users actively viewing the department and marks it read', async () => {
+        const payload = {
+          messageId: 'msg-1',
+          companyId: 'comp-1',
+          globalDepartmentId: 'dept-1',
+          senderId: 'u1',
+          content: 'Hello',
+          sender: { name: 'User' },
+        };
+
+        mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([
+          { userId: 'u1' },
+          { userId: 'u2' }, // aktiv — chat ochiq
+          { userId: 'u3' }, // offline
+        ]);
+        // u2 hozir shu bo'lim chatida (socket room'ida) aktiv.
+        mockMessagesGateway.getActiveUserIds.mockResolvedValue(['u2']);
+
+        await newMessageHandler({ payload });
+
+        // Notification faqat offline u3'ga — u2'ga EMAS.
+        expect(mockNotificationProducer.sendToMany).toHaveBeenCalledWith(
+          ['u3'],
+          expect.any(Object),
+        );
+        // Aktiv u2 uchun bo'lim o'qilgan deb belgilanadi (unread oshmaydi).
+        expect(mockPrismaService.userDepartmentRead.upsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              userId_companyId_globalDepartmentId: {
+                userId: 'u2',
+                companyId: 'comp-1',
+                globalDepartmentId: 'dept-1',
+              },
+            },
+            update: { lastReadAt: expect.any(Date) },
+          }),
+        );
+      });
+
+      it('does not send notifications when everyone is actively viewing', async () => {
+        const payload = {
+          messageId: 'msg-1',
+          companyId: 'comp-1',
+          globalDepartmentId: 'dept-1',
+          senderId: 'u1',
+          content: 'Hello',
+          sender: { name: 'User' },
+        };
+
+        mockPrismaService.userCompanyMembership.findMany.mockResolvedValue([
+          { userId: 'u1' },
+          { userId: 'u2' },
+        ]);
+        mockMessagesGateway.getActiveUserIds.mockResolvedValue(['u2']);
+
+        await newMessageHandler({ payload });
+
+        expect(mockNotificationProducer.sendToMany).not.toHaveBeenCalled();
+        expect(mockPrismaService.userDepartmentRead.upsert).toHaveBeenCalledTimes(
+          1,
         );
       });
     });

@@ -444,6 +444,13 @@ _socket!.on('chat:read-all', (d) {
 });
 ```
 
+**Aktiv (ochiq) bo'lim — inkrement QILMANG:** foydalanuvchi hozir ochib turgan
+bo'lim chatiga xabar kelsa (`message:new`), o'sha bo'lim unread'ini **oshirmang**.
+Backend ham buni qo'llab-quvvatlaydi — user socket room'ida aktiv bo'lsa, o'sha
+xabar uchun bell/FCM yubormaydi va `unread-summary`da ham sanamaydi (lastReadAt
+yangilanadi). Ya'ni: `message:new` kelganda faqat **ochiq bo'lmagan** bo'limlar
+uchun unread'ni oshiring.
+
 ### 6.4 Drift'dan himoya (majburiy)
 
 Socket eventlar o'tkazib yuborilishi mumkin (uzilish paytida). Shuning uchun

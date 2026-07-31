@@ -87,14 +87,38 @@ export class MessageConsumer implements OnModuleInit {
         select: { userId: true },
       });
 
-      // Sender dan boshqa a'zolarga notification yuborish
-      const offlineUserIds = memberships
+      // Sender dan boshqa a'zolar
+      const candidateUserIds = memberships
         .filter((m) => m.userId !== payload.senderId)
         .map((m) => m.userId);
 
-      // System staff ga ham yuborish (optional, but for simplicity we can include them if they were active)
-      // For now, only company members.
+      // Ayni paytda shu bo'lim chatida AKTIV turganlar (socket room'ida) — ularga
+      // notification yubormaymiz VA bo'limni ular uchun o'qilgan deb belgilaymiz,
+      // aks holda ochiq turgan chatning unread count'i oshib ketardi.
+      const activeUserIds = new Set(
+        await this.messagesGateway.getActiveUserIds(
+          payload.companyId,
+          payload.globalDepartmentId,
+        ),
+      );
 
+      const activeRecipients = candidateUserIds.filter((id) =>
+        activeUserIds.has(id),
+      );
+      const offlineUserIds = candidateUserIds.filter(
+        (id) => !activeUserIds.has(id),
+      );
+
+      // Aktiv ko'rib turganlar uchun lastReadAt'ni yangilaymiz → unread oshmaydi.
+      if (activeRecipients.length > 0) {
+        await this.markDepartmentReadForActiveUsers(
+          activeRecipients,
+          payload.companyId,
+          payload.globalDepartmentId,
+        );
+      }
+
+      // Faqat aktiv BO'LMAGANlarga notification (bell + FCM).
       if (offlineUserIds.length > 0) {
         await this.notificationProducer.sendToMany(offlineUserIds, {
           type: NotificationType.NEW_MESSAGE,
@@ -110,5 +134,32 @@ export class MessageConsumer implements OnModuleInit {
     } catch (error) {
       this.logger.error('Failed to send notifications:', error);
     }
+  }
+
+  /**
+   * Chatni aktiv ko'rib turgan user'lar uchun bo'lim read holatini yangilaydi
+   * (lastReadAt = now). Shu tufayli unread-summary o'sha yangi xabarni sanamaydi.
+   */
+  private async markDepartmentReadForActiveUsers(
+    userIds: string[],
+    companyId: string,
+    globalDepartmentId: string,
+  ) {
+    const now = new Date();
+    await Promise.all(
+      userIds.map((userId) =>
+        this.prisma.userDepartmentRead.upsert({
+          where: {
+            userId_companyId_globalDepartmentId: {
+              userId,
+              companyId,
+              globalDepartmentId,
+            },
+          },
+          update: { lastReadAt: now },
+          create: { userId, companyId, globalDepartmentId, lastReadAt: now },
+        }),
+      ),
+    );
   }
 }
