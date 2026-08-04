@@ -492,6 +492,10 @@ final ts = DateTime.tryParse(json['createdAt'])?.toLocal();          // nullable
 
 ## 8. FCM native banner + badge (mobile side)
 
+> 📄 **FCM push va device token registratsiyasi to'liq** — alohida hujjatda:
+> **`MOBILE_FCM_PUSH_GUIDE.md`** (registratsiya, push qachon yuborilmaydi,
+> "notif kelmay qoldi" troubleshooting). Quyida qisqacha.
+
 ### 8.1 Badge (unread count) — endi push'da keladi ✅
 Har FCM push'ga user'ning o'qilmagan notification soni qo'shiladi (app **yopiq**da
 ham badge to'g'ri bo'lishi uchun — socket faqat app ochiqda ishlaydi):
